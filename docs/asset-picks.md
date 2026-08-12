@@ -60,11 +60,31 @@ above the row boundary.
 | Desk | `.../5_Classroom_and_Library_Singles/Classroom_and_Library_Singles_25.png` | 32x32 | +108+58 |
 | Computer | `3_Animated_objects/16x16/spritesheets/animated_receptionist.png` crop `16x11+0+12` | 16x11 | +111+65 |
 | Coffee | `.../spritesheets/animated_coffee.png` crop `16x32+32+0` | 16x32 | beside the character |
-| Rug | `1_Interiors/16x16/Theme_Sorter/1_Generic_16x16.png` crop `62x40+144+64` | 62x40 | +46+64 |
+| Rug | `1_Interiors/16x16/Theme_Sorter/1_Generic_16x16.png` crop `60x40+146+68` | 60x40 | +48+68 |
 | Cat | `3_Animated_objects/16x16/spritesheets/animated_cat.png` crop `28x16+7` per 48px cell | 28x16 | +76+84 |
 
 Upper-left wall (x 0-63) and the area above the bed are deliberately bare, because the share
 image overlays type there (spec section 5.2).
+
+### Crop bounds are read off the alpha, never eyeballed
+
+The pack pads its sprites with **the outline colour at alpha zero**. Around the rug, `#3a3a5000`
+sits directly against `#3a3a50ff`. On any dark background the padding and the real edge are the
+same colour, so a crop can look correct and still be wrong: the rug shipped for a while as
+`62x40+144+64`, which starts four rows above the sprite and therefore ends four rows short, and it
+stood in the room with its bottom outline and the last of its red band sliced off.
+
+Trimming does not rescue this. The theme sheets are dense enough that any hand-drawn box around one
+sprite catches its neighbours, so `-trim` returns the box you gave it.
+
+What works is dumping the region as text and finding where alpha changes:
+
+```sh
+magick "$SHEET" -crop 90x60+135+58 +repage txt:- | less
+```
+
+Each line is `x,y: (r,g,b,a) #RRGGBBAA`. The real edge is the first row or column whose outline
+pixels are `ff`, not `00`. The rug is `x 146..205, y 68..107`, so `60x40+146+68`.
 
 ### A wide prop is a body plus a cap
 
@@ -273,6 +293,9 @@ To regenerate one for another theme, montage the folder under
 - **Rug**: kept red after comparing blue, small green, and small red in place. Red is the worst of
   the four under the asleep tint, where it goes maroon, and the best in comeback, where the
   saturation boost makes it the thing your eye lands on. Comeback is the state the product is for.
+  Its right edge lands at x107 and the desk starts at x108, so the two meet with no gap and no
+  overlap. If a different rug is swapped in, read its bounds off the alpha first: the crop in
+  `rug-variants.png` was measured the same wrong way this one was.
 - **Lamp**: cream shade on a wooden base, replacing the red one, which pulled focus harder than
   the character did.
 - **Desk**: still a school desk with a book and a mug, because the pack has no computer desk. The

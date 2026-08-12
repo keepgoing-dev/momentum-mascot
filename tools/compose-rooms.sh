@@ -92,9 +92,20 @@ PLANT_AT="+2+64"
 # best in comeback, where the saturation boost makes it the thing your eye lands
 # on. Comeback is the state the product is for. docs/mockups/rug-variants.png
 # is the comparison; swapping is one crop.
+#
+# The crop is the rug's exact bounds, x 146..205 and y 68..107, found by dumping
+# the region as text and reading where the outline's alpha goes from 0 to 255.
+# An earlier 62x40+144+64 was four rows short at the bottom, so the rug stood in
+# the room with its bottom outline and the last of the red band sliced off.
+#
+# That is easy to get wrong and worth knowing about: the pack pads sprites with
+# THE OUTLINE COLOUR AT ALPHA ZERO (#3A3A5000 sitting next to #3A3A50FF), so on a
+# dark background the padding and the real edge look identical, and a crop that
+# looks right is not. Trimming does not help either, because the sheet is dense
+# enough that a hand-drawn box catches the neighbouring sprite.
 RUG_SRC="$I16/Theme_Sorter/1_Generic_16x16.png"
-RUG_CROP="62x40+144+64"
-RUG_AT="+46+64"
+RUG_CROP="60x40+146+68"
+RUG_AT="+48+68"
 
 # The workstation, and the one piece of composition this room actually turns on.
 #
