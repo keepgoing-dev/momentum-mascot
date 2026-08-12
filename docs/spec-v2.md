@@ -92,18 +92,34 @@ The art is built from **LimeZu's Modern Interiors**, the full paid pack, for whi
 
 Because the share image overlays text on the room, each room must be composed leaving the **upper-left wall area** and a **strip along the bottom** quiet enough to carry type.
 
-**Three constraints discovered by building it.** These are findings from the real pack, not preferences, and they bind the implementation:
+**Six constraints discovered by building it.** These are findings from the real pack, not preferences, and they bind the implementation:
 
-1. **The bed must be vertical (top-down).** The `sleep` animation is not a single sprite. It is a layered recipe: a vertical bed, plus the character's bare head, plus a blanket overlay. Side-view beds have no sleeping pose at all, so choosing one would force drawing the single thing this pack was chosen to avoid.
+1. **The bed must be a vertical (top-down) single.** The `sleep` animation is not a single sprite. It is a layered recipe: a vertical bed, plus the character's head, plus the bed's own blanket. Side-view beds have no sleeping pose at all, so choosing one would force drawing the single thing this pack was chosen to avoid. **Single, not double**, because the sleeping head is 16px wide: on a 32-wide double bed it reads as a doll dropped on the covers. Vertical singles are `Bedroom_Singles_140` through `189`.
 2. **The character is a separate composited layer**, never baked into the room image. This follows directly from the layered sleep animation, and it is what makes character selection cheap (section 6.3) and the desktop pet possible at all (section 6.1).
-3. **The pack contains no computer desk.** It has school desks, reception counters, and dining tables. The workstation is therefore a desk sprite plus a separate monitor sprite placed on it. If a real dev battlestation is wanted, that is the one piece that must be drawn or sourced elsewhere.
+3. **The pack contains no computer desk, but it does contain a computer.** There are school desks, reception counters, and dining tables, and no monitor sprite in any theme sheet. The one piece of computer art in the pack is inside `animated_receptionist`: a grey tower seen **from behind**, on a counter, with the user's head above it. Cropping it out is the workstation, and it is what resolves the perspective problem rather than working around it. A top-down desk and a front-facing sprite cannot both be right about which way a screen points unless the screen points away from the viewer.
+4. **Draw order is part of the art, not an implementation detail.** The character is composited *before* the desk, so the desk covers their lower body. That single occlusion is the whole difference between reading as sitting at the desk and standing behind it.
+5. **A wide prop ships as a body plus a separate cap, and nothing in the filename says so.** `Classroom_and_Library_Singles_60` is 32x48 and looks like a whole bookcase in a file listing. It is not: it is the left two-thirds of a 48-wide four-bay one, cut off mid-shelf with no right-hand frame and no right leg. `Singles_61` is the missing 16x48 cap. Used alone, the shelf loses a corner, which is exactly what it looks like in the room. The only way to tell a body from a whole prop is to butt the next number against it and look, so **every multi-tile prop gets checked for a cap before it is placed.**
+6. **Row 0 of a character sheet is one pose per facing, not an idle animation.** The order is left, up, right, down, so `x=0` is a **left-facing side view**: at 16px that is a hat with a sliver of cheek under it and no readable person. The standing character in dozing and comeback was that sprite for the whole first pass. The front-facing pose is `x=48`. This is checkable rather than a matter of taste: flopping `x=0` reproduces `x=32` to within four pixels, which is what proves those two are the side pair.
 
-**Animation.** The background is static. Only two layers move:
+**Animation. Every state moves, and amplitude is what separates them.** An earlier draft had the background static with only the character and the emote animating, on the grounds that motion is what makes an ambient thing intolerable. That reasoning is right about **amplitude** and wrong about **presence**. A room in which nothing at all moves reads as a screenshot, and a screenshot is not a companion; the thing has to look like it is still running even when the person is not.
 
-- **The character**, a few frames from its row on the sheet.
-- **The emote**, which is already a 2-frame loop. The pack's own note on the emote sheet reads "sample animation, just swap the last 2", so the bubble pops in and the icon alternates.
+So every state is a **12-frame loop**, and the state is carried by rate and amplitude rather than by whether anything is alive:
 
-This sits inside the 2 to 4 frames at 2 to 6 fps budget with no effort, and it means the thing rests quietly in the corner of a screen rather than pulling focus. Comeback is still allowed to be louder than the rest.
+| State | Rate | What moves |
+| --- | --- | --- |
+| **Awake** | 6 fps | the seated typing loop, the computer, the cat's tail |
+| **Dozing** | 3 fps | the coffee steam, the `Z`, a 1px breath, the cat's tail |
+| **Asleep** | 2 fps | breathing under the blanket, the `Z`, the cat's tail |
+| **Comeback** | 8 fps | a 2px hop, the `!`, two sparkles, the cat's tail |
+
+Four things about this are load-bearing:
+
+- **Twelve is chosen arithmetically, not aesthetically.** It is divisible by every layer's own frame count: 12 for the cat, 6 for the character and the coffee, 3 for the computer, 2 for the emotes. Each layer is indexed `frame % count`, so every cycle closes in the same place and the loop has no seam. Any other loop length needs the layer counts rechecked.
+- **The pack's own annotations are the frame tables.** The seated row has `4-9 loop` written next to it in pixels, and the emote sheet reads "sample animation, just swap the last 2". Both are correct and both were found by looking at the sheet rather than guessing. The sleep row and the seated row are each palindromes: four frames differing from rest by a handful of pixels, two differing by a couple of hundred, then back. That shape is breathing and leaning in respectively.
+- **A standing pose has no breathing frames on the sheet, so the vertical offset supplies them.** One pixel is a breath, two is a hop. Both read at this scale because the character is only 32px tall. This is composition, not new art.
+- **It ships as one horizontal strip per state**, twelve frames wide, stepped with a CSS `steps(12)` animation. No animation library and no runtime canvas loop, which is the constraint section 10 already imposes.
+
+The peripheral-vision concern that produced the original rule is real and it has not been dropped. It applies to the **pet**, which sits in the corner of the eye all day, rather than to the room, which is looked at deliberately in the popover and in the share image. Section 6.1 carries the pet's version of the rule.
 
 ### 4.2 Asset licensing
 
@@ -148,6 +164,8 @@ State derives from a single number: the most recent qualifying commit across all
 The payoff is worth stating plainly: **four states cost four character frames plus two emotes, not four illustrated scenes.** This is the whole reason the room concept is affordable for one person working evenings.
 
 Keeping the room identical across states does real work here: the asleep frame is the same intact room with the same desk and the same work still on it, only dimmer and with someone sleeping in it. That says *the project still exists and is still waiting*, which is the opposite of "you killed it". The asleep room must read as cosy, never abandoned. No dust, no cobwebs, no wilting plants.
+
+**There is a cat, and it is not a fourth variable.** `animated_cat` lies on the rug with its tail flicking, identical in all four states, taking only the state's lighting. It was deliberately left out of the first pass on the argument that the room should earn its warmth without it. That was the right order to work in and the wrong conclusion to keep. The asleep room has to read as cosy rather than abandoned, and one living animal in it does more for that than any amount of furniture: a room with a sleeping person and a cat is a home, and a room with a sleeping person alone is closer to a hospital. It is also the cheapest thing in the room, being one sprite with no state behaviour attached to it at all.
 
 There is no state beyond 72 hours. A project untouched for a year shows the same peacefully sleeping room as one untouched for four days. Escalating past asleep would reintroduce guilt through the back door.
 
@@ -251,8 +269,11 @@ The primary ambient surface, and the primary way into the app.
 
 - **A 64x64 always-on-top window**, being the 32x32 character rendered at 2x. **The character only, never the room**, which is the same register split as the tray icon: the pet is the character, the popover is the scene.
 - **Fixed bottom-right** by default. Not draggable in v1. The position is persisted in `state.json` anyway (section 13), so making it movable later is a behaviour change with no schema change.
+- **The bottom-right inset must clear the Dock explicitly.** `Monitor::work_area()` is not enough: on the author's display it returned a rect that reserved the menu bar and **not** the Dock band, so a pet placed relative to it sits underneath the Dock, which draws at window level 20. Placement uses the work area **plus** a Dock-aware inset. This is a tested finding (`spikes/always-on-top/RESULTS.md`), and it cost real time to diagnose because every AppKit property reported the window healthy while it was hidden.
+- **A macOS-only `NSPanel` conversion is required** for the pet to be visible over fullscreen applications. Section 11, wall 1 has the recipe; section 10.3 accounts for it as the design's one platform-specific exception.
+- **The pet's webview disables text selection, the context menu, and dragging.** Use `-webkit-user-select: none`, because plain `user-select` is not honoured in the WKWebView the pet renders in. Found by clicking the spike: the character is a picture, and picture-like things that highlight blue on click read as broken.
 - **Clickable, not click-through.** Clicking it opens the popover. Click-through would make the pet purely decorative, and at 64x64 in a screen corner an accidental click is rare enough that the trade is easy. This makes the pet the primary entry point, with the tray icon secondary.
-- **Motion is reserved, and this is a rule rather than a preference.** Asleep and dozing are still frames. Awake gets a slow idle. Only comeback is allowed to be loud. A sprite that moves constantly in peripheral vision is the thing people quit, and the pet's whole value depends on being tolerable to leave running.
+- **Motion is reserved on the pet specifically, and this is a rule rather than a preference.** Every room state animates (section 4.1), but the pet is the one surface sitting in peripheral vision all day, so it runs at the bottom of the range: dozing and asleep at 2 fps with the smallest amplitude in the loop, awake a slow idle, and only comeback loud. **The distinction is amplitude, not presence.** A sprite that moves constantly *and largely* in the corner of someone's eye is the thing people quit, and the pet's whole value depends on being tolerable to leave running. A 1px breath every half second is not that; a tail sweep or a hop is, which is why the cat and the hop stay in the room and out of the pet.
 - **Emotes carry the state.** The pet shows the same `Z`, `!`, and sparkles as the room (section 4.4), because it has no lighting cues to work with. The room dims; the pet cannot, so the emote does that job.
 
 **One art gap, stated honestly.** The pack has **no sleeping character without a bed**: the sleep animation is a three-layer composite of vertical bed, bare head, and blanket (section 4.1), so the pet cannot show asleep the way the room does. The pet therefore uses a **seated pose with a `Z` emote for both dozing and asleep**, and **the bed stays exclusive to the popover room.** This is a deliberate split of registers rather than a workaround: the pet is the character, the room is the scene, and the scene is allowed to show things the character alone cannot. Exactly how the pet's dozing and asleep frames differ is unsettled and is an open question (section 17).
@@ -391,7 +412,20 @@ The IPC existed only because the process split existed. Deleting the split delet
 
 Cross-platform reach is a real goal, because reach is how the character finds the people who will love it. A single portable codebase is the entire point.
 
-### 10.3 Repository layout
+### 10.3 The one platform-specific exception
+
+Section 10.1 claims one codebase and no native escape hatches. There is exactly one exception, and it is better named here than discovered in a diff.
+
+**The desktop pet's window must be converted to an `NSPanel` on macOS**, using `object_setClass` plus three setters, roughly fifteen lines of `objc2` behind `#[cfg(target_os = "macos")]`. Section 11, wall 1 has the recipe and the evidence. Without it the pet is invisible over fullscreen applications, which removes the product's primary surface, so this is not optional and not deferrable.
+
+**Hand-rolled rather than a dependency.** `tauri-nspanel` does the same thing, and taking it would mean a dependency, its Tauri-version coupling, and its plugin surface in exchange for about fifteen lines that are already written and verified. In a project whose stated failure mode is sprawl, that is the wrong trade. The block is small, commented with why each call exists, and pinned by the spike's findings.
+
+Two consequences to hold onto:
+
+- **Set it once at window creation.** Never adjust level or `collectionBehavior` at runtime. Section 11 explains why: reconfiguring a live window produced history-dependent results.
+- **`transparent: true` requires Tauri's `macos-private-api` feature**, which makes the app ineligible for the Mac App Store. Distribution is direct, so this costs nothing today, but it forecloses that option silently.
+
+### 10.4 Repository layout
 
 A single Tauri project, deliberately flat. No monorepo, no workspace, no shared packages.
 
@@ -417,32 +451,53 @@ The word `packages/` does not appear in this repository. If it ever does, someth
 
 The desktop pet introduces two platform walls that are real, and neither should be buried.
 
-**Wall 1: macOS fullscreen.** An always-on-top window does not appear over a fullscreen application, because a fullscreen Space is its own space. Making the pet visible there requires AppKit-level calls: a `collectionBehavior` including `.fullScreenAuxiliary`, plus a raised window level. That is platform-specific code sitting outside Tauri's cross-platform API, which is a cost this design otherwise avoids paying.
+**Wall 1: macOS fullscreen. Solved, and the recipe is known.** This was the single biggest threat to the pet concept, because a developer who codes in fullscreen would have the pet invisible during exactly the hours they are working. It was therefore verified as a spike before any other pet work, and the spike is recorded in `spikes/always-on-top/RESULTS.md`.
 
-This is **the single biggest threat to the pet concept**, because a developer who codes in fullscreen would have the pet invisible during exactly the hours they are working, which is when it needs to be visible. It must be **verified first in Phase 3, before any other pet work**, since everything else about the pet depends on the answer. Fallback if it cannot be solved cleanly: the tray icon has to carry state again, which brings back the full-colour non-template icon decision that section 6.2 just reversed.
+An always-on-top `NSWindow` does not appear over a fullscreen application, because a fullscreen Space is its own space. **No window configuration fixes this.** Ten `collectionBehavior` values were tested across four window levels up to `kCGMaximumWindowLevel`, and every one was invisible over a fullscreen Chrome window.
+
+What works is changing the kind of window it is. The verified recipe, applied **once at window creation** and never adjusted afterwards:
+
+1. `object_setClass` the Tauri window to **`NSPanel`**, and add `NSWindowStyleMaskNonactivatingPanel`. This is the load-bearing step, and it is the same approach the `tauri-nspanel` community plugin takes.
+2. Window **level 25** (`NSStatusWindowLevel`).
+3. **`collectionBehavior` 273**: `canJoinAllSpaces | stationary | fullScreenAuxiliary`.
+
+Verified against a fullscreen Chrome window: the pet is visible, clicking it does **not** leave the fullscreen Space or steal focus, and the fullscreen application remains fully interactive. Both halves of the gate pass, so section 6.1's "clickable, not click-through" stands.
+
+**Applied once, never adjusted.** The spike found that reconfiguring a live window gives history-dependent results: the identical level and behaviour was invisible over fullscreen in one run and visible in another, decided by what had been applied minutes earlier. The product must therefore set this at creation and leave it alone. It is also why the minimal recipe is not pursued further; a configuration that measures differently depending on its past is not one to shave.
+
+The cost is real and is named in section 10.3: roughly fifteen lines of macOS-only `objc2` sitting outside Tauri's cross-platform API, in a design that otherwise avoids paying for platform-specific code.
 
 **Wall 2: Wayland cannot do this at all.** Wayland deliberately does not let applications position their own windows, so a pet pinned to a screen corner is essentially not implementable there. Linux already had flaky tray support (`StatusNotifierItem` varies by desktop environment; GNOME ships none by default and typically needs an extension such as AppIndicator Support), and this escalates the situation from a degraded tray to a **missing primary surface**. So the Linux position is not merely "last": Linux may ship without the pet, or not ship at all, and that should be **decided deliberately rather than discovered** during a port. Clipboard image writing is also less uniform under Wayland, and since Share Status is the growth mechanism, a Linux release is not worth shipping until that path is verified too.
 
-Both walls are ecosystem constraints rather than Tauri limitations, and no framework choice avoids them. They belong in the README rather than being found by a frustrated user.
+Both walls are ecosystem constraints rather than Tauri limitations, and no framework choice avoids them. Wall 1 is solved at a documented cost; wall 2 is accepted rather than solved. Wall 2 belongs in the README rather than being found by a frustrated user.
 
 ---
 
 ## 12. Build Phases
 
-**Phase 1: Refine the four room states.** No app code, no Tauri project, no Rust. The four states have already been prototyped and rendered to `docs/mockups/states-four.png`, so this phase is refining an existing composition rather than starting from nothing. Do the composition in **Tiled or Aseprite**, not by hand-placing coordinates: `docs/asset-picks.md` names every source file, which turns this into roughly a twenty minute job rather than an afternoon of searching 48,000 files. Assets come from `moderninteriors-win/` only, never from `Modern tiles_Free/`.
+**Phase 1: Refine the four room states.** No app code, no Tauri project, no Rust.
 
-Two known weaknesses in the prototype, named honestly, are the substance of this phase:
+**The composition is done, and it animates.** The two weaknesses named in the prototype are fixed, three more were found by looking harder, and the room is regenerated from a script rather than placed by hand:
 
-- **Awake is the weakest state.** The character's head peeks over the monitor rather than clearly sitting at the desk, because a top-down desk and a front-facing seated sprite do not quite agree on perspective. Awake is the state users will see most often, so it is the one least able to afford being unclear.
-- **Dozing is ambiguous.** Standing near the desk with a `Z` reads as "distracted" rather than "resting", and the `Z` currently floats over the desk rather than over the character, which compounds it. This spec's own earlier description, leaned back with a coffee, would land better, and coffee cup sprites exist in the Kitchen theme.
+- **Awake.** The character now sits behind the desk with the computer in front of them and their face clear above it, which is the pack's own receptionist composition. It works because the screen points away from the viewer, so nothing has to face the wrong way. See section 4.1, constraints 3 and 4.
+- **Dozing.** The character is away from the desk with a steaming coffee, and the `Z` is anchored to their head rather than floating over the furniture. Emote offsets are now defined relative to the character in every state.
+- **Asleep**, which was not on the original list, was also wrong: the head sat on a double bed at half its width. It is now a single bed with the character's own hat on, under the bed's blanket.
+- **The standing pose was a side view for the whole first pass**, which was not on any list because at 16px it looked like a small blob rather than like a mistake. Section 4.1, constraint 6.
+- **The bookshelf was missing its right-hand cap**, so it stood in the room with a corner sliced off. Section 4.1, constraint 5. This one was caught by the author looking at the render, which is the argument for the week below.
+- **Wall, floor, bed, lamp and rug** are deliberate picks from the Room Builder sheets rather than the placeholders sampled out of an assembled home.
+- **Every state is a 12-frame loop** rather than a still, and there is a cat on the rug. Section 4.1 for the animation, section 4.4 for the cat.
 
-The author then **lives with the four rooms for one week** before any application code: as a wallpaper, a lock screen, pinned in a window, wherever they are seen daily and unprompted. The test is whether the asleep room still feels comforting rather than sad on day seven, and whether the comeback room still causes a reaction. It tests whether the *states* feel right, not whether the pixels are well drawn. The art determines the outcome and is by far the cheapest thing to test: a week is recoverable, and discovering after the app is built that the rooms are not lovable is not.
+**Composition is a script, not a document.** `tools/compose-rooms.sh` regenerates all four states from a local licensed copy of the pack, with every coordinate named and commented at the top. This replaces the "do it in Tiled or Aseprite" instruction in earlier drafts, and it earns its keep three times over: iterating on a placement is a one-line edit and a re-run, section 4.2 already requires that the app composite rooms at build time from a local pack rather than commit the art, and now that every state is a 12-frame loop, hand-placing would mean hand-placing 48 frames. The script is that compositor, written early. `docs/asset-picks.md` remains the human-readable manifest.
+
+It emits, per state, the still PNG at 160x112, a 12-frame horizontal strip for the app to step through, and a GIF at that state's own rate for looking at. The GIFs are review artifacts and are never shipped.
+
+What is left in this phase is the test that cannot be rushed. The author **lives with the four rooms for one week** before any application code: as a wallpaper, a lock screen, pinned in a window, wherever they are seen daily and unprompted. The test is whether the asleep room still feels comforting rather than sad on day seven, and whether the comeback room still causes a reaction. It tests whether the *states* feel right, not whether the pixels are well drawn. The art determines the outcome and is by far the cheapest thing to test: a week is recoverable, and discovering after the app is built that the rooms are not lovable is not.
 
 **Phase 2: Design the share image.** Mock the 1200x630 composition as a static image before any code generates one. Post it somewhere and see how it reads in a real timeline, at real size, on both light and dark backgrounds. A design deliverable, not an implementation task.
 
 **Phase 3: Tauri app, macOS target.**
 
-**Gate first, before anything else in this phase:** prove that a 64x64 always-on-top window can be made visible over a fullscreen application on macOS (section 11, wall 1). This is a spike, not a feature, and it is deliberately the first thing built because the pet is the primary surface and a negative answer changes the design. If it cannot be done cleanly, stop and revisit the tray icon decision before building the pet out.
+**The gate is already cleared.** Proving that a 64x64 always-on-top window can be visible over a fullscreen application on macOS was pulled out of this phase and run first as a spike, because the pet is the primary surface and a negative answer would have changed the art requirements. It passed: the window is visible over fullscreen Chrome and clicking it does not disturb the fullscreen application. The recipe is in section 11, wall 1; the evidence and the dead ends are in `spikes/always-on-top/RESULTS.md`. **Port that AppKit block into the pet's window setup rather than rediscovering it, and delete the spike, keeping its `RESULTS.md`.**
 
 Then: the desktop pet window, the tray icon, the popover, `notify` on `.git/logs/HEAD` with the qualifying-commit scan, the state model, Add Project, and Share Status. The first phase producing a running application, and it produces a complete one.
 
@@ -523,8 +578,9 @@ Effort follows risk, and the risk is concentrated in a small amount of logic.
 | **Nobody shares the image**, so there is no growth and no signal. | High | Phase 2 tests the artifact in a real timeline before any code generates one. If the mock does not look shareable, that is a Phase 1 problem surfacing early, which is the point. |
 | **Non-standard reflog messages** from GUI clients or libgit2-based tools are not matched by the `commit` prefix filter. | Medium | The `HEAD` fallback in section 9.2 covers it: the worst case is a slightly stale timestamp, never a false comeback. |
 | **`notify` misses events** on network volumes, virtualised filesystems, or after sleep/wake. | Medium | The 60-second tick re-evaluates and startup re-reads all projects. Worst case the room updates within a minute instead of instantly, which is acceptable here. |
-| **The pet is invisible over macOS fullscreen apps.** An always-on-top window does not enter a fullscreen Space, so the pet would be hidden during exactly the hours the user is working. | **Fatal to the pet** | Verified as the very first task in Phase 3, before any other pet work (section 11, wall 1). Requires AppKit `collectionBehavior` with `.fullScreenAuxiliary` and a raised window level, which is platform-specific code. If that cannot solve it cleanly, the pet stops being the ambient surface and the tray icon carries state again, reversing section 6.2. Cheap to test now, expensive to discover after the pet's art and window management exist. Spike and checklist: `spikes/always-on-top/`. |
-| **The pet is visible but hostile.** A second, quieter failure of the same wall: the window shows over the fullscreen Space, but clicking it switches Spaces or steals focus, yanking the user out of their work. | High | Tested as a separate verdict in the same spike, because "visible" alone is not a pass. If it happens, the pet becomes click-through and the tray icon becomes the entry point, reversing "clickable, not click-through" in section 6.1. |
+| ~~**The pet is invisible over macOS fullscreen apps.**~~ **Retired: solved.** Was rated fatal to the pet. | Closed | Spiked before any other pet work and cleared. The fix is an `NSPanel` conversion, not a window level; no `NSWindow` configuration works at all. Recipe in section 11, wall 1, cost accounted in section 10.3, evidence in `spikes/always-on-top/RESULTS.md`. |
+| ~~**The pet is visible but hostile**~~, switching Spaces or stealing focus on click. **Retired: tested and does not happen.** | Closed | Verified as a separate verdict, because "visible" alone was not a pass: clicking the panel over fullscreen Chrome neither leaves the Space nor takes focus, and Chrome stays interactive. Section 6.1's "clickable, not click-through" stands. |
+| **The AppKit block rots on a future macOS release.** It relies on `object_setClass` and an undocumented interaction, and the spike already saw the same configuration behave differently depending on history. | Medium, ongoing | Contained: about fifteen lines, one place, commented with why each call exists (section 10.3). `RESULTS.md` keeps the dead ends so a future break is re-diagnosed in minutes rather than re-explored from scratch. The failure mode is graceful, since a pet that stops appearing over fullscreen is degraded rather than broken. |
 | **Transparency depends on a private API.** A non-rectangular pet needs `transparent: true`, which on macOS requires Tauri's `macos-private-api` feature and makes the app ineligible for the Mac App Store. | Low, scoped | Accepted. Distribution is direct, so the flag costs nothing. Recorded because it silently forecloses the App Store: if that ever becomes a target, the pet has to be an opaque square, which is a design decision rather than a bug. |
 | **A pet that moves too much gets the app quit.** The always-visible surface is also the always-annoying one if it fidgets. | High | Motion is reserved by rule (section 6.1): asleep and dozing are still, awake is a slow idle, only comeback is loud. |
 | **The pet cannot exist on Wayland**, which deliberately does not let applications position their own windows. | High, Linux only | Accepted rather than solved. Section 11, wall 2. Linux may ship without the pet, or not ship at all, and that is decided deliberately rather than discovered mid-port. |
@@ -551,15 +607,15 @@ Any of these requires its own spec and its own argument against the guardrail in
 
 Decisions the author still needs to settle. Each has a stated working default above, so implementation is never blocked.
 
-1. **The awake perspective mismatch.** The top-down desk and the front-facing seated sprite do not agree, so the character's head peeks over the monitor. Options include a different desk, a different seated frame, or moving the desk so the character is seen from the side. Phase 1 work.
-2. **The dozing pose.** Standing with a `Z` reads as distracted rather than resting. Leaning back with a coffee would land better, and the emote wants to sit over the character rather than the desk. Phase 1 work.
-3. **Wallpaper and floor.** Both are currently placeholders sampled from a prebuilt house, chosen because they are a guaranteed-valid combination rather than because they are right. About 20 wallpapers exist in `Room_Builder_subfiles/`, and the choice travels with the palette.
-4. **How the pet's dozing and asleep frames differ.** Both use a seated pose with a `Z`, since the pack has no bedless sleeping character (section 6.1). The distinction could be the emote alone, a subtle pose change, or something else. Genuinely unsettled, and Phase 1 work.
-5. **Comeback duration cap.** Default is "until the popover opens, capped at 30 minutes". Now less consequential than it was, since the pet delivers the moment regardless, so this only governs how long the popover keeps the celebration available. Decide after living with it.
-6. **The share canvas proportions.** The room at 5x and the 1200x630 canvas are settled defaults; how much mat looks right around it should be confirmed against real posts in Phase 2. The constraint that cannot move is integer scaling of the room.
-7. **Whether any project information ever appears in the shared image.** v1 says no, absolutely. The open sub-question is whether a non-identifying aggregate such as "3 projects" is acceptable later, or whether the image stays purely about the mood.
-8. **Whether the comeback gets sound.** Currently no, because a tray app making noise is a fast route to being quit. Revisit only if it can be off by default with no settings screen to turn it on, which probably means the answer stays no.
-9. **Quote pool size per state.** Four lines each are drafted. Whether that is enough before repetition grates is something Phase 3 dogfooding will answer.
+The first three items in this list were the awake perspective mismatch, the dozing pose, and the placeholder wallpaper and floor. All three are settled and are recorded in Phase 1 (section 12) rather than kept here as open, because a resolved question left in an open-questions list is worse than no list.
+
+1. **How the pet's dozing and asleep frames differ.** Both use a seated pose with a `Z`, since the pack has no bedless sleeping character (section 6.1). The distinction could be the emote alone, a subtle pose change, or something else. Genuinely unsettled, and Phase 1 work.
+2. **Whether the cat's coat needs warming.** The pack's cat is drawn in a cool blue-grey (`#8b8bab` and neighbours) and the room is warm oak and beige, so the cat is the coldest thing in it and takes more attention than a cat lying on a rug should. A 10 to 15% warm colorize on that one layer would fix it and is one line in the compositor. Left alone for now, because recolouring pack art is a road that ends in hand-tuned assets, and the week below will say whether it actually bothers anyone.
+3. **Comeback duration cap.** Default is "until the popover opens, capped at 30 minutes". Now less consequential than it was, since the pet delivers the moment regardless, so this only governs how long the popover keeps the celebration available. Decide after living with it.
+4. **The share canvas proportions.** The room at 5x and the 1200x630 canvas are settled defaults; how much mat looks right around it should be confirmed against real posts in Phase 2. The constraint that cannot move is integer scaling of the room.
+5. **Whether any project information ever appears in the shared image.** v1 says no, absolutely. The open sub-question is whether a non-identifying aggregate such as "3 projects" is acceptable later, or whether the image stays purely about the mood.
+6. **Whether the comeback gets sound.** Currently no, because a tray app making noise is a fast route to being quit. Revisit only if it can be off by default with no settings screen to turn it on, which probably means the answer stays no.
+7. **Quote pool size per state.** Four lines each are drafted. Whether that is enough before repetition grates is something Phase 3 dogfooding will answer.
 
 ---
 
@@ -567,16 +623,18 @@ Decisions the author still needs to settle. Each has a stated working default ab
 
 v1 ships when all of these are true. Nothing else is required, and nothing else may be added to this list without deleting something from it.
 
-- [ ] One 160x112 room background exists, plus the four character frames and two emotes the states need.
+- [ ] One 160x112 room background exists, plus the character frames and emotes the states need.
 - [ ] Awake reads clearly as sitting at the desk, and dozing reads as resting rather than distracted.
 - [ ] Wallpaper and floor are deliberate choices, not the sampled placeholders.
+- [ ] Each of the four states animates as a 12-frame loop at its own rate, from a single strip stepped in CSS, with no animation library and no runtime canvas loop.
+- [ ] No multi-tile prop is missing its cap, checked by looking at the composed room rather than at the file listing.
 - [ ] Every asset came from `moderninteriors-win/`, none from `Modern tiles_Free/`.
 - [ ] `art: limezu.itch.io` appears in the popover, in the share image, and in the README.
 - [ ] The author has lived with the four states for a week and still wants them.
 - [ ] The desktop pet appears bottom-right at 64x64, above normal windows, showing the correct state.
 - [ ] The pet's behaviour over a fullscreen app is known, recorded, and either working or explicitly accepted.
 - [ ] Clicking the pet opens the popover.
-- [ ] The pet is still and quiet when dozing and asleep, and does not fidget when awake.
+- [ ] The pet's dozing and asleep loops are the lowest-amplitude ones in the app, and it does not fidget when awake.
 - [ ] Tray icon is a monochrome template image that reads on both light and dark menu bars, and its right-click menu holds Open and Quit.
 - [ ] The popover opens from the tray at 352px wide, shows the room at 320x224, a state-appropriate quote, the tracked-project list with relative times, two buttons, and the credit line.
 - [ ] Clicking the character cycles through all three, and the choice survives a restart.
@@ -601,9 +659,10 @@ v1 ships when all of these are true. Nothing else is required, and nothing else 
 - **Guardrail:** if it needs a second process, a second language, or a settings screen, it is not in v1. Section 3 states exactly what v1 ships and section 18 states when it is done.
 - **The character is the product.** Roughly 90% of the value is art and personality; the git tracking exists only to give them a mood.
 - **The character lives in a tiny room**, built from LimeZu's Modern Interiors, because a scene carries story a lone sprite cannot and makes the share image far stronger. Composed at the pack's 16x16 native grid, **10 by 7 tiles, so 160x112**, at 2x in the popover (320x224) and 5x in the share image (800x560). The room grew from 9 by 6 because at that size it read as empty once real furniture was placed, which is a tested finding. **The popover widened from 320px to 352px** to fit it.
-- **The room never changes.** One static background, with exactly three variables moving on top: character position (desk, standing, bed, rug), a flat colour multiply for lighting, and a `Z` or `!` emote. Four states therefore cost four character frames plus two emotes, not four illustrated scenes.
+- **The room never changes.** One background, with exactly three variables on top: character position (desk, standing, bed, rug), a flat colour multiply for lighting, and a `Z` or `!` emote. Four states therefore cost a handful of character frames plus two emotes, not four illustrated scenes. There is also a cat on the rug, which is in every state and is not a variable.
+- **Every state animates, and amplitude is what separates them.** A 12-frame loop each, at 6 fps awake, 3 dozing, 2 asleep, 8 comeback, shipped as one strip per state and stepped in CSS. This reverses "the background is static": a room where nothing moves reads as a screenshot, and a screenshot is not a companion. The original concern was right about amplitude and it survives intact, aimed at the pet rather than the room, because the pet is the surface that sits in peripheral vision all day.
 - **No original character art is needed.** The pack already ships the sleep, sitting, and idle animations plus emote sheets, which is why Phase 1 is composition rather than drawing. Exact source files and crops live in `docs/asset-picks.md`, deliberately kept out of this spec.
-- **Three constraints came from building it:** the bed must be vertical, because the `sleep` animation is a layered recipe of vertical bed plus bare head plus blanket and side-view beds have no sleeping pose; the character is a separate composited layer, never baked into the room; and the pack has no computer desk, so the workstation is a desk sprite plus a separate monitor sprite.
+- **Six constraints came from building it** (section 4.1), and three of them are the same lesson: **the pack's file listing lies about what a sprite is, so every sprite gets looked at.** The bed must be a vertical single, because the `sleep` animation is a layered recipe of bed plus head plus blanket and side-view beds have no sleeping pose. The character is a separate composited layer, never baked into the room. The pack has no computer desk but does have a computer, inside `animated_receptionist`, seen from behind. Draw order is art: character before desk. A 32x48 bookshelf turned out to be two-thirds of a 48-wide one with the cap in the next file. And row 0 of a character sheet is one pose per facing, so the obvious `x=0` crop is a side view rather than an idle.
 - **Three characters ship in v1** (premades 07, 12, 20), cycled by clicking the character and persisted as `character_id`. This reverses the earlier one-character position: since the character must be a separate layer anyway and every premade sheet carries an identical animation set, three characters cost three PNGs. It is a swap, not a skin system, and it needs no picker UI, so the guardrail holds.
 - **The license is settled.** Commercial use is permitted outright. Three binding consequences: **credit to `limezu.itch.io` is mandatory** and therefore a functional requirement (popover footer, share image, README); assets come from `moderninteriors-win/` only, never the non-commercial `Modern tiles_Free/`; and raw assets stay out of version control, which is why `docs/mockups/` is already gitignored, though shipping them compiled into a binary is ordinary permitted use.
 - **The mascot never dies. It waits.** The previous spec's `Dead` state at 72h is rejected as guilt-ware aimed at the exact user being targeted. Four states: awake (<24h), dozing (24h to 72h), asleep (>=72h), and comeback on `asleep -> awake`.
@@ -612,11 +671,12 @@ v1 ships when all of these are true. Nothing else is required, and nothing else 
 - **Tone:** warm, encouraging, a little snarky, never guilt-inducing. No elapsed-time shaming anywhere.
 - **Share Status is the growth mechanism and the validation instrument**, designed before the app is built, carrying no project names or paths. A 1200x630 canvas with the room letterboxed inside it at integer scale, because a 10:7 room in a 1.91:1 crop gets a mat rather than fractional scaling.
 - **Four surfaces, with distinct jobs.** The **desktop pet** (always visible, carries state ambiently), the **tray icon** (plumbing: opens the popover, holds Quit), the **popover room** (the reward, on demand), and the **share image** (the audience). The pet exists because 90% of the value is art, and a popover-only design leaves that art behind a click that happens twice a day.
-- **The pet is a 64x64 always-on-top window**: the 32x32 character at 2x, character only and never the room, fixed bottom-right with its position persisted, and clickable rather than click-through so it becomes the primary way in. **Motion is reserved:** still when dozing and asleep, a slow idle when awake, loud only on comeback, because a sprite that moves constantly in peripheral vision is the thing people quit.
+- **The pet is a 64x64 always-on-top window**: the 32x32 character at 2x, character only and never the room, fixed bottom-right with its position persisted, and clickable rather than click-through so it becomes the primary way in. **Motion is reserved on the pet:** the lowest-amplitude loops when dozing and asleep, a slow idle when awake, loud only on comeback, because a sprite that moves constantly and largely in peripheral vision is the thing people quit.
 - **The pet is a second window, and that out-of-scope row was reversed honestly.** The ban is now narrow: no second window *for UI chrome* (about, onboarding, stats, settings). The pet is not chrome, it is the primary ambient surface. The guardrail itself is unchanged: still no second process, no second language, no settings screen.
 - **One art gap:** the pack has no sleeping character without a bed, so the pet uses a seated pose with a `Z` for both dozing and asleep, and **the bed stays exclusive to the room**. A deliberate split of registers: the pet is the character, the room is the scene.
 - **Tray icons revert to monochrome template images**, reversing the earlier full-colour decision. That decision existed only because four states could not be told apart as one-bit silhouettes at 16x16. With the pet carrying state, the icon no longer encodes state at all, so the simpler and better-behaved option wins.
-- **Two platform walls, both real, neither buried.** macOS: an always-on-top window does not appear over a fullscreen app without AppKit-level calls, which is the single biggest threat to the pet and is therefore the **first thing verified in Phase 3**, before any other pet work. Wayland: applications cannot position their own windows, so the pet is essentially not implementable, and Linux may ship without it or not at all.
+- **The macOS fullscreen wall was the biggest threat to the pet, and it is solved.** Spiked before any other pet work, because a negative answer would have changed the art requirements. No `NSWindow` configuration works, at any level; converting the window to a **non-activating `NSPanel`** does, and clicking it does not disturb the fullscreen app. This is the design's **one platform-specific exception** (section 10.3): about fifteen lines of macOS-only `objc2`, hand-rolled rather than taking `tauri-nspanel`, set once at window creation and never adjusted.
+- **The remaining platform wall is Wayland**, where applications cannot position their own windows, so the pet is essentially not implementable and Linux may ship without it or not at all. Accepted rather than solved.
 - **Stack:** Tauri v2, one codebase, Rust backend plus webview UI, one local JSON file with atomic writes and parsing resilient to missing fields and empty arrays.
 - **Rejected:** the Rust CLI plus separate Swift menu bar app with a JSON handshake and a `keepgoing://` scheme, which pays for two languages now and still forces a rewrite at the Windows boundary. CLI, IPC, and URL scheme are deleted. Also rejected: git hooks in user repositories, which collide with husky and lefthook and leave an uninstall problem.
 - **Future directions are named but undesigned.** Architectural seams stay; extension points built ahead of need do not.
