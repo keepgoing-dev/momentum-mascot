@@ -23,6 +23,12 @@ Per state it writes the still (`state-<s>-160x112.png`), the 12-frame strip the 
 (`state-<s>-strip-12f.png`, 1920x112), and a GIF at that state's own rate for review
 (`state-<s>.gif`). Plus `states-four.png` and `states-four.gif` for looking at all four together.
 
+`tools/compose-share.sh` then builds the 1200x630 share card for each state from those stills,
+writing `share-<s>-1200x630.png` and a `share-four.png` contact sheet. It consumes frame 0 only,
+so run the room compositor first. Review both in `docs/mockups/preview.html` (the rooms) and
+`docs/mockups/share-preview.html` (the cards, at 1:1 and down a thumbnail ladder, on light and
+dark timelines).
+
 ## Room geometry
 
 - Composed on the **16x16 native grid**.
@@ -308,6 +314,73 @@ To regenerate one for another theme, montage the folder under
   abandoned, and one live animal does more for that than any furniture. The characters on the rug
   moved 6 and 12 pixels left to give it room.
 
+## The share card
+
+Not pack art, but it is composed from it, so its coordinates belong in the same manifest.
+`tools/compose-share.sh` is the executable version. Canvas 1200x630 on `#191924`, which is the
+pack's outline colour `#3a3a50` darkened so the mat is family with the art.
+
+| Element | Size | Position | Notes |
+| --- | --- | --- | --- |
+| Room | 800x560 | `+200+12` | 160x112 at exactly 5x, in a 5px `#3a3a50` mount |
+| State label | 55px type | `+220`, baseline `120` | 5x the font cell, so the room's own pixel unit |
+| Quote | 22px type | `+200`, baseline `609` | in the footer band, never on the room |
+| Credit | 11px type | right edge `184`, baseline `609` | left mat |
+| URL | 22px type | right edge `1184`, baseline `609` | right mat, carries the wordmark too |
+
+### The label is outlined, not shadowed
+
+The label sits on the wall, and the wall runs from full-brightness beige (`#cbb297`) when awake to
+a 34%-blue-tinted grey when asleep. A single fill plus a one-direction drop shadow reads on one end
+of that range and washes out on the other: the first pass used each state's own tint and
+`#8f9ec8` on the dimmed wall was unreadable. A **one-unit outline on all four sides** makes the
+label independent of what is behind it, so one colour rule covers all four states. Fills are
+`#f5c65c` awake, `#dce4f4` dozing, `#e4ecff` asleep, `#ffd45e` comeback: light end of each hue,
+with the outline doing the contrast work.
+
+### The quote could not go where the spec put it
+
+Spec section 5.2 originally put the quote "along the room's lower strip". There is no such strip.
+The bottom twelve rows hold the plant, the rug's gold-and-navy edge, and the cat, and the upper
+wall is already carrying the label. Two candidate layouts were built and rejected by looking:
+
+- **Room left, type in a right-hand column.** Never touches the art and the label reads perfectly
+  on the dark mat, but a 310px column leaves the middle of the card empty and the picture stops
+  reading as a matted picture.
+- **Label and quote both on the wall.** Fails outright. The wall block is 310x165 at 5x on paper,
+  but its top rows are the wall's trim, so the label lands on the trim and the quote's third line
+  lands on the bed and the `Z`.
+
+What was actually short was the footer band: a 5x room leaves 70px of vertical slack and the quote
+plus a meta row plus margins needs 78px. Fixed by running the band across the **full 1200px**
+instead of only the room's 800px column, which moves the credit and URL into the side mats. Those
+mats were dead space in every candidate.
+
+### Type sizes are all multiples of 11
+
+Departure Mono (SIL OFL 1.1, vendored at `assets/fonts/departure-mono/`) is drawn on an 11px cell
+with a 7px advance and is pixel-exact only at integer multiples of 11. Verified, not assumed: an
+11px render upscaled 5x with a point filter diffs to **0 pixels** against a direct 55px render.
+
+| Size | Unit | Advance | Used for |
+| --- | --- | --- | --- |
+| 11px | 1x | 7px | credit; the popover quote, where 42 chars is 296px and fits the 320px room |
+| 22px | 2x | 14px | card quote and URL |
+| 55px | 5x | 35px | state label, matching the room |
+
+Press Start 2P and Silkscreen were rejected on measurements. Press Start 2P is a fixed 8x8 cell, so
+the longest quote runs 1663px at 5x and overflows even the popover at 1x. Silkscreen renders
+lowercase as small caps, and an all-caps quote contradicts the voice in spec section 4.6.
+`+antialias` is mandatory throughout: an antialiased pixel font is just a blurry font.
+
+### The room's temperature is what survives downscaling
+
+Tested with a Lanczos resample, which is what platforms actually re-encode with, not
+nearest-neighbour. At 504px everything reads. At 280px the label still reads and the quote is at
+its limit. At 180px all the type is gone and the state is **still** unmistakable, because the warm
+room and the cool room do not look alike. The cheapest variable in the whole design, a flat colour
+multiply, is the one that survives the most compression.
+
 ## Open
 
 - Nothing blocking. The remaining Phase 1 step is the one-week live-with test (spec section 12),
@@ -317,3 +390,9 @@ To regenerate one for another theme, montage the folder under
   should. A 10 to 15% warm colorize on that one layer would fix it and is one line in the
   compositor. Left alone deliberately: recolouring pack art leads to hand-tuned assets, and the
   week will say whether it actually bothers anyone.
+- **The card has not been posted anywhere real.** It has been checked at 1:1, in simulated light and
+  dark timelines, and down a thumbnail ladder to 180px, but a local HTML page is not a timeline.
+  That is the remaining Phase 2 step and it is the author's, not the compositor's.
+- **The card is a still of a room that moves.** Every state is a 12-frame loop and the card takes
+  frame 0. Whether the comeback in particular should travel as an animation is spec section 17
+  question 4, deliberately not answered in Phase 2.
