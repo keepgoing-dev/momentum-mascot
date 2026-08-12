@@ -1,0 +1,623 @@
+# Design Specification: KeepGoing Momentum Mascot
+
+**Status:** approved design, pre-implementation
+**Supersedes:** `docs/initial-spec.md` (kept unchanged for side-by-side comparison)
+**Date:** 2026-08-12
+
+---
+
+## 1. Purpose and Success Criteria
+
+KeepGoing Momentum Mascot is a small retro pixel character who lives in a tiny room in your system tray and reacts to whether your side projects are moving. It reads the commit history of a handful of local git repositories you explicitly point it at, turns that into a mood, and shows you the character in that mood.
+
+That is the whole product.
+
+It is **not a productivity tool**. It will not help anyone write code faster, ship sooner, or plan better. It does not measure output, it does not score you, and it does not try to change your behaviour. It is a companion that sits beside a side project and is visibly happy when the project is alive.
+
+**Target user:** the author, and developers like him. People who love side projects, have demanding day jobs, and go through long stretches where nothing gets committed because life is happening. The product must feel good to that person specifically, including during the stretches where they do nothing.
+
+**Success:** users who love it, keep it running, and tell someone else unprompted. Screenshots in the wild. The author still running it six months after v1. **Not success:** revenue, install counts, or daily active use. A user who opens the popover once a week and smiles is a complete success.
+
+If a community forms around this, that community may one day become something worth supporting financially. That is the only revenue path ever contemplated, and it is a consequence of the thing being loved, never a design input. The tool itself is not for sale, now or later.
+
+**Why this is a reset:** the previous KeepGoing ecosystem (preserved at `../keepgoing-deprecated/`) grew to 12 applications, 4 shared packages, and 4 languages, carrying a licensing system, paid add-ons, and two internal marketing tools. It chased users and revenue simultaneously and drifted off-mission doing it. Anti-scope-creep is therefore a first-class design requirement here, on the same footing as the art.
+
+---
+
+## 2. Non-Goals
+
+Permanent product positions, not v1 deferrals:
+
+- **No monetization.** No pricing, licensing, tiers, add-ons, or upsell surface.
+- **No accounts.** No sign-in, no identity, no user record anywhere.
+- **No telemetry.** No analytics, crash reporting, usage pings, or "anonymous" counters.
+- **No network calls.** Zero outbound requests at runtime. This is verifiable and should stay verifiable.
+- **No behavioural nudging.** No streak pressure, no reminders to commit, no "you haven't committed in N days".
+- **No productivity claims** anywhere in the copy, README, or landing surface.
+- **No hosted component.** No sync, no server, no shared state between machines.
+
+---
+
+## 3. What v1 Is
+
+> **Scope guardrail: if it needs a second process, a second language, or a settings screen, it is not in v1.**
+
+v1 is one Tauri application with a tray icon and one popover. It ships exactly this:
+
+1. A pixel character in a tiny room, in four states, driven by commit recency.
+2. A **desktop pet**: a small always-on-top character in the corner of the screen, showing the same state. This is the primary ambient surface and the primary way into the app.
+3. A choice of three characters, cycled by clicking the character.
+4. A tray icon that opens the popover and holds Quit.
+5. A popover containing the room, a quote line, the list of tracked projects with relative times, and two buttons.
+6. **Add Project**, a native folder picker that validates and tracks a git repository.
+7. **Share Status**, which renders the room to an image and copies it to the clipboard.
+8. A single local JSON state file.
+
+Everything else is out. Explicitly:
+
+| Not in v1 | Why |
+| --- | --- |
+| Settings screen | Every setting is a scope multiplier and a support surface. v1 ships opinionated defaults. |
+| A second window **for UI chrome** (about, onboarding, stats, settings) | Chrome earns nothing. Note that the desktop pet **is** a second window, and it is in scope: it is the product's primary ambient surface, not chrome. This ban is narrow on purpose. |
+| Stats, charts, history, streak counters | This is scoring, and scoring is the failure mode being avoided. |
+| Accounts, sync, cloud anything | See non-goals. |
+| Notifications (OS banners, sounds) | The tray icon is the only ambient signal. A banner that fires when you have not committed is guilt-ware. |
+| CLI binary, IPC, custom URL scheme | Deleted from the design. See section 10.2. |
+| Git hooks in user repositories | Rejected. See section 9.3. |
+| Auto-update | Deferred until there is a second release worth shipping. |
+| Light theme, skins, per-character rooms or copy | Each implies a setting or a second art pipeline. |
+| A character picker UI, or more than three characters | Cycling on click needs no UI. More characters are assets, addable later without a spec. |
+
+Anything on that table that becomes genuinely necessary gets its own spec and its own argument. Nothing arrives by accident during implementation.
+
+---
+
+## 4. The Character and the Room
+
+**The character is the product.** The git tracking exists for one reason: to give the character a reason to feel something. Roughly 90% of the value here is the art, the room, and the personality. The remaining 10% is a file watcher and a timestamp comparison. This ordering is deliberate and inverts the previous spec, which opened with an architecture diagram and treated the mascot as a rendering detail. If the character is not lovable, a perfect state machine is worthless.
+
+### 4.1 Art direction
+
+The art is built from **LimeZu's Modern Interiors**, the full paid pack, for which the author holds a commercial license (section 4.2). This direction has been built and tested against the real pack rather than assumed. **The exact source file for every sprite, with crop coordinates and placements, lives in `docs/asset-picks.md`.** That manifest is the reference for pixel coordinates; this section carries only the decisions and constraints, and the two must not be duplicated into each other.
+
+**The character lives in a tiny room.** Modern Interiors is an interiors pack, so the furniture is its strength, and the room is the concept rather than a backdrop. A scene carries story that a lone sprite cannot: someone asleep in bed across the room from a desk that still has their work on it says something a curled-up character on a blank background cannot. It also makes the share image substantially more compelling, which matters directly, because the share image is the growth mechanism (section 5).
+
+**No original character art is required.** The pack ships every animation the four states need, including a `sleep` row, which is why Phase 1 is composition rather than drawing.
+
+**Grid and geometry.** The pack ships everything pre-scaled at 16x16 (native), 32x32, and 48x48, and its own guidance is to pick one size and stay on it. **Compose at the 16x16 native grid and do all scaling in CSS at integer factors.**
+
+- The room is **10 by 7 tiles, so 160x112 source pixels**. This grew from an earlier 9 by 6 because at that size the room read as empty once real furniture was placed. The extra row and column is what fixed it, which is a tested finding rather than a preference.
+- **Popover: 2x, so 320x224.** This is why the popover is 352px wide rather than 320px (section 6.2).
+- **Share image: 5x, so 800x560**, letterboxed inside the 1200x630 canvas per section 5.2.
+
+Because the share image overlays text on the room, each room must be composed leaving the **upper-left wall area** and a **strip along the bottom** quiet enough to carry type.
+
+**Three constraints discovered by building it.** These are findings from the real pack, not preferences, and they bind the implementation:
+
+1. **The bed must be vertical (top-down).** The `sleep` animation is not a single sprite. It is a layered recipe: a vertical bed, plus the character's bare head, plus a blanket overlay. Side-view beds have no sleeping pose at all, so choosing one would force drawing the single thing this pack was chosen to avoid.
+2. **The character is a separate composited layer**, never baked into the room image. This follows directly from the layered sleep animation, and it is what makes character selection cheap (section 6.3) and the desktop pet possible at all (section 6.1).
+3. **The pack contains no computer desk.** It has school desks, reception counters, and dining tables. The workstation is therefore a desk sprite plus a separate monitor sprite placed on it. If a real dev battlestation is wanted, that is the one piece that must be drawn or sourced elsewhere.
+
+**Animation.** The background is static. Only two layers move:
+
+- **The character**, a few frames from its row on the sheet.
+- **The emote**, which is already a 2-frame loop. The pack's own note on the emote sheet reads "sample animation, just swap the last 2", so the bubble pops in and the icon alternates.
+
+This sits inside the 2 to 4 frames at 2 to 6 fps budget with no effort, and it means the thing rests quietly in the corner of a screen rather than pulling focus. Comeback is still allowed to be louder than the rest.
+
+### 4.2 Asset licensing
+
+The license is settled, not an open question. `moderninteriors-win/LICENSE.txt` in the full pack states verbatim that you **can** "edit and use the asset in any commercial or non commercial project", **cannot** "resell or distribute the asset to others" or "edit and resell the asset to others", and that **credits are required (limezu.itch.io)**.
+
+Three consequences, all binding:
+
+1. **Use is unambiguously permitted**, commercial or not. Nothing about this product's use of the pack needs further clearance.
+2. **Attribution is mandatory and is therefore a functional requirement**, not a courtesy. With no about window and no settings screen, it goes in three places: a small credit line at the bottom of the popover (`art: limezu.itch.io`), a line in the share image (section 5.2), and a credit in the README. The share image carries it because that is the artifact that travels.
+3. **Only the full pack may be used.** The same asset repository also contains `Modern tiles_Free/`, whose license is **non-commercial only** and explicitly forbids commercial use even of edited sprites. Assets must come from `moderninteriors-win/` exclusively. Mixing the two would silently breach the license, so this is named here as a trap to avoid rather than left to be noticed later.
+
+**Redistribution policy.** Raw pack assets are never committed to a public repository. If `momentum-mascot` is ever published, composed room scenes and sprite sheets stay out of version control and are composited in at build time from a local licensed copy. Shipping them compiled into a distributed binary is ordinary permitted use and needs no special handling. This mirrors the policy already applied in the assets repository, where the packs are gitignored and its README notes that extracted output should also be ignored if that repo ever goes public.
+
+This policy is already in force here: **`docs/mockups/` is gitignored**, because the mockups are derived LimeZu art and are therefore covered by the same restriction. The manifest is deliberately **not** in that folder: `docs/asset-picks.md` names source files and coordinates rather than shipping any art, so it is committed, and Phase 1 is unreproducible without it. Anyone picking this project up gets the manifest but needs a licensed copy of the pack to regenerate the mockups, which is the correct outcome.
+
+### 4.3 The mascot never dies. It waits.
+
+The previous spec had a `Dead` state at 72 hours: "mascot is dead/ghost/crying". Rejected outright, for two reasons.
+
+1. It punishes the exact user this targets for the exact thing that defines them. A developer with a demanding job will hit 72 hours constantly. Telling that person their companion died is telling them they failed at a hobby.
+2. Guilt-ware gets uninstalled. The emotional low point of a tool is the moment a user decides whether to keep it. If the low point is a corpse, they quit. If the low point is someone asleep in a warm room still holding your place, they keep it, and they come back.
+
+Every piece of copy passes one test: **would this line make a tired person feel worse about themselves?** If yes, it gets rewritten.
+
+### 4.4 States
+
+State derives from a single number: the most recent qualifying commit across all tracked projects (section 9). Not per project, not averaged, not weighted. Any real work anywhere counts.
+
+**The room never changes.** It is one static background, and exactly three variables move on top of it:
+
+1. **Character position**, moving desk to standing to bed to rug. This single axis carries the story, because position in a room reads as intent with no explanation needed.
+2. **Lighting**, a flat colour multiply over the finished frame rather than redrawn art. Retuning a mood is one number.
+3. **Emote**, either `Z` or `!`.
+
+| State | Trigger | Character | Lighting | Emote |
+| --- | --- | --- | --- | --- |
+| **Awake / hyped** | latest qualifying commit < 24h | seated behind the desk, monitor on | normal | none |
+| **Dozing** | 24h to 72h | standing, away from the desk | 10% blue tint | `Z` |
+| **Asleep / dreaming** | >= 72h | in bed under the blanket | 34% blue tint | `Z` |
+| **Comeback** | asleep to awake | out of bed, on the rug | +13% brightness, +20% saturation | `!` plus two sparkles |
+
+The payoff is worth stating plainly: **four states cost four character frames plus two emotes, not four illustrated scenes.** This is the whole reason the room concept is affordable for one person working evenings.
+
+Keeping the room identical across states does real work here: the asleep frame is the same intact room with the same desk and the same work still on it, only dimmer and with someone sleeping in it. That says *the project still exists and is still waiting*, which is the opposite of "you killed it". The asleep room must read as cosy, never abandoned. No dust, no cobwebs, no wilting plants.
+
+There is no state beyond 72 hours. A project untouched for a year shows the same peacefully sleeping room as one untouched for four days. Escalating past asleep would reintroduce guilt through the back door.
+
+### 4.5 The comeback state
+
+This is the emotional payload of the entire product. Everything else is setup. The character dozing off over three days is the loaded spring; the moment a commit lands after a long silence and they leap out of bed is the release. It is the moment most likely to be screenshotted and most likely to make someone feel something about a piece of software. **Design it first and design it hardest.**
+
+**Trigger:** derived state transitions from `asleep` to `awake`. A transition from `dozing` to `awake` does not trigger it. The user has to have been gone long enough for the return to mean something. Because only real commits move the state (section 9.1), the celebration cannot fire for someone who merely checked out a branch after three weeks away.
+
+**The desktop pet solves the hardest problem in this design.** Earlier drafts had to accept that a popover-only product cannot guarantee the celebration is ever seen, and settled for "a celebration nobody attended is not a debt". That compromise is no longer necessary. The pet (section 6.1) is already on screen, so the comeback plays out in the user's peripheral vision at the moment it happens, with no notification banner and no click required. The one thing this design previously could not deliver, it now delivers by default, and the pet is the reason.
+
+**Duration and resolution:**
+
+- The pet celebrates **the moment the commit lands**. This is the real delivery of the moment, and it needs nothing from the user.
+- The state persists **until the user opens the popover**, capped at **30 minutes**, whichever comes first. Opening the popover is the resolution: the user sees the full-room celebration, and on close it settles into `awake`.
+- If the cap expires without the popover being opened, it settles into `awake` silently. No badge, no "you missed it", no queued notification. The pet has already done the emotional work, so nothing is owed.
+
+**Restart safety:** the last displayed state is persisted, so a comeback still fires if the app was quit while asleep and relaunched after a commit landed. This matters because a plausible real sequence is: open laptop, app launches, commit, and the app must not miss the transition by being freshly started.
+
+The popover remains the screenshottable version, because the room is the composed scene and the pet is only the character. The pet delivers the moment; the popover is where the user goes to look at it properly.
+
+### 4.6 Tone and example copy
+
+**Voice:** warm, encouraging, a little snarky, never guilt-inducing. The character is on your side without exception, is allowed to be funny about themselves, and is never funny at the user's expense.
+
+Each state carries a short quote line in the popover, drawn from a small hardcoded pool and rotated so repeat views are not identical.
+
+**Awake / hyped**
+- "Look at you go."
+- "Something moved today. That counts."
+- "I saw that commit. I'm telling everyone."
+- "Certified in motion."
+
+**Dozing**
+- "Still warm. I've got the seat."
+- "Taking five. Same here."
+- "Day off? Good. Rest is part of it."
+- "No rush. It'll keep."
+
+**Asleep / dreaming**
+- "Dreaming about that thing you're building."
+- "Sleeping, not gone. Wake me whenever."
+- "I'll hold your place. However long it takes."
+- "Zzz. The project's still there. So am I."
+
+**Comeback**
+- "YOU CAME BACK."
+- "I KNEW IT."
+- "Woke up for this. Worth it."
+- "Best day. Objectively."
+
+**Banned patterns:** elapsed-time shaming ("12 days since your last commit"), comparative framing ("you used to commit more"), pleading, and any second-person accusation. Relative timestamps in the project list are factual and permitted; the character never comments on them.
+
+---
+
+## 5. The Share Artifact
+
+"Share Status" is not a button in the corner. It is simultaneously **the growth mechanism and the validation instrument**, and it is designed before the app is built.
+
+- **Growth:** this product has no marketing budget, no ads, and no network calls. The only way anyone finds out it exists is a user posting a picture of it. The share image *is* the distribution channel.
+- **Validation:** if people share it, the art landed. If nobody shares it, no amount of feature work will fix that. Share volume is the only honest signal available, and observing it requires no telemetry.
+
+### 5.1 Behaviour
+
+One press renders the current room to an image and copies it to the system clipboard. No dialog, no file save, no preview window; a brief inline "Copied." appears for about two seconds. It is generated in the webview by drawing to an offscreen `<canvas>` with image smoothing disabled, then `toBlob()` into the clipboard. Nothing is written to disk and nothing leaves the machine.
+
+### 5.2 The artifact
+
+There is a real tension here, worth stating rather than fudging. A room composed on a tile grid is roughly 10:7, while the social preview crop is roughly 1.91:1. **The resolution is to letterbox the integer-scaled room inside the wider canvas on the panel background, never to scale the room fractionally to fill it.** Integer scaling is non-negotiable; a half-pixel room is worse than a mat.
+
+- **Canvas: 1200x630**, the standard social card size, filled with the dark panel background.
+- **Room: 800x560**, the 160x112 room at 5x integer scale, centred horizontally and sitting 12px below the top edge. This leaves 200px bars either side and a 58px band along the bottom. The bars read as a mat around a framed picture, which suits pixel art. Only the room needs integer scaling; the surrounding background is flat colour, so the canvas is free to be any size.
+- **State label:** a short pixel-font word overlaid on the room's upper-left wall area: `AWAKE`, `DOZING`, `DREAMING`, or `BACK!!!`.
+- **Quote line:** the same line currently shown in the popover, overlaid along the room's lower strip, so the shared image matches what the user is looking at.
+- **Bottom band:** the `KeepGoing` wordmark and project URL on the left, and `art: limezu.itch.io` on the right. The wordmark is the only way a viewer can find the tool; the credit is a license requirement (section 4.2).
+
+### 5.3 Privacy
+
+**The v1 share image never contains project names, repository paths, commit messages, hashes, or timestamps.** Not behind a toggle, not opt-in, not by default off.
+
+A user sharing a picture of a happy pixel room should not have to audit it for their employer's repo name or their home directory path before posting. The failure mode is silent and irreversible, and the image loses nothing by omitting it. It communicates a *mood*, not a *report*.
+
+---
+
+## 6. UI Surfaces
+
+There are **four surfaces**, and each has one job. Naming them up front matters, because the earlier design put nearly all of the art behind a click, and that is a lot of craft for a popover opened twice a day.
+
+| Surface | Seen | Job |
+| --- | --- | --- |
+| **Desktop pet** | always | ambient state, in peripheral vision |
+| **Tray icon** | always | opening the popover, holding Quit |
+| **Popover room** | on demand | the reward, the thing you look at |
+| **Share image** | by other people | the audience and the growth mechanism |
+
+The pet is the surface that makes the art worth making, because it is the only one that is always visible. The popover is where the craft is fully on display. The tray icon is now plumbing. The share image is section 5.
+
+### 6.1 Desktop pet
+
+The primary ambient surface, and the primary way into the app.
+
+- **A 64x64 always-on-top window**, being the 32x32 character rendered at 2x. **The character only, never the room**, which is the same register split as the tray icon: the pet is the character, the popover is the scene.
+- **Fixed bottom-right** by default. Not draggable in v1. The position is persisted in `state.json` anyway (section 13), so making it movable later is a behaviour change with no schema change.
+- **Clickable, not click-through.** Clicking it opens the popover. Click-through would make the pet purely decorative, and at 64x64 in a screen corner an accidental click is rare enough that the trade is easy. This makes the pet the primary entry point, with the tray icon secondary.
+- **Motion is reserved, and this is a rule rather than a preference.** Asleep and dozing are still frames. Awake gets a slow idle. Only comeback is allowed to be loud. A sprite that moves constantly in peripheral vision is the thing people quit, and the pet's whole value depends on being tolerable to leave running.
+- **Emotes carry the state.** The pet shows the same `Z`, `!`, and sparkles as the room (section 4.4), because it has no lighting cues to work with. The room dims; the pet cannot, so the emote does that job.
+
+**One art gap, stated honestly.** The pack has **no sleeping character without a bed**: the sleep animation is a three-layer composite of vertical bed, bare head, and blanket (section 4.1), so the pet cannot show asleep the way the room does. The pet therefore uses a **seated pose with a `Z` emote for both dozing and asleep**, and **the bed stays exclusive to the popover room.** This is a deliberate split of registers rather than a workaround: the pet is the character, the room is the scene, and the scene is allowed to show things the character alone cannot. Exactly how the pet's dozing and asleep frames differ is unsettled and is an open question (section 17).
+
+### 6.2 Tray icon
+
+The tray icon is plumbing. Its only jobs are opening the popover and holding Quit.
+
+- **A monochrome template image** on macOS, at 16x16 with a 32x32 asset for HiDPI, so it adapts to light and dark menu bars automatically.
+- It **may** hint at state, but nothing depends on it doing so. This reverses an earlier decision to ship full-colour non-template icons, which existed only because four states could not be told apart as one-bit silhouettes at 16x16. With the pet carrying state ambiently, the icon no longer has to encode state at all, so the simpler and better-behaved option wins.
+- Primary click opens the popover. Right click opens a native context menu with exactly two items, **Open** and **Quit**. That menu is the only place Quit lives, since there is no menu bar and no settings screen.
+
+### 6.3 Popover
+
+Fixed width of 352px, height sized to content, anchored to the tray icon, closing on click-outside and `Esc`. Top to bottom:
+
+1. **Room panel.** 320x224, being the 160x112 room at 2x, which fits the 352px popover with 16px padding each side. The popover widened from 320px to 352px purely to accommodate the larger room (section 4.1).
+2. **Character.** Clicking the character cycles to the next of the three shipped characters. This is the entire selection mechanism: no picker UI and no settings screen, so the guardrail holds. The choice persists in `state.json` as `character_id` (section 13) and applies to the pet as well as the room.
+3. **Quote line.** One or two lines of pixel-font copy for the current state.
+4. **Project list.** One row per tracked project: name on the left, relative time since its last commit on the right ("2 hours ago", "yesterday", "3 days ago", "a while back" past 30 days). No per-project moods, sorting, or counts. The only interactive element is a small `x` on hover that untracks the project, which earns its place because the alternative is hand-editing JSON. When nothing is tracked, a single line invites the user to add one.
+5. **Buttons.** **Add Project** (section 7) and **Share Status** (section 5), side by side.
+6. **Credit line.** A single small `art: limezu.itch.io` at the bottom. This is a license requirement (section 4.2), and with no about window or settings screen the popover is the only place it can live.
+
+**Three characters, not one.** v1 ships premades 07, 12, and 20. The earlier position was one character on the grounds that choice implies a settings screen, and that reasoning was sound but is overtaken by a finding: because the sleep animation is layered, the character must be a separate composited layer over the room anyway (section 4.1). Once that is true, and since every premade sheet carries an identical animation set, three characters cost three PNGs rather than three sets of rooms. This is a **swap, not a skin system**: no per-character rooms, copy, or behaviour, and adding a fourth later is an asset drop rather than a spec.
+
+### 6.4 Aesthetics
+
+- **Dark only** in v1. A light palette implies a setting.
+- **Typography:** an embedded pixel font for the state label and quote line, and the system monospace stack for the project list and buttons, where legibility at small sizes beats character. The pixel font must be licensed for redistribution.
+- All pixel assets are authored at the pack's **16x16 native grid** and scaled only in CSS, with `image-rendering: pixelated` at integer factors. No fractional scaling anywhere. No animation library and no runtime canvas loop in the popover.
+
+---
+
+## 7. Tracking Projects
+
+**Add flow:** click **Add Project**, the native folder picker opens, the path is validated, and on success the project is appended to state, its last commit time is read, a watcher is registered, and the room re-evaluates. On failure a single short line appears inline in the popover. No modal, no alert dialog.
+
+**Validation.** A folder is accepted only if it exists, contains a `.git` entry (a directory, or a file with a `gitdir:` pointer for linked worktrees and submodules, both resolved and both accepted), the resolved git directory has a readable `HEAD`, and the path is not already tracked. Re-adding an existing project is a friendly no-op, not an error. A repository with zero commits is accepted; its `last_commit_at` is null and it contributes nothing until it has a commit.
+
+**What gets stored.** Per project: a generated id, the absolute path, a display name (the directory's base name, not user-editable in v1), when it was added, and the last known commit timestamp. **Nothing else is read from the repository.** No commit messages, author identities, diffs, branch names, or file contents. The product needs one timestamp per repo and reads exactly that.
+
+There is no cap on tracked projects, but the design assumes a handful. The list scrolls beyond roughly 12 rows and is not virtualised.
+
+---
+
+## 8. State Model
+
+### 8.1 Derivation
+
+```
+latest = max(last_commit_at) over all tracked projects, ignoring nulls
+
+if latest is null      -> awake      (nothing tracked yet, or no commits yet)
+if now - latest < 24h  -> awake
+if now - latest < 72h  -> dozing
+otherwise              -> asleep
+
+if previous_state == asleep and new_state == awake -> comeback
+```
+
+Thresholds are wall-clock durations, not calendar-day boundaries. A commit at 11pm does not become "yesterday's" at midnight.
+
+The empty case resolves to `awake`, not `asleep`. A user who has just installed the app should meet a cheerful room.
+
+State derivation is a **pure function of the tracked timestamps and the current time**, with no side effects. It is the most testable piece of the system and should be written that way, and kept independently replaceable.
+
+### 8.2 Re-evaluation triggers
+
+Two sources, and both must be handled:
+
+1. **A commit lands**, event-driven via the watcher (section 9).
+2. **Time passes.** The awake to dozing to asleep transitions happen with no event at all. This is easy to forget and is the more common transition in practice.
+
+A tick re-evaluates state every 60 seconds. It is cheap because it compares in-memory timestamps and touches no disk.
+
+### 8.3 Persistence
+
+- A single JSON file: `~/.keepgoing/state.json` on macOS and Linux, `%APPDATA%\KeepGoing\state.json` on Windows.
+- Writes are atomic: temporary file in the same directory, then rename. A crash mid-write must never leave a truncated state file.
+- Reads are **resilient by contract**. A missing file, empty file, empty array, missing optional fields, unknown extra fields, and invalid JSON all resolve to sane defaults rather than an error or a crash. Losing the tracked list is a mild annoyance; refusing to start is a dead product.
+- The stored state name is a cache for restart continuity and comeback detection, never trusted as truth. Current state is always recomputed from timestamps at load.
+
+---
+
+## 9. Commit Detection
+
+### 9.1 Only real work counts
+
+The mascot must respond to **work on the project**, not to a developer taking a look and leaving. This is a correctness requirement, not a nicety: `git checkout` and `git pull` move `HEAD` without the user writing anything, so treating all `HEAD` movement as momentum would let a **comeback celebration fire because someone checked out a branch after three weeks away**, hollowing out the single most important moment in the product.
+
+Reflog lines have the form `<old-sha> <new-sha> <name> <email> <unix-ts> <tz>\t<message>`. The filter is on that trailing message.
+
+**Counted** (message begins with `commit`): `commit:`, `commit (initial):`, `commit (amend):`, `commit (merge):`.
+
+**Ignored:** `checkout:`, `pull:`, `merge <branch>:` (fast-forward, no new work), `reset:`, `clone:`, `rebase (pick):` and `rebase (finish):` (replaying existing commits, not new work).
+
+### 9.2 Read algorithm
+
+For each tracked project, the Rust backend watches `.git/logs/HEAD` with the `notify` crate. On an event, debounced by about 250ms to collapse the burst of writes a single git operation produces:
+
+1. **Scan backwards from the end of the reflog until the first qualifying `commit` entry**, bounded to roughly the last 200 lines. This replaces a naive "read the last line", which would return the wrong answer any time the most recent operation was a checkout or a pull.
+2. Take that entry's **reflog timestamp**, not the commit's committer time. For an amend or a rebase the committer time may be rewritten, while the reflog timestamp records when the user actually acted. "When did I last do work here" is a question about the user, not about the commit object.
+3. If the scan passes the bound with no match, or the reflog is missing, empty, or unparseable, **fall back** to reading the committer timestamp from the commit `HEAD` points at.
+4. **Monotonicity rule: `last_commit_at` never decreases for a given project.** A new reading that is older than the stored value is discarded. Without this, checking out an older branch would drag the timestamp backwards and put the character to sleep despite recent work. "When did I last do work here" does not move backwards. An implementer would not infer this rule, so it is stated explicitly.
+5. Update, persist, re-derive state, update the tray and popover.
+
+Reflog parsing is preferred over shelling out per event because it is a single small read with no process spawn and no dependency on a `git` binary on `PATH`. Startup performs a one-time read of every tracked project, so commits made while the app was not running are picked up.
+
+### 9.3 Why not git hooks
+
+The previous spec installed a `post-commit` hook into each tracked repository. Rejected because it **collides** (husky, lefthook, pre-commit, and hand-rolled hooks all own `post-commit`, and merging into one safely is a real engineering problem for a mascot), because it **creates an uninstall problem** (deleting the app would leave shell fragments across the user's repositories pointing at a missing binary, breaking their commits, and a toy that can break `git commit` after being deleted is not a toy), and because it **requires a second executable** for the hook to call, which is exactly the dependency this design removes.
+
+Watching the reflog gets the same near-instant update with zero footprint inside user repositories, through one code path on all three platforms. Untracking is a line removed from JSON, and uninstalling leaves nothing behind.
+
+---
+
+## 10. Tech Stack
+
+**Tauri v2: a Rust backend with a webview UI, in a single codebase.** Rust owns file watching (`notify`), reflog parsing, state persistence, and the tray. The webview owns the room rendering, popover layout, and the share canvas. Storage is one local JSON file. There is no network layer.
+
+### 10.1 Why Tauri
+
+- **One codebase, three platforms**, with native tray on all of them, and **menu-bar-only on macOS** via `ActivationPolicy::Accessory`, the direct equivalent of `LSUIElement`.
+- **Both hard art jobs are trivial in a webview.** Pixel rendering is `image-rendering: pixelated` plus a CSS `steps()` animation; the share image is a canvas with smoothing disabled and `toBlob()`. In SwiftUI these are fighting the framework's smoothing, hand-rolling frame timing, and manual `NSImage` and pasteboard work.
+- **Rust keeps what suits Rust.** `notify` is a mature cross-platform watcher, and the parsing and persistence work is small, fast, and testable.
+
+Since roughly 90% of the value is art and feel, the correct optimisation is making art and feel cheap to iterate on. A webview does that better than any native toolkit available here.
+
+### 10.2 What was rejected
+
+**Rejected: a Rust CLI plus a separate Swift menu bar app, communicating through a JSON file and a `keepgoing://` custom URL scheme** (the previous spec's architecture).
+
+The Swift app was about 95% of the product and macOS-only. That architecture pays for two languages, two build systems, and an IPC protocol **now**, and still forces a complete UI rewrite at the Windows boundary. It buys nothing toward the cross-platform goal, and the two hardest jobs here, pixel art and share-image generation, are the two jobs SwiftUI is worst at.
+
+The IPC existed only because the process split existed. Deleting the split deletes the JSON handshake, the URL scheme, the `Info.plist` registration, the "did the ping arrive" failure mode, and the app-not-running-when-hook-fires failure mode, all at once. **The CLI binary, the IPC layer, and the custom URL scheme are deleted from the design.**
+
+Cross-platform reach is a real goal, because reach is how the character finds the people who will love it. A single portable codebase is the entire point.
+
+### 10.3 Repository layout
+
+A single Tauri project, deliberately flat. No monorepo, no workspace, no shared packages.
+
+```
+momentum-mascot/
+  src/                  # webview UI: popover markup, styles, room CSS, share canvas
+  src/assets/           # composed room sheets per state, tray icons, embedded pixel font
+  src-tauri/src/        # Rust: watcher, reflog parsing, state model, tray, commands
+  docs/                 # this spec and the initial spec
+```
+
+The word `packages/` does not appear in this repository. If it ever does, something has gone wrong.
+
+---
+
+## 11. Platform Phasing
+
+**macOS first.** The author is a Mac user and will dogfood it daily. This is where the product gets judged.
+
+**Windows next, as a build target rather than a rewrite.** This is the payoff for the Tauri decision. Expected work: packaging, tray assets in the formats Windows expects, and verifying the folder picker, clipboard, and always-on-top paths.
+
+**Linux last, and possibly never with the pet.** See the Wayland wall below.
+
+The desktop pet introduces two platform walls that are real, and neither should be buried.
+
+**Wall 1: macOS fullscreen.** An always-on-top window does not appear over a fullscreen application, because a fullscreen Space is its own space. Making the pet visible there requires AppKit-level calls: a `collectionBehavior` including `.fullScreenAuxiliary`, plus a raised window level. That is platform-specific code sitting outside Tauri's cross-platform API, which is a cost this design otherwise avoids paying.
+
+This is **the single biggest threat to the pet concept**, because a developer who codes in fullscreen would have the pet invisible during exactly the hours they are working, which is when it needs to be visible. It must be **verified first in Phase 3, before any other pet work**, since everything else about the pet depends on the answer. Fallback if it cannot be solved cleanly: the tray icon has to carry state again, which brings back the full-colour non-template icon decision that section 6.2 just reversed.
+
+**Wall 2: Wayland cannot do this at all.** Wayland deliberately does not let applications position their own windows, so a pet pinned to a screen corner is essentially not implementable there. Linux already had flaky tray support (`StatusNotifierItem` varies by desktop environment; GNOME ships none by default and typically needs an extension such as AppIndicator Support), and this escalates the situation from a degraded tray to a **missing primary surface**. So the Linux position is not merely "last": Linux may ship without the pet, or not ship at all, and that should be **decided deliberately rather than discovered** during a port. Clipboard image writing is also less uniform under Wayland, and since Share Status is the growth mechanism, a Linux release is not worth shipping until that path is verified too.
+
+Both walls are ecosystem constraints rather than Tauri limitations, and no framework choice avoids them. They belong in the README rather than being found by a frustrated user.
+
+---
+
+## 12. Build Phases
+
+**Phase 1: Refine the four room states.** No app code, no Tauri project, no Rust. The four states have already been prototyped and rendered to `docs/mockups/states-four.png`, so this phase is refining an existing composition rather than starting from nothing. Do the composition in **Tiled or Aseprite**, not by hand-placing coordinates: `docs/asset-picks.md` names every source file, which turns this into roughly a twenty minute job rather than an afternoon of searching 48,000 files. Assets come from `moderninteriors-win/` only, never from `Modern tiles_Free/`.
+
+Two known weaknesses in the prototype, named honestly, are the substance of this phase:
+
+- **Awake is the weakest state.** The character's head peeks over the monitor rather than clearly sitting at the desk, because a top-down desk and a front-facing seated sprite do not quite agree on perspective. Awake is the state users will see most often, so it is the one least able to afford being unclear.
+- **Dozing is ambiguous.** Standing near the desk with a `Z` reads as "distracted" rather than "resting", and the `Z` currently floats over the desk rather than over the character, which compounds it. This spec's own earlier description, leaned back with a coffee, would land better, and coffee cup sprites exist in the Kitchen theme.
+
+The author then **lives with the four rooms for one week** before any application code: as a wallpaper, a lock screen, pinned in a window, wherever they are seen daily and unprompted. The test is whether the asleep room still feels comforting rather than sad on day seven, and whether the comeback room still causes a reaction. It tests whether the *states* feel right, not whether the pixels are well drawn. The art determines the outcome and is by far the cheapest thing to test: a week is recoverable, and discovering after the app is built that the rooms are not lovable is not.
+
+**Phase 2: Design the share image.** Mock the 1200x630 composition as a static image before any code generates one. Post it somewhere and see how it reads in a real timeline, at real size, on both light and dark backgrounds. A design deliverable, not an implementation task.
+
+**Phase 3: Tauri app, macOS target.**
+
+**Gate first, before anything else in this phase:** prove that a 64x64 always-on-top window can be made visible over a fullscreen application on macOS (section 11, wall 1). This is a spike, not a feature, and it is deliberately the first thing built because the pet is the primary surface and a negative answer changes the design. If it cannot be done cleanly, stop and revisit the tray icon decision before building the pet out.
+
+Then: the desktop pet window, the tray icon, the popover, `notify` on `.git/logs/HEAD` with the qualifying-commit scan, the state model, Add Project, and Share Status. The first phase producing a running application, and it produces a complete one.
+
+**Phase 4: Windows build target.** Packaging, tray assets, and verification of the picker, clipboard, and watcher paths. No new features enter here.
+
+**Phase 5: Linux, if and when someone asks**, with the caveats in section 11 understood before starting.
+
+---
+
+## 13. Data Schema
+
+```json
+{
+  "version": "2.0",
+  "last_displayed_state": "asleep",
+  "character_id": "07",
+  "pet_position": { "x": 1780, "y": 940 },
+  "tracked_projects": [
+    {
+      "id": "a1b2c3d4-e5f6-7890",
+      "path": "/Users/username/Projects/my-side-project",
+      "name": "my-side-project",
+      "added_at": "2026-08-01T08:00:00Z",
+      "last_commit_at": "2026-08-12T08:00:00Z"
+    }
+  ]
+}
+```
+
+- `version` allows a future migration. v1 reads `"2.0"` and treats anything else as best-effort.
+- `last_displayed_state` is `awake`, `dozing`, or `asleep`. It exists solely so comeback detection survives a restart, and is never used as the current state.
+- `character_id` is one of the three shipped characters. Missing, unknown, or malformed values fall back to the first character rather than erroring, per the resilient-parsing contract in section 8.3. A future release that ships more characters must not break on a value it does not recognise.
+- `pet_position` is the desktop pet's top-left corner. v1 always writes the bottom-right default and the pet is not draggable, but the field exists now so that making it movable later needs no schema change. A missing value, or one that falls outside the current display bounds (an unplugged monitor, a resolution change), resets to the bottom-right default rather than leaving the pet off screen.
+- `last_commit_at` is nullable, for a repository with no commits yet, and is subject to the monotonicity rule in section 9.2.
+- `id` is a generated UUID, stable for the lifetime of the entry.
+- **No per-project `status` field.** The previous schema stored one, and a derived value written to disk is a cache-invalidation bug waiting to happen. Per-project mood is not displayed anyway.
+
+A tracked project whose path no longer exists is kept and shown as unavailable rather than silently deleted, because a disconnected external drive should not erase the user's list.
+
+---
+
+## 14. Testing Strategy
+
+Effort follows risk, and the risk is concentrated in a small amount of logic.
+
+**Unit tested in Rust:**
+
+- **State derivation**, table-driven across the boundaries: just under and exactly 24h, just under and exactly 72h, far past 72h, empty list, all-null, mixed null and present.
+- **Comeback detection**, confirming `asleep -> awake` fires, `dozing -> awake` does not, and the restart case where the previous state comes from disk.
+- **Reflog filtering**, on fixture lines: `checkout:` ignored, `pull:` ignored, fast-forward `merge <branch>:` ignored, `reset:` ignored, `commit:` counted, `commit (initial):` counted, `commit (amend):` counted, `commit (merge):` counted, a message containing tabs parsed correctly, a reflog whose last qualifying entry is many lines back found correctly, and a reflog with no qualifying entry within the bound falling through to `HEAD`.
+- **Monotonicity**, confirming an older reading does not overwrite a newer stored value.
+- **State file resilience**: missing file, empty file, `{}`, empty array, missing fields, unknown fields, and invalid JSON all load without panicking, plus a write-then-read round trip and an atomic-write test.
+- **Repository validation**: `.git` as a directory, `.git` as a gitdir pointer file, a non-repo directory, a nonexistent path, and a repo with zero commits.
+
+**Manually verified per platform:** tray icon appears and reads against light and dark menu bars; popover opens and closes and renders the room at crisp integer scale on standard and HiDPI displays; folder picker returns a usable path; Share Status pastes correctly into a real chat app and a real social composer; a real `git commit` updates the state within about a second; a `git checkout` does not.
+
+**The pet needs its own manual pass**, because it is a window rather than logic and none of it is unit-testable:
+
+- Appears above normal application windows, and stays there when other apps take focus.
+- Appears (or provably does not appear) over a fullscreen application. This is the Phase 3 gate, and the answer is recorded either way.
+- Clicking it opens the popover, and clicks near but not on it pass through to whatever is underneath.
+- Shows the correct state, including the comeback celebration firing without the popover being opened.
+- Survives display changes: unplugging an external monitor, a resolution change, and display rearrangement all leave it visible and on screen.
+- Survives sleep and wake, and does not duplicate or vanish after either.
+
+**Not tested:** the visual quality of the rooms, which is judged by the week in Phase 1. No end-to-end UI automation in v1; the surface is one popover with two buttons, and a harness would cost more than it returns.
+
+---
+
+## 15. Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| **The character and rooms are not lovable.** No engineering fixes this. | Fatal | Phase 1 exists for this: a week of living with the rooms before any app code, with an explicit willingness to recompose or restart. |
+| **Scope creep repeats the deprecated ecosystem.** | Fatal, slowly | The guardrail and out-of-scope table in section 3, the permanent non-goals, the flat layout, and the seams-not-extension-points rule in section 16. |
+| **Using the wrong pack.** `Modern tiles_Free/` sits beside the paid pack and is non-commercial only, so a single asset pulled from it would silently breach the license. | High, legal | Source assets only from `moderninteriors-win/`. Named explicitly in sections 4.2 and 12 so it cannot be discovered by accident. |
+| **Missing attribution.** Credit to `limezu.itch.io` is required by the license, and there is no about window to hide it in. | High, legal | Credit is specified as a functional requirement in three fixed places: the popover footer, the share image band, and the README. It is on the Definition of Done. |
+| **Nobody shares the image**, so there is no growth and no signal. | High | Phase 2 tests the artifact in a real timeline before any code generates one. If the mock does not look shareable, that is a Phase 1 problem surfacing early, which is the point. |
+| **Non-standard reflog messages** from GUI clients or libgit2-based tools are not matched by the `commit` prefix filter. | Medium | The `HEAD` fallback in section 9.2 covers it: the worst case is a slightly stale timestamp, never a false comeback. |
+| **`notify` misses events** on network volumes, virtualised filesystems, or after sleep/wake. | Medium | The 60-second tick re-evaluates and startup re-reads all projects. Worst case the room updates within a minute instead of instantly, which is acceptable here. |
+| **The pet is invisible over macOS fullscreen apps.** An always-on-top window does not enter a fullscreen Space, so the pet would be hidden during exactly the hours the user is working. | **Fatal to the pet** | Verified as the very first task in Phase 3, before any other pet work (section 11, wall 1). Requires AppKit `collectionBehavior` with `.fullScreenAuxiliary` and a raised window level, which is platform-specific code. If that cannot solve it cleanly, the pet stops being the ambient surface and the tray icon carries state again, reversing section 6.2. Cheap to test now, expensive to discover after the pet's art and window management exist. Spike and checklist: `spikes/always-on-top/`. |
+| **The pet is visible but hostile.** A second, quieter failure of the same wall: the window shows over the fullscreen Space, but clicking it switches Spaces or steals focus, yanking the user out of their work. | High | Tested as a separate verdict in the same spike, because "visible" alone is not a pass. If it happens, the pet becomes click-through and the tray icon becomes the entry point, reversing "clickable, not click-through" in section 6.1. |
+| **Transparency depends on a private API.** A non-rectangular pet needs `transparent: true`, which on macOS requires Tauri's `macos-private-api` feature and makes the app ineligible for the Mac App Store. | Low, scoped | Accepted. Distribution is direct, so the flag costs nothing. Recorded because it silently forecloses the App Store: if that ever becomes a target, the pet has to be an opaque square, which is a design decision rather than a bug. |
+| **A pet that moves too much gets the app quit.** The always-visible surface is also the always-annoying one if it fidgets. | High | Motion is reserved by rule (section 6.1): asleep and dozing are still, awake is a slow idle, only comeback is loud. |
+| **The pet cannot exist on Wayland**, which deliberately does not let applications position their own windows. | High, Linux only | Accepted rather than solved. Section 11, wall 2. Linux may ship without the pet, or not ship at all, and that is decided deliberately rather than discovered mid-port. |
+| **Linux tray absent on GNOME; clipboard unreliable on Wayland.** | Medium | Stated honestly in section 11 and the README. Linux ships last and only after both paths are verified. |
+
+---
+
+## 16. Future Gates (not v1)
+
+**Nothing in this section is planned, committed, or a reason to add abstraction now.** It exists so that deferred directions are named rather than rediscovered as "obvious" mid-implementation, and so that saying no to them is a decision already made.
+
+The distinction that keeps this section from becoming the deprecated ecosystem:
+
+- **Architectural seams are cheap and worth leaving.** The `version` field so a schema migration is possible; states defined as data (a manifest mapping state names to room sheets and quote pools) so a fifth state is content rather than code; the state-derivation function being pure and independently replaceable; Tauri already abstracting the platform. These cost nothing today and are just good structure.
+- **Extension points built ahead of need are not.** No plugin system, no config file format, no abstraction layers for hypothetical futures, no interfaces with a single implementation. YAGNI applies, and it applies hardest to a project whose thesis is restraint.
+
+Named, deferred, and undesigned: a fifth state such as a deep-work or on-a-streak room; per-project rooms rather than one room reflecting the newest commit anywhere; alternative characters or seasonal rooms; a light theme, if the dark-only room ever looks wrong on a light desktop; non-git signals, such as another version control system or a manual "I worked on this today" action; and a community showcase of shared images, which is the only direction that could ever become the revenue path in section 1.
+
+Any of these requires its own spec and its own argument against the guardrail in section 3.
+
+---
+
+## 17. Open Questions
+
+Decisions the author still needs to settle. Each has a stated working default above, so implementation is never blocked.
+
+1. **The awake perspective mismatch.** The top-down desk and the front-facing seated sprite do not agree, so the character's head peeks over the monitor. Options include a different desk, a different seated frame, or moving the desk so the character is seen from the side. Phase 1 work.
+2. **The dozing pose.** Standing with a `Z` reads as distracted rather than resting. Leaning back with a coffee would land better, and the emote wants to sit over the character rather than the desk. Phase 1 work.
+3. **Wallpaper and floor.** Both are currently placeholders sampled from a prebuilt house, chosen because they are a guaranteed-valid combination rather than because they are right. About 20 wallpapers exist in `Room_Builder_subfiles/`, and the choice travels with the palette.
+4. **How the pet's dozing and asleep frames differ.** Both use a seated pose with a `Z`, since the pack has no bedless sleeping character (section 6.1). The distinction could be the emote alone, a subtle pose change, or something else. Genuinely unsettled, and Phase 1 work.
+5. **Comeback duration cap.** Default is "until the popover opens, capped at 30 minutes". Now less consequential than it was, since the pet delivers the moment regardless, so this only governs how long the popover keeps the celebration available. Decide after living with it.
+6. **The share canvas proportions.** The room at 5x and the 1200x630 canvas are settled defaults; how much mat looks right around it should be confirmed against real posts in Phase 2. The constraint that cannot move is integer scaling of the room.
+7. **Whether any project information ever appears in the shared image.** v1 says no, absolutely. The open sub-question is whether a non-identifying aggregate such as "3 projects" is acceptable later, or whether the image stays purely about the mood.
+8. **Whether the comeback gets sound.** Currently no, because a tray app making noise is a fast route to being quit. Revisit only if it can be off by default with no settings screen to turn it on, which probably means the answer stays no.
+9. **Quote pool size per state.** Four lines each are drafted. Whether that is enough before repetition grates is something Phase 3 dogfooding will answer.
+
+---
+
+## 18. v1 Definition of Done
+
+v1 ships when all of these are true. Nothing else is required, and nothing else may be added to this list without deleting something from it.
+
+- [ ] One 160x112 room background exists, plus the four character frames and two emotes the states need.
+- [ ] Awake reads clearly as sitting at the desk, and dozing reads as resting rather than distracted.
+- [ ] Wallpaper and floor are deliberate choices, not the sampled placeholders.
+- [ ] Every asset came from `moderninteriors-win/`, none from `Modern tiles_Free/`.
+- [ ] `art: limezu.itch.io` appears in the popover, in the share image, and in the README.
+- [ ] The author has lived with the four states for a week and still wants them.
+- [ ] The desktop pet appears bottom-right at 64x64, above normal windows, showing the correct state.
+- [ ] The pet's behaviour over a fullscreen app is known, recorded, and either working or explicitly accepted.
+- [ ] Clicking the pet opens the popover.
+- [ ] The pet is still and quiet when dozing and asleep, and does not fidget when awake.
+- [ ] Tray icon is a monochrome template image that reads on both light and dark menu bars, and its right-click menu holds Open and Quit.
+- [ ] The popover opens from the tray at 352px wide, shows the room at 320x224, a state-appropriate quote, the tracked-project list with relative times, two buttons, and the credit line.
+- [ ] Clicking the character cycles through all three, and the choice survives a restart.
+- [ ] Add Project opens a native folder picker, validates the repo, and starts watching it.
+- [ ] Hover-`x` untracks a project.
+- [ ] A real `git commit` in a tracked repo updates the pet and the room within about a second.
+- [ ] A `git checkout` or `git pull` in a tracked repo does **not** change the state.
+- [ ] Checking out an older branch does not move `last_commit_at` backwards.
+- [ ] The awake to dozing to asleep transitions happen from time passing alone, verified without restarting the app.
+- [ ] A commit landing while asleep produces the comeback room, which resolves when the popover is opened and survives an app restart.
+- [ ] Share Status copies a 1200x630 image to the clipboard that pastes into a real chat app and a real social composer, and contains no project name, path, hash, or timestamp.
+- [ ] State persists across restarts, and a corrupt or missing state file starts the app cleanly rather than failing.
+- [ ] The app makes zero network requests, verified.
+- [ ] macOS build runs with no dock icon and no app window.
+- [ ] The Rust unit tests in section 14 pass.
+
+---
+
+## 19. Decision Summary
+
+- **Purpose:** a fun retro mascot reflecting side-project momentum. Not a productivity tool. Success is users who love it, not revenue, and the non-goals (no monetization, accounts, telemetry, network calls, or hosted anything) are permanent.
+- **Guardrail:** if it needs a second process, a second language, or a settings screen, it is not in v1. Section 3 states exactly what v1 ships and section 18 states when it is done.
+- **The character is the product.** Roughly 90% of the value is art and personality; the git tracking exists only to give them a mood.
+- **The character lives in a tiny room**, built from LimeZu's Modern Interiors, because a scene carries story a lone sprite cannot and makes the share image far stronger. Composed at the pack's 16x16 native grid, **10 by 7 tiles, so 160x112**, at 2x in the popover (320x224) and 5x in the share image (800x560). The room grew from 9 by 6 because at that size it read as empty once real furniture was placed, which is a tested finding. **The popover widened from 320px to 352px** to fit it.
+- **The room never changes.** One static background, with exactly three variables moving on top: character position (desk, standing, bed, rug), a flat colour multiply for lighting, and a `Z` or `!` emote. Four states therefore cost four character frames plus two emotes, not four illustrated scenes.
+- **No original character art is needed.** The pack already ships the sleep, sitting, and idle animations plus emote sheets, which is why Phase 1 is composition rather than drawing. Exact source files and crops live in `docs/asset-picks.md`, deliberately kept out of this spec.
+- **Three constraints came from building it:** the bed must be vertical, because the `sleep` animation is a layered recipe of vertical bed plus bare head plus blanket and side-view beds have no sleeping pose; the character is a separate composited layer, never baked into the room; and the pack has no computer desk, so the workstation is a desk sprite plus a separate monitor sprite.
+- **Three characters ship in v1** (premades 07, 12, 20), cycled by clicking the character and persisted as `character_id`. This reverses the earlier one-character position: since the character must be a separate layer anyway and every premade sheet carries an identical animation set, three characters cost three PNGs. It is a swap, not a skin system, and it needs no picker UI, so the guardrail holds.
+- **The license is settled.** Commercial use is permitted outright. Three binding consequences: **credit to `limezu.itch.io` is mandatory** and therefore a functional requirement (popover footer, share image, README); assets come from `moderninteriors-win/` only, never the non-commercial `Modern tiles_Free/`; and raw assets stay out of version control, which is why `docs/mockups/` is already gitignored, though shipping them compiled into a binary is ordinary permitted use.
+- **The mascot never dies. It waits.** The previous spec's `Dead` state at 72h is rejected as guilt-ware aimed at the exact user being targeted. Four states: awake (<24h), dozing (24h to 72h), asleep (>=72h), and comeback on `asleep -> awake`.
+- **The comeback is the emotional payload, and the pet solves it.** Earlier drafts had to accept that a popover-only design cannot guarantee the celebration is ever seen. The pet delivers it in peripheral vision the moment the commit lands, with no banner and no click. The 30 minute cap and popover-open resolution remain as the mechanism for settling back to `awake`, but nothing is owed if the popover is never opened.
+- **Only real commits count.** The reflog is scanned backwards and filtered to messages beginning with `commit`; checkout, pull, fast-forward merge, reset, clone, and rebase replays are ignored, so a comeback can never fire because someone checked out a branch. `last_commit_at` never decreases. The reflog entry's timestamp is used rather than committer time, because amend and rebase rewrite committer time while the reflog records when the user acted.
+- **Tone:** warm, encouraging, a little snarky, never guilt-inducing. No elapsed-time shaming anywhere.
+- **Share Status is the growth mechanism and the validation instrument**, designed before the app is built, carrying no project names or paths. A 1200x630 canvas with the room letterboxed inside it at integer scale, because a 10:7 room in a 1.91:1 crop gets a mat rather than fractional scaling.
+- **Four surfaces, with distinct jobs.** The **desktop pet** (always visible, carries state ambiently), the **tray icon** (plumbing: opens the popover, holds Quit), the **popover room** (the reward, on demand), and the **share image** (the audience). The pet exists because 90% of the value is art, and a popover-only design leaves that art behind a click that happens twice a day.
+- **The pet is a 64x64 always-on-top window**: the 32x32 character at 2x, character only and never the room, fixed bottom-right with its position persisted, and clickable rather than click-through so it becomes the primary way in. **Motion is reserved:** still when dozing and asleep, a slow idle when awake, loud only on comeback, because a sprite that moves constantly in peripheral vision is the thing people quit.
+- **The pet is a second window, and that out-of-scope row was reversed honestly.** The ban is now narrow: no second window *for UI chrome* (about, onboarding, stats, settings). The pet is not chrome, it is the primary ambient surface. The guardrail itself is unchanged: still no second process, no second language, no settings screen.
+- **One art gap:** the pack has no sleeping character without a bed, so the pet uses a seated pose with a `Z` for both dozing and asleep, and **the bed stays exclusive to the room**. A deliberate split of registers: the pet is the character, the room is the scene.
+- **Tray icons revert to monochrome template images**, reversing the earlier full-colour decision. That decision existed only because four states could not be told apart as one-bit silhouettes at 16x16. With the pet carrying state, the icon no longer encodes state at all, so the simpler and better-behaved option wins.
+- **Two platform walls, both real, neither buried.** macOS: an always-on-top window does not appear over a fullscreen app without AppKit-level calls, which is the single biggest threat to the pet and is therefore the **first thing verified in Phase 3**, before any other pet work. Wayland: applications cannot position their own windows, so the pet is essentially not implementable, and Linux may ship without it or not at all.
+- **Stack:** Tauri v2, one codebase, Rust backend plus webview UI, one local JSON file with atomic writes and parsing resilient to missing fields and empty arrays.
+- **Rejected:** the Rust CLI plus separate Swift menu bar app with a JSON handshake and a `keepgoing://` scheme, which pays for two languages now and still forces a rewrite at the Windows boundary. CLI, IPC, and URL scheme are deleted. Also rejected: git hooks in user repositories, which collide with husky and lefthook and leave an uninstall problem.
+- **Future directions are named but undesigned.** Architectural seams stay; extension points built ahead of need do not.
+- **Phasing:** refine the four prototyped states (fixing the awake perspective and the dozing pose), design the share image, build the macOS app, add Windows as a build target, then Linux if asked, with an honest `StatusNotifierItem` caveat.
