@@ -83,6 +83,10 @@ That is an OS-level guarantee rather than a bug here.
 
 ## Credits
 
+Built by **Hoa Trinh**. [hoatrinh.dev](https://hoatrinh.dev) ·
+[github.com/mrth2](https://github.com/mrth2) ·
+[linkedin.com/in/hoa-trinh-dev](https://www.linkedin.com/in/hoa-trinh-dev)
+
 **Art: [limezu.itch.io](https://limezu.itch.io)**, LimeZu's Modern Interiors. Required by the
 licence, and the reason this thing looks like anything at all.
 
