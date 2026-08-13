@@ -1,6 +1,7 @@
 //! Wiring. Everything with real logic in it lives in the modules this one calls.
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use serde::Serialize;
@@ -25,6 +26,8 @@ pub struct AppState {
     /// Where the tray icon last reported itself, so the popover can be anchored to it.
     pub tray_rect: Mutex<Option<(f64, f64, f64, f64)>>,
     pub popover_hidden_at: Mutex<Option<std::time::Instant>>,
+    /// Set while the app's own folder picker is on screen. See `picker_is_open`.
+    pub picker_open: AtomicBool,
     /// The last mood announced, so the log can say what changed rather than repeating itself
     /// once a minute.
     pub last_published: Mutex<Option<crate::mood::Mood>>,
@@ -61,6 +64,7 @@ impl AppState {
             watcher: Mutex::new(None),
             tray_rect: Mutex::new(None),
             popover_hidden_at: Mutex::new(None),
+            picker_open: AtomicBool::new(false),
             last_published: Mutex::new(None),
         }
     }
@@ -194,9 +198,51 @@ pub fn note_popover_hidden(app: &AppHandle) {
     *app.state::<AppState>().popover_hidden_at.lock().unwrap() = Some(std::time::Instant::now());
 }
 
+/// Whether the app's own folder picker is on screen, in which case a focus loss on the popover
+/// is not a click outside and must not close it.
+///
+/// The picker is a macOS *sheet*, and a sheet belongs to a window: closing that window takes the
+/// sheet off screen with it. So the click-outside rule, applied to the focus loss the picker
+/// itself causes, hid the popover and made the folder picker appear to close itself the instant
+/// it opened, with Add Project consequently doing nothing at all.
+pub fn picker_is_open(app: &AppHandle) -> bool {
+    app.state::<AppState>().picker_open.load(Ordering::SeqCst)
+}
+
+/// Marks the picker as open for as long as this value is alive.
+///
+/// A guard rather than two calls, because the flag has to be cleared on every way out of the add
+/// flow, including the two that return an error, and a missed one leaves a popover that can no
+/// longer be dismissed.
+pub struct PickerGuard(AppHandle);
+
+impl PickerGuard {
+    pub fn new(app: &AppHandle) -> Self {
+        app.state::<AppState>()
+            .picker_open
+            .store(true, Ordering::SeqCst);
+        PickerGuard(app.clone())
+    }
+}
+
+impl Drop for PickerGuard {
+    fn drop(&mut self) {
+        self.0
+            .state::<AppState>()
+            .picker_open
+            .store(false, Ordering::SeqCst);
+    }
+}
+
 const REOPEN_GUARD: std::time::Duration = std::time::Duration::from_millis(250);
 
 pub fn toggle_popover(app: &AppHandle) {
+    // The other way into the same bug: the pet and the tray icon are still clickable while the
+    // picker is up, and hiding the popover from here would take the sheet with it.
+    if picker_is_open(app) {
+        return;
+    }
+
     let Some(win) = app.get_webview_window(POPOVER) else {
         return;
     };

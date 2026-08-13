@@ -65,10 +65,11 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Click-outside closes the popover. The pet has no such behaviour: it is never
-            // focused in the first place.
+            // Click-outside closes the popover, except when the thing that took the focus is
+            // the app's own folder picker. The pet has no such behaviour: it is never focused
+            // in the first place.
             if let tauri::WindowEvent::Focused(false) = event {
-                if window.label() == app::POPOVER {
+                if window.label() == app::POPOVER && !app::picker_is_open(window.app_handle()) {
                     let _ = window.hide();
                     app::note_popover_hidden(window.app_handle());
                 }

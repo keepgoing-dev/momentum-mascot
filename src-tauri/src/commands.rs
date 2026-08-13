@@ -33,8 +33,19 @@ pub fn hide_popover(app: AppHandle) {
 /// dialog: the app has one surface, and an error is a sentence in it.
 #[tauri::command]
 pub async fn add_project(app: AppHandle) -> Result<(), String> {
+    // The popover must stay open for as long as the picker is up: the picker is a sheet on it,
+    // and a sheet does not outlive the window it is attached to (`app::picker_is_open`).
+    let _picker = app::PickerGuard::new(&app);
+
     let (tx, rx) = std::sync::mpsc::channel();
-    app.dialog().file().pick_folder(move |picked| {
+    let mut dialog = app.dialog().file();
+    // Named explicitly rather than left to the dialog crate, which otherwise picks whichever
+    // window happens to be macOS's main one and would hang the sheet off the pet, or off the
+    // status bar, depending on what was focused when.
+    if let Some(popover) = app.get_webview_window(app::POPOVER) {
+        dialog = dialog.set_parent(&popover);
+    }
+    dialog.pick_folder(move |picked| {
         let _ = tx.send(picked);
     });
     // The picker answers on the main thread, so the wait for it must not happen there.
