@@ -224,10 +224,23 @@ Each state carries a short quote line in the popover, drawn from a small hardcod
 
 ## 5. The Share Artifact
 
-"Share Status" is not a button in the corner. It is simultaneously **the growth mechanism and the validation instrument**, and it is designed before the app is built.
+**There are two artifacts, and an earlier draft of this section collapsed them into one.** That was the mistake, and it survived until the card was actually built and looked at in a simulated timeline.
 
-- **Growth:** this product has no marketing budget, no ads, and no network calls. The only way anyone finds out it exists is a user posting a picture of it. The share image *is* the distribution channel.
-- **Validation:** if people share it, the art landed. If nobody shares it, no amount of feature work will fix that. Share volume is the only honest signal available, and observing it requires no telemetry.
+| | **The demo** (section 5.4) | **The card** (sections 5.1 to 5.3) |
+| --- | --- | --- |
+| Made by | the author, once | every user, repeatedly |
+| Job | **explain the product** | **carry the mood, and the URL** |
+| Shows | the transition, over time | one state, at one instant |
+| Requires | the working app | the room art |
+| Signal it gives | none, beyond its own reception | share volume, which is the honest one |
+
+The critique that forced the split is simple and correct: **a single card explains nothing.** Post `Still warm. I've got the seat.` over a picture of a pixel room to someone who has never heard of this tool and they have no way to work out what it is. A still frame cannot show a transition, and this product *is* a transition. Section 4.5 already says the comeback is the emotional payload of the entire product and everything else is setup, so an artifact that can only ever show one frame was never going to be the thing that explains it.
+
+- **Discovery is the demo's job.** No marketing budget, no ads, no network calls, so the only way anyone hears about this is someone posting it. What they need to see first is three days of silence compressed into a few seconds and then the character leaping out of bed. That is not a picture. It is a screen recording, and it needs the app to exist.
+- **Growth after discovery is the card's job.** Once someone knows what KeepGoing is, a card of a sleeping room reads instantly, because **the context comes from the product being known, not from the image carrying it.** The card is a mood post between people who are already in on it, and it puts `keepgoing.dev` in front of the ones who are not.
+- **Validation is still the card's job alone.** If users post cards, the art landed. A video the author posts once is a claim; a thousand cards posted by users is evidence. That is why the card is still worth having designed, and why share volume remains the only honest signal available without telemetry.
+
+The consequence for the plan is real and is recorded in section 12: the card is finished as a **feature**, but it cannot be **validated** until the demo has created the context it depends on, and the demo cannot be made until the app runs. The dependency runs app, then demo, then context, then card. Designing the card before the app was still right, because the app has to render it either way, and every finding in section 5.2 would otherwise have surfaced as rework mid-implementation.
 
 ### 5.1 Behaviour
 
@@ -254,6 +267,22 @@ There is a real tension here, worth stating rather than fudging. A room composed
 **The v1 share image never contains project names, repository paths, commit messages, hashes, or timestamps.** Not behind a toggle, not opt-in, not by default off.
 
 A user sharing a picture of a happy pixel room should not have to audit it for their employer's repo name or their home directory path before posting. The failure mode is silent and irreversible, and the image loses nothing by omitting it. It communicates a *mood*, not a *report*.
+
+**Section 5.4's demo is held to the same rule and it is harder there**, because a screen recording captures whatever is on screen. The demo is recorded against a throwaway repository with a deliberately boring name, on a clean desktop, and the recording is watched back before posting specifically to look for a leaked path, a browser tab title, or a notification banner. A privacy rule that only covers the artifact the code generates is not a privacy rule.
+
+### 5.4 The demo
+
+**The artifact that explains the product, made once, by the author.** A short screen recording, posted at launch and reusable as the top of the README and the landing page. It is not a feature, it takes no code beyond the debug clock below, and it is the thing most likely to decide whether anyone ever installs this.
+
+**What it has to show, in order:** a commit landing and the pet waking; time passing and the pet dozing; more time passing and the room going to sleep; then a commit landing after the silence, and the comeback. That is the entire product, and it is legible without a single word of voiceover or caption. Roughly 20 to 30 seconds. The comeback is the payoff shot and gets the most screen time.
+
+**It has to be a timelapse, because the real durations are 24 and 72 hours.** This is where the demo stops being a marketing task and becomes a spec item: it needs the clock to run fast.
+
+**The debug clock is nearly free, and it is needed twice.** Section 8.1 already specifies state derivation as a pure function of the tracked timestamps and the current time. Feeding that function a scaled clock is exactly what a pure function is for, so time acceleration is a parameter rather than a feature: one injectable clock behind a debug-only environment variable, off and inert in a release build, never a setting and never in the UI.
+
+The second reason matters more than the demo does. Section 18 requires that the awake to dozing to asleep transitions be verified **from time passing alone, without restarting the app**. Waiting three days per test run is not verification, it is hoping. Without an accelerated clock that requirement is untestable in practice, and an untestable line on a definition of done quietly becomes an unchecked one. So the demo and the test suite converge on the same small piece of plumbing, which is the cheapest kind of feature there is.
+
+**Recorded with the real state machine, not a mock.** The clock is scaled and nothing else is faked: real commits into a real throwaway repository, the real watcher, the real derivation. A demo of a mocked path is a lie that also fails to test anything, and the point of recording it against the real thing is that making the demo *is* the integration test.
 
 ---
 
@@ -352,6 +381,8 @@ Thresholds are wall-clock durations, not calendar-day boundaries. A commit at 11
 The empty case resolves to `awake`, not `asleep`. A user who has just installed the app should meet a cheerful room.
 
 State derivation is a **pure function of the tracked timestamps and the current time**, with no side effects. It is the most testable piece of the system and should be written that way, and kept independently replaceable.
+
+**The current time is injected, never read from the system clock inside the function.** This costs one parameter and buys two things that are otherwise expensive: the boundary tests in section 15 become table-driven with no clock mocking, and the accelerated clock that section 5.4's demo and section 18's transition checks both need becomes a scale factor on the injected value rather than a code path of its own. The scale factor lives behind a debug-only environment variable, defaults to 1, and is compiled out or inert in a release build. It is not a setting, it does not appear in the UI, and it never touches `state.json`.
 
 ### 8.2 Re-evaluation triggers
 
@@ -508,7 +539,9 @@ What is left in this phase is the test that cannot be rushed. The author **lives
 
 **Phase 2: Design the share image. The composition is done.** `tools/compose-share.sh` builds all four cards from the Phase 1 stills, and the three findings in section 5.2 came out of building it. Settled here: the footer's three-part single baseline, the label outlined rather than shadowed, the wordmark merged into the URL so it is large enough to read, and Departure Mono as the embedded pixel font (section 6.4). Section 17's question about mat proportions is resolved: the spec's own 200px bars and 12px top margin are correct, and what had to move was the quote, not the mat.
 
-Two things remain, and only one of them is design work. The card has been checked at 1:1 and down a thumbnail ladder to 180px using a smooth resample, which is how platforms re-encode, but it has **not been posted anywhere real**, and a timeline simulation in a local HTML page is not a timeline. The other is that the card is generated from **frame 0 of each state**, so it is a still of an animated room; whether the share artifact should instead be an animated GIF or WebP is a real question the spec has never asked, and it is deferred to section 17 rather than answered here, because a static PNG is what pastes into a clipboard and every chat app (section 5.1).
+**The phase closes here, and the instruction to "post it somewhere and see how it reads" moves out of it.** That instruction assumed a card could be posted cold and understood, and it cannot: see section 5, which was rewritten because of it. Posting a card before anyone knows what KeepGoing is tests nothing, because a failure would be indistinguishable from the audience simply having no idea what they were looking at. The card gets posted after the demo exists, and the demo needs the app, so that test now sits in Phase 5.
+
+What that leaves settled: the composition, the footer's three-part single baseline, the label outlined rather than shadowed, the wordmark merged into the URL so it is large enough to read, and Departure Mono as the embedded pixel font (section 6.4). Section 17's question about mat proportions is resolved: the spec's own 200px bars and 12px top margin are correct, and what had to move was the quote, not the mat. The card is generated from **frame 0 of each state**, so it is a still of an animated room; whether it should ever move is section 17, question 4, and section 5.4's demo takes most of the pressure off that question by covering the case a still handles worst.
 
 **Phase 3: Tauri app, macOS target.**
 
@@ -516,9 +549,17 @@ Two things remain, and only one of them is design work. The card has been checke
 
 Then: the desktop pet window, the tray icon, the popover, `notify` on `.git/logs/HEAD` with the qualifying-commit scan, the state model, Add Project, and Share Status. The first phase producing a running application, and it produces a complete one.
 
-**Phase 4: Windows build target.** Packaging, tray assets, and verification of the picker, clipboard, and watcher paths. No new features enter here.
+**The injected clock is built here, not retrofitted.** Section 8.1 requires the current time to be a parameter rather than something read inside the derivation, and the debug scale factor rides on that. It is a few lines when the state model is first written and an invasive change afterwards, and both the demo and the transition tests below are blocked without it.
 
-**Phase 5: Linux, if and when someone asks**, with the caveats in section 11 understood before starting.
+**Phase 4: Record the demo.** The artifact that actually explains the product (section 5.4), and the first thing that can be made now that the app runs. A throwaway repository, a scaled clock, a clean desktop, and a 20 to 30 second timelapse ending on the comeback. Recording it against the real state machine doubles as the integration test that no unit test covers: real commits, real watcher, real derivation, only the clock scaled. Watch it back for leaked paths and tab titles before it goes anywhere (section 5.3).
+
+This is deliberately its own phase rather than a task inside Phase 3. It is the highest-leverage artifact in the whole plan, it is the one most likely to be skipped under momentum, and giving it a phase number is the cheapest way to stop that happening.
+
+**Phase 5: Post it, and only then post a card.** The demo goes out first and creates the context. Then a card can be posted and read for what it actually is, which is the test Phase 2 was originally asked to run and could not. If the demo lands and the cards do not, that is a real signal about the art rather than an ambiguous one about the audience.
+
+**Phase 6: Windows build target.** Packaging, tray assets, and verification of the picker, clipboard, and watcher paths. No new features enter here.
+
+**Phase 7: Linux, if and when someone asks**, with the caveats in section 11 understood before starting.
 
 ---
 
@@ -590,7 +631,8 @@ Effort follows risk, and the risk is concentrated in a small amount of logic.
 | **Scope creep repeats the deprecated ecosystem.** | Fatal, slowly | The guardrail and out-of-scope table in section 3, the permanent non-goals, the flat layout, and the seams-not-extension-points rule in section 16. |
 | **Using the wrong pack.** `Modern tiles_Free/` sits beside the paid pack and is non-commercial only, so a single asset pulled from it would silently breach the license. | High, legal | Source assets only from `moderninteriors-win/`. Named explicitly in sections 4.2 and 12 so it cannot be discovered by accident. |
 | **Missing attribution.** Credit to `limezu.itch.io` is required by the license, and there is no about window to hide it in. | High, legal | Credit is specified as a functional requirement in three fixed places: the popover footer, the share image band, and the README. It is on the Definition of Done. |
-| **Nobody shares the image**, so there is no growth and no signal. | High | Phase 2 tests the artifact in a real timeline before any code generates one. If the mock does not look shareable, that is a Phase 1 problem surfacing early, which is the point. |
+| **Nobody shares the card**, so there is no growth and no signal. | High | Two mitigations, and the first was originally mistaken for the whole answer. The card is designed and looked at before any code generates one (Phase 2), which catches a card that is simply ugly. But a card nobody understands is the likelier failure, and the fix for that is the demo (section 5.4): discovery is its job, so the card is only ever asked to do the thing it can do. Phase 5 posts them in that order deliberately, so a poor result points at the art rather than at the audience. |
+| **Nobody watches the demo either**, so the card never gets its context. | High | The genuinely unhedged risk in this plan, and worth naming as such rather than dressing up. Nothing in the design guarantees a launch post lands. What is under control is that the demo is cheap to remake, needs no code beyond the debug clock, and can be re-cut and re-posted as often as it takes without touching the product. |
 | **Non-standard reflog messages** from GUI clients or libgit2-based tools are not matched by the `commit` prefix filter. | Medium | The `HEAD` fallback in section 9.2 covers it: the worst case is a slightly stale timestamp, never a false comeback. |
 | **`notify` misses events** on network volumes, virtualised filesystems, or after sleep/wake. | Medium | The 60-second tick re-evaluates and startup re-reads all projects. Worst case the room updates within a minute instead of instantly, which is acceptable here. |
 | ~~**The pet is invisible over macOS fullscreen apps.**~~ **Retired: solved.** Was rated fatal to the pet. | Closed | Spiked before any other pet work and cleared. The fix is an `NSPanel` conversion, not a window level; no `NSWindow` configuration works at all. Recipe in section 11, wall 1, cost accounted in section 10.3, evidence in `spikes/always-on-top/RESULTS.md`. |
@@ -627,10 +669,11 @@ Items that have been settled are deleted from this list and recorded in the phas
 1. **How the pet's dozing and asleep frames differ.** Both use a seated pose with a `Z`, since the pack has no bedless sleeping character (section 6.1). The distinction could be the emote alone, a subtle pose change, or something else. Genuinely unsettled, and Phase 1 work.
 2. **Whether the cat's coat needs warming.** The pack's cat is drawn in a cool blue-grey (`#8b8bab` and neighbours) and the room is warm oak and beige, so the cat is the coldest thing in it and takes more attention than a cat lying on a rug should. A 10 to 15% warm colorize on that one layer would fix it and is one line in the compositor. Left alone for now, because recolouring pack art is a road that ends in hand-tuned assets, and the week below will say whether it actually bothers anyone.
 3. **Comeback duration cap.** Default is "until the popover opens, capped at 30 minutes". Now less consequential than it was, since the pet delivers the moment regardless, so this only governs how long the popover keeps the celebration available. Decide after living with it.
-4. **Whether the share artifact should move.** Every state is a 12-frame loop (section 4.1) and the card is built from frame 0, so the thing that travels is a still of a moving room. An animated card would carry the comeback far better than a still can, and the comeback is the moment most likely to be posted. Against it: a PNG is what the clipboard and every chat app accept without negotiation (section 5.1), an animated share path is a second renderer rather than a variation on the first, and a GIF of a dark room is a large file for a small gain in three of the four states. The honest split may be a still by default with the comeback as the single exception, which is also the most complexity for the least code. Not Phase 2 work, and not blocking: the still card is complete and shippable as specified.
-5. **Whether any project information ever appears in the shared image.** v1 says no, absolutely. The open sub-question is whether a non-identifying aggregate such as "3 projects" is acceptable later, or whether the image stays purely about the mood.
-6. **Whether the comeback gets sound.** Currently no, because a tray app making noise is a fast route to being quit. Revisit only if it can be off by default with no settings screen to turn it on, which probably means the answer stays no.
-7. **Quote pool size per state.** Four lines each are drafted. Whether that is enough before repetition grates is something Phase 3 dogfooding will answer.
+4. **Whether the share artifact should move.** Every state is a 12-frame loop (section 4.1) and the card is built from frame 0, so the thing that travels is a still of a moving room. An animated card would carry the comeback far better than a still can, and the comeback is the moment most likely to be posted. Against it: a PNG is what the clipboard and every chat app accept without negotiation (section 5.1), an animated share path is a second renderer rather than a variation on the first, and a GIF of a dark room is a large file for a small gain in three of the four states. The honest split may be a still by default with the comeback as the single exception, which is also the most complexity for the least code. Not blocking: the still card is complete and shippable as specified. **Section 5.4's demo defuses most of this**, because the case a still handles worst is the transition, and the demo shows the transition properly. Revisit only if the demo lands and the cards visibly fail to.
+5. **How much of the demo is reusable, and by whom.** Section 5.4's demo is recorded by the author against a throwaway repository. The obvious next thought is a "record your own" feature, and the answer is no for v1: it is a second product, it needs a settings screen, and it puts the privacy burden (section 5.3) on the user in the one place they are least able to audit it. The question worth keeping open is narrower, whether the demo should be re-recorded per release or shot once and left alone.
+6. **Whether any project information ever appears in the shared image.** v1 says no, absolutely. The open sub-question is whether a non-identifying aggregate such as "3 projects" is acceptable later, or whether the image stays purely about the mood.
+7. **Whether the comeback gets sound.** Currently no, because a tray app making noise is a fast route to being quit. Revisit only if it can be off by default with no settings screen to turn it on, which probably means the answer stays no.
+8. **Quote pool size per state.** Four lines each are drafted. Whether that is enough before repetition grates is something Phase 3 dogfooding will answer.
 
 ---
 
@@ -646,8 +689,7 @@ v1 ships when all of these are true. Nothing else is required, and nothing else 
 - [ ] Every asset came from `moderninteriors-win/`, none from `Modern tiles_Free/`.
 - [ ] `art: limezu.itch.io` appears in the popover, in the share image, and in the README.
 - [ ] The author has lived with the four states for a week and still wants them.
-- [ ] The desktop pet appears bottom-right at 64x64, above normal windows, showing the correct state.
-- [ ] The pet's behaviour over a fullscreen app is known, recorded, and either working or explicitly accepted.
+- [ ] The desktop pet appears bottom-right at 64x64, above normal windows, showing the correct state, and its behaviour over a fullscreen app is known, recorded, and either working or explicitly accepted.
 - [ ] Clicking the pet opens the popover.
 - [ ] The pet's dozing and asleep loops are the lowest-amplitude ones in the app, and it does not fidget when awake.
 - [ ] Tray icon is a monochrome template image that reads on both light and dark menu bars, and its right-click menu holds Open and Quit.
@@ -658,7 +700,8 @@ v1 ships when all of these are true. Nothing else is required, and nothing else 
 - [ ] A real `git commit` in a tracked repo updates the pet and the room within about a second.
 - [ ] A `git checkout` or `git pull` in a tracked repo does **not** change the state.
 - [ ] Checking out an older branch does not move `last_commit_at` backwards.
-- [ ] The awake to dozing to asleep transitions happen from time passing alone, verified without restarting the app.
+- [ ] The awake to dozing to asleep transitions happen from time passing alone, verified without restarting the app, under an accelerated clock rather than by waiting three days.
+- [ ] A demo recording exists that shows the full arc from commit to asleep to comeback, made against the real state machine with only the clock scaled, and watched back for leaked paths before posting.
 - [ ] A commit landing while asleep produces the comeback room, which resolves when the popover is opened and survives an app restart.
 - [ ] Share Status copies a 1200x630 image to the clipboard that pastes into a real chat app and a real social composer, contains no project name, path, hash, or timestamp, and matches the composition in section 5.2 with the room at exact 5x and the state still identifiable at a 280px feed width.
 - [ ] State persists across restarts, and a corrupt or missing state file starts the app cleanly rather than failing.
@@ -684,7 +727,9 @@ v1 ships when all of these are true. Nothing else is required, and nothing else 
 - **The comeback is the emotional payload, and the pet solves it.** Earlier drafts had to accept that a popover-only design cannot guarantee the celebration is ever seen. The pet delivers it in peripheral vision the moment the commit lands, with no banner and no click. The 30 minute cap and popover-open resolution remain as the mechanism for settling back to `awake`, but nothing is owed if the popover is never opened.
 - **Only real commits count.** The reflog is scanned backwards and filtered to messages beginning with `commit`; checkout, pull, fast-forward merge, reset, clone, and rebase replays are ignored, so a comeback can never fire because someone checked out a branch. `last_commit_at` never decreases. The reflog entry's timestamp is used rather than committer time, because amend and rebase rewrite committer time while the reflog records when the user acted.
 - **Tone:** warm, encouraging, a little snarky, never guilt-inducing. No elapsed-time shaming anywhere.
-- **Share Status is the growth mechanism and the validation instrument**, designed before the app is built, carrying no project names or paths. A 1200x630 canvas with the room letterboxed inside it at integer scale, because a 10:7 room in a 1.91:1 crop gets a mat rather than fractional scaling. **The card is composed** (section 5.2), and building it produced a rule worth keeping: **anything drawn on the room matches the room's pixel unit, and anything drawn on the mat is free.** The label obeys the first half at 5x, the quote the second at 2x, and the quote had to move off the room entirely to get there, because the composed room has no quiet strip left in it. The typeface is **Departure Mono** under the OFL, chosen on measured widths rather than taste (section 6.4).
+- **There are two share artifacts, and conflating them was this spec's biggest mistake to date** (section 5). **The demo** is a 20 to 30 second timelapse the author records once, and it is what *explains* the product, because the product is a transition and no still frame can show one. **The card** is the 1200x630 image users copy from the app, and it carries mood and the URL to people who already know what they are looking at. A card posted cold explains nothing, which is why the discovery job could never have been its own. Validation stays with the card alone: a video the author posts once is a claim, and a thousand cards posted by users is evidence.
+- **The card is composed** (section 5.2), on a 1200x630 canvas with the room letterboxed at integer scale, because a 10:7 room in a 1.91:1 crop gets a mat rather than fractional scaling. Building it produced a rule worth keeping: **anything drawn on the room matches the room's pixel unit, and anything drawn on the mat is free.** The label obeys the first half at 5x, the quote the second at 2x, and the quote had to move off the room entirely to get there, because the composed room has no quiet strip left in it. The typeface is **Departure Mono** under the OFL, chosen on measured widths rather than taste (section 6.4).
+- **The demo needs an accelerated clock, and so do the tests.** The real thresholds are 24 and 72 hours, so a timelapse is not optional and neither is verifying the transitions without waiting three days. Because section 8.1 already makes state derivation a pure function of injected time, this costs one parameter and a debug-only scale factor rather than a feature. Two unrelated needs landing on the same small seam is the sign the seam was in the right place.
 - **Four surfaces, with distinct jobs.** The **desktop pet** (always visible, carries state ambiently), the **tray icon** (plumbing: opens the popover, holds Quit), the **popover room** (the reward, on demand), and the **share image** (the audience). The pet exists because 90% of the value is art, and a popover-only design leaves that art behind a click that happens twice a day.
 - **The pet is a 64x64 always-on-top window**: the 32x32 character at 2x, character only and never the room, fixed bottom-right with its position persisted, and clickable rather than click-through so it becomes the primary way in. **Motion is reserved on the pet:** the lowest-amplitude loops when dozing and asleep, a slow idle when awake, loud only on comeback, because a sprite that moves constantly and largely in peripheral vision is the thing people quit.
 - **The pet is a second window, and that out-of-scope row was reversed honestly.** The ban is now narrow: no second window *for UI chrome* (about, onboarding, stats, settings). The pet is not chrome, it is the primary ambient surface. The guardrail itself is unchanged: still no second process, no second language, no settings screen.
@@ -695,4 +740,4 @@ v1 ships when all of these are true. Nothing else is required, and nothing else 
 - **Stack:** Tauri v2, one codebase, Rust backend plus webview UI, one local JSON file with atomic writes and parsing resilient to missing fields and empty arrays.
 - **Rejected:** the Rust CLI plus separate Swift menu bar app with a JSON handshake and a `keepgoing://` scheme, which pays for two languages now and still forces a rewrite at the Windows boundary. CLI, IPC, and URL scheme are deleted. Also rejected: git hooks in user repositories, which collide with husky and lefthook and leave an uninstall problem.
 - **Future directions are named but undesigned.** Architectural seams stay; extension points built ahead of need do not.
-- **Phasing:** compose and animate the four states (done), design the share card (composed), build the macOS app, add Windows as a build target, then Linux if asked, with an honest `StatusNotifierItem` caveat. The two art phases are gated on the author living with the result rather than on a checklist, which is the only gate in the plan that cannot be rushed.
+- **Phasing:** compose and animate the four states (done), design the share card (composed), build the macOS app, **record the demo**, post the demo and then a card, add Windows as a build target, then Linux if asked with an honest `StatusNotifierItem` caveat. The demo gets its own phase number rather than being a task inside the app phase, because it is the highest-leverage artifact in the plan and the one most likely to be skipped under momentum. Phase 1 is gated on the author living with the rooms for a week, which is the only gate here that cannot be rushed.
