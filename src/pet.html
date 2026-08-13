@@ -12,12 +12,18 @@
         place-items: center;
       }
 
+      /* `--cell` is the displayed size of one 32x32 frame, and **the window decides it**, not
+         this file. It used to be the literal 64px twice over, and when the window arrived at
+         half that the character was drawn at full size inside it and clipped to a head: still
+         a valid page, still clickable, nothing anywhere reporting a mismatch. A stylesheet
+         holding a second opinion about the size of its own window is the bug, so `pet.js`
+         measures the viewport and writes the answer here. */
       #pet {
-        width: 64px;
-        height: 64px;
-        /* 12 frames of 32px, doubled: a 768x64 strip stepped one cell at a time. */
+        width: var(--cell);
+        height: var(--cell);
+        /* 12 frames of one cell each, stepped a cell at a time. */
         background-repeat: no-repeat;
-        background-size: 768px 64px;
+        background-size: calc(var(--cell) * 12) var(--cell);
         animation: walk 2s steps(12) infinite;
         cursor: pointer;
       }
@@ -27,7 +33,7 @@
           background-position: 0 0;
         }
         to {
-          background-position: -768px 0;
+          background-position: calc(var(--cell) * -12) 0;
         }
       }
 

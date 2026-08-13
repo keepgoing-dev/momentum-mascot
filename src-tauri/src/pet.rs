@@ -15,11 +15,22 @@
 //! The dead ends are kept in `spikes/always-on-top/RESULTS.md` so that a future macOS release
 //! breaking this is re-diagnosed in minutes rather than re-explored from scratch.
 
-use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize};
+use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition};
 
 use crate::app::PET;
 
-pub const SIZE: u32 = 64;
+/// The pet's size in **logical** pixels, which is the same unit `pet.html` draws in.
+///
+/// The unit is the whole point of this constant, and it was wrong in the first version that
+/// shipped. `PhysicalSize::new(64, 64)` here shrank the *webview* to 64 physical pixels, being
+/// a 32x32 point viewport on a 2x display, while `"resizable": false` clamped the *window* back
+/// to its configured 64x64 points. So the two disagreed by a factor of two and the character
+/// was clipped to its own hat, on a window that still opened the popover when clicked.
+///
+/// It took three wrong diagnoses to find, because the obvious measurement is the wrong one:
+/// `inner_size()` reports the window, and the window was correct. The viewport is only visible
+/// from inside the webview, which is why `pet.js` is now the thing that measures it.
+pub const SIZE: f64 = 64.0;
 
 /// Clearance from the corner of the usable screen, in logical pixels.
 const MARGIN: f64 = 20.0;
@@ -37,7 +48,7 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
         return Ok(());
     };
 
-    win.set_size(PhysicalSize::new(SIZE, SIZE))?;
+    win.set_size(LogicalSize::new(SIZE, SIZE))?;
     place(&win)?;
 
     #[cfg(target_os = "macos")]
@@ -64,6 +75,15 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
 /// `visibleFrame`. Taking the tighter of the two is deliberate: whichever of them accounts
 /// for the Dock, the pet clears it, and if Tauri's behaviour changes later this does not
 /// silently start double-counting.
+///
+/// **`outer_position()` read straight after `set_position` returns the OLD position**, and
+/// anyone checking this function's work needs to know that before they start. It reports the
+/// macOS default, which is near the middle of the display, and it keeps reporting it however
+/// many times the call is repeated. A few hundred milliseconds later the same read returns the
+/// corner. This cost an entire wrong diagnosis, a restructure of `main.rs` around
+/// `RunEvent::Ready`, and a fix for a bug that did not exist: placement worked correctly the
+/// whole time and the measurement was lying. **Read the position from a delayed thread, or do
+/// not read it.**
 fn place(win: &tauri::WebviewWindow) -> tauri::Result<()> {
     let Some(mon) = win.current_monitor()? else {
         return Ok(());
@@ -79,10 +99,15 @@ fn place(win: &tauri::WebviewWindow) -> tauri::Result<()> {
         bottom = bottom.min(vb);
     }
 
+    // The corner is in physical pixels, so the window's own extent has to be too. Subtracting
+    // a logical size from a physical coordinate hangs the pet off the bottom-right of the
+    // screen by exactly the amount the display is scaled by, which on a 1x monitor is nothing
+    // at all: the kind of bug that is invisible on the machine it was written on.
+    let extent = SIZE * scale;
     let margin = MARGIN * scale;
     win.set_position(PhysicalPosition::new(
-        (right - SIZE as f64 - margin) as i32,
-        (bottom - SIZE as f64 - margin) as i32,
+        (right - extent - margin) as i32,
+        (bottom - extent - margin) as i32,
     ))?;
     Ok(())
 }

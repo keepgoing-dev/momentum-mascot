@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <base href="/src/" />
+    <title>Pet preview</title>
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      /* The rules under test are copied from pet.html verbatim. If they drift apart this
+         harness stops being evidence, so they are kept adjacent rather than imported: the
+         point is to see what the pet window sees. */
+      /* `--cell` is what pet.js writes from the live viewport. Set explicitly here so the
+         harness shows a known scale rather than whatever this page happens to be. */
+      .pet {
+        --cell: 64px;
+      }
+      .big {
+        --cell: 256px;
+      }
+      .pet,
+      .big {
+        width: var(--cell);
+        height: var(--cell);
+        background-repeat: no-repeat;
+        background-size: calc(var(--cell) * 12) var(--cell);
+        animation: walk 4s steps(12) infinite;
+        outline: 1px solid #3a3a50;
+      }
+
+      @keyframes walk {
+        from {
+          background-position: 0 0;
+        }
+        to {
+          background-position: calc(var(--cell) * -12) 0;
+        }
+      }
+
+      body {
+        background: #101018;
+        margin: 0;
+        padding: 16px;
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        font: 11px/1.4 ui-monospace, monospace;
+        color: #b6ab98;
+      }
+
+      figure {
+        margin: 0;
+        display: grid;
+        gap: 6px;
+        justify-items: center;
+      }
+
+      /* A ring exactly on the 64x64 window boundary, drawn outside it so it cannot change the
+         layout of what it is measuring. A pet that overflows or sits off-centre is only
+         visible against the edge it is supposed to fill. */
+      .frame {
+        outline: 1px solid #3a3a50;
+        outline-offset: 0;
+      }
+
+    </style>
+  </head>
+  <body>
+    <script>
+      const MOODS = ["awake", "dozing", "asleep", "comeback"];
+      const id = new URLSearchParams(location.search).get("character") || "07";
+      const big = location.search.includes("big");
+      for (const mood of MOODS) {
+        const url = `assets/pet/${id}/${mood}.png`;
+        document.write(
+          `<figure><div class="pixels ${big ? "big" : "pet"} frame" ` +
+            `style="background-image:url('${url}')"></div><figcaption>${mood}</figcaption></figure>`,
+        );
+      }
+    </script>
+  </body>
+</html>

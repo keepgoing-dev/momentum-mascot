@@ -185,6 +185,18 @@ SEATED_Y=192
 SLEEP_XS="0 16 32 48 64 80"
 SLEEP_Y=96
 
+# The blanket, which the pet needs and the room does not.
+#
+# 192,96 is not the clean overlay the note above implies: it is the sleeper already composited
+# into a bed, so the cell carries headboard posts and side rails as well. The blanket itself is
+# the bottom half, rows 16..32, and those sixteen rows are clean. Its outermost columns are the
+# pack's own outline navy rather than bed rail, so the band needs no trimming sideways.
+#
+# It is one frame, not six. The room's bed supplies a static blanket too, so a still blanket
+# with a breathing head inside it is the same arrangement, not a shortcut.
+SLEEP_BLANKET_X=192
+SLEEP_BLANKET_Y=112
+
 CHAR_AWAKE_AT="+111+41"       # behind the desk, head clear of the computer
 CHAR_DOZING_AT="+54+56"       # away from the desk, coffee in hand
 CHAR_COMEBACK_AT="+54+64"     # out of bed, on the rug
@@ -202,6 +214,14 @@ EMOTE_BANG_XS="0 16"
 EMOTE_BANG_Y=80
 EMOTE_SPARK_XS="64 80"
 EMOTE_SPARK_Y=96
+
+# Dozing gets the three dots, and asleep keeps the Z. They used to share the Z, and sharing it
+# was the whole reason the two states were indistinguishable on the pet: the emote is what
+# carries state there, so two states with one emote are one state as far as anyone glancing at
+# it is concerned. The dots are a two-frame pulse that reads as trailing off rather than as
+# sleeping, which is what 24 hours away actually is.
+EMOTE_DOTS_XS="32 48"
+EMOTE_DOTS_Y=144
 EMOTE_DX=8                    # offset from the character's top-left
 EMOTE_DY=-13
 SLEEP_EMOTE_DX=13             # a sleeper has no headroom, so the Z drifts right
@@ -237,7 +257,19 @@ PET_SPARK_DY=18
 # thing people quit. The distinction is amplitude, not presence: a 1px breath is fine, a tail
 # sweep or a hop is not, which is why the cat and the typing loop stay in the room.
 PET_BREATH="0 0 0 0 0 0 -1 -1 -1 -1 -1 -1"
-PET_SLUMP=2                   # asleep sits 2px lower than dozing: the same pose, more gone
+
+# Where the blanket's top edge sits relative to the sleeping head. 16 puts it a row under the
+# chin, so the head is tucked in rather than resting on top of the covers.
+PET_BLANKET_DY=16
+
+# The sleeping pose reserves its clearance at the BOTTOM of the cell, not the top, which is the
+# opposite of every other state and the reason it does not use PET_CHAR_Y.
+#
+# The others sit 2px high so a 2px hop has somewhere to go. A sleeper never hops, and the sheets
+# put the head's topmost row at +2 for two of the three characters, so borrowing those 2px above
+# would leave the cap touching the cell edge with nothing to spare. Spending them below instead
+# lets the blanket run off the bottom of the frame, which is how bedding behaves.
+PET_SLEEP_Y=0
 
 # The pet's own rates. Slower than the room everywhere except the comeback, which is the one
 # moment the pet is allowed to be loud.
@@ -357,7 +389,10 @@ build_layers() {
   SEATED_FRAMES=$(cut_row seated "$CHAR_SHEET" 16x32 "$SEATED_Y" $SEATED_XS)
   SLEEP_FRAMES=$(cut_row sleep  "$CHAR_SHEET" 16x32 "$SLEEP_Y"  $SLEEP_XS)
 
+  BLANKET=$(cut_row blanket "$CHAR_SHEET" 16x16 "$SLEEP_BLANKET_Y" $SLEEP_BLANKET_X)
+
   Z_FRAMES=$(cut_row z         "$EMOTES" 16x16 "$EMOTE_Z_Y"     $EMOTE_Z_XS)
+  DOTS_FRAMES=$(cut_row dots   "$EMOTES" 16x16 "$EMOTE_DOTS_Y"  $EMOTE_DOTS_XS)
   BANG_FRAMES=$(cut_row bang   "$EMOTES" 16x16 "$EMOTE_BANG_Y"  $EMOTE_BANG_XS)
   SPARK_FRAMES=$(cut_row spark "$EMOTES" 16x16 "$EMOTE_SPARK_Y" $EMOTE_SPARK_XS)
 }
@@ -383,7 +418,7 @@ frame_dozing() {  # away from the desk with a coffee, not standing next to it
     "$(nth "$i" $COMPUTER_FRAMES)" -geometry "$COMPUTER_AT" -composite \
     "$(nth "$i" $IDLE_FRAMES)"     -geometry "$at"          -composite \
     "$(nth "$i" $COFFEE_FRAMES)"   -geometry "$(shift_pos "$at" 12 -4)" -composite \
-    "$(nth "$i" $Z_FRAMES)"        -geometry "$(emote_pos "$at")"       -composite \
+    "$(nth "$i" $DOTS_FRAMES)"     -geometry "$(emote_pos "$at")"       -composite \
     -fill "$TINT_COLOUR" -colorize "$TINT_DOZING" PNG32:"$out"
 }
 
@@ -413,11 +448,15 @@ frame_comeback() {
 }
 
 # ---------------------------------------------------------------- the pet
-# One art gap, stated honestly rather than worked around: the pack has NO sleeping character
-# without a bed. The sleep animation is a layered recipe of vertical bed plus bare head plus
-# blanket, so the pet cannot show asleep the way the room does. Dozing and asleep therefore
-# share the seated pose, and what separates them is the slump and the rate. Whether that is
-# enough is section 17, question 1, and it is deliberately still open.
+# The art gap that was claimed here turned out not to exist, and the claim did real damage while
+# it stood. It read: the pack has no sleeping character without a bed, so dozing and asleep must
+# share the seated pose and be separated by a 2px slump. That was accepted rather than tested,
+# and the result was a pet with three visible states instead of four, which is what the author
+# said the moment he saw the two frames next to each other.
+#
+# The sleep row does need a bed to be read directly, but the blanket band is separable from the
+# furniture around it, and a capped head under a blanket needs no bed to say asleep. What made
+# this look impossible was reasoning about the sheet instead of cropping it.
 #
 # The seated frame is the rest pose only. The full seated row is a typing loop, and a pet
 # typing in the corner of the eye all day is exactly the thing the amplitude rule bans.
@@ -435,18 +474,31 @@ frame_pet_dozing() {
   local dy=$((PET_CHAR_Y + $(nth "$i" $PET_BREATH)))
   magick -size ${PET_W}x${PET_H} xc:none \
     "$(nth 0 $SEATED_FRAMES)" -geometry "$(geom $PET_CHAR_X $dy)" -composite \
-    "$(nth "$i" $Z_FRAMES)" \
+    "$(nth "$i" $DOTS_FRAMES)" \
       -geometry "$(geom $((PET_CHAR_X + PET_EMOTE_DX)) $((dy + PET_EMOTE_DY)))" -composite \
     PNG32:"$out"
 }
 
+# Asleep is the sleeping pose under a blanket, and it is the only pet state that is not the
+# standing or seated character.
+#
+# The first version had this sharing the seated pose with dozing and separated only by a 2px
+# slump, on the reasoning that the pack has no sleeping character without a bed. That reasoning
+# was wrong in a way only a person looking at the result catches: the two frames differed by two
+# pixels and one emote they had in common, so the pet had three states rather than four. The
+# blanket band exists on the character sheet independently of the furniture, which is what makes
+# this possible without putting a bed on the pet.
+#
+# The head breathes on its own six frames and the blanket does not move, so what animates is a
+# sleeper shifting under bedding rather than the bedding shifting with them.
 frame_pet_asleep() {
   local i=$1 out=$2
-  local dy=$((PET_CHAR_Y + PET_SLUMP + $(nth "$i" $PET_BREATH)))
   magick -size ${PET_W}x${PET_H} xc:none \
-    "$(nth 0 $SEATED_FRAMES)" -geometry "$(geom $PET_CHAR_X $dy)" -composite \
+    "$(nth "$i" $SLEEP_FRAMES)" -geometry "$(geom $PET_CHAR_X $PET_SLEEP_Y)" -composite \
+    "$BLANKET" -geometry "$(geom $PET_CHAR_X $((PET_SLEEP_Y + PET_BLANKET_DY)))" -composite \
     "$(nth "$i" $Z_FRAMES)" \
-      -geometry "$(geom $((PET_CHAR_X + PET_EMOTE_DX)) $((dy + PET_EMOTE_DY)))" -composite \
+      -geometry "$(geom $((PET_CHAR_X + PET_EMOTE_DX)) $((PET_SLEEP_Y + PET_EMOTE_DY)))" \
+      -composite \
     PNG32:"$out"
 }
 
