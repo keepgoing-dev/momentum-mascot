@@ -89,6 +89,21 @@ licence, and the reason this thing looks like anything at all.
 **Type: Departure Mono** by Helena Zhang, under the SIL Open Font License 1.1, vendored in
 `assets/fonts/departure-mono/` with its licence text.
 
+## Licence
+
+The code is **MIT**, in `LICENSE`. That covers everything in this repository, which is the whole
+point of the arrangement described above: the pack art is not here, so the permissive licence on
+the code cannot accidentally speak for art that is not the author's to give away.
+
+What MIT does **not** cover, and what forking this does not grant you:
+
+- **LimeZu's Modern Interiors.** Everything under `src/assets/` and `docs/mockups/`, plus the
+  application icon, is composed from it at build time and is ignored by git. The licence permits
+  shipping it compiled into an application and forbids redistributing it as assets. You need your
+  own copy of the pack, and the credit to `limezu.itch.io` is required in anything you ship.
+- **Departure Mono**, which is OFL 1.1 rather than MIT, with its terms in
+  `assets/fonts/departure-mono/LICENSE`.
+
 ## The design
 
 `docs/spec-v2.md` is the specification, and it argues for its decisions rather than just listing
