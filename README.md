@@ -36,8 +36,8 @@ remembering not to.
 ## Building it
 
 ```sh
-tools/build-app-assets.sh          # composites the rooms, the pet and the fonts
-cargo build --manifest-path src-tauri/Cargo.toml --release
+tools/build-app-assets.sh          # composites the rooms, the pet, the icon and the fonts
+cargo run --manifest-path src-tauri/Cargo.toml
 ```
 
 The first step needs a local licensed copy of **LimeZu's Modern Interiors** (the full pack, not
@@ -46,6 +46,33 @@ version control: the licence permits shipping it compiled into an application an
 redistributing it as assets, so this repository holds the coordinates that produce the art and
 you bring your own copy of the pack. `docs/asset-picks.md` is the manifest, and
 `tools/compose-rooms.sh` is the compositor.
+
+`tools/drive-states.sh` runs the whole four-state arc past you in about two minutes on an
+accelerated clock, instead of the three days the real 24 and 72 hour thresholds would take. It
+uses a throwaway repository and a throwaway state file, and the clock it needs is read in debug
+builds only.
+
+## Packaging it
+
+```sh
+cargo install tauri-cli --version "^2.0" --locked
+cargo tauri build --target universal-apple-darwin
+```
+
+That produces `Momentum Mascot.app` and a `.dmg` under
+`src-tauri/target/universal-apple-darwin/release/bundle/`, universal so it runs natively on both
+Apple Silicon and Intel.
+
+**Check which `cargo` is on your `PATH` first.** If an older standalone Rust install sits in
+`/usr/local/bin`, it shadows rustup's and you will silently get an x86_64-only build on an Apple
+Silicon machine, which runs under Rosetta and reports no problem at all. `rustc -vV | grep host`
+is the check, and `PATH="$HOME/.cargo/bin:$PATH"` in front of the build command is the fix.
+
+**The build is ad-hoc signed, not notarized**, so macOS Gatekeeper will refuse to open it on any
+machine other than the one that built it: *"cannot be opened because the developer cannot be
+verified"*. Anyone you hand the `.dmg` to has to right-click the app and choose **Open** once, or
+run `xattr -d com.apple.quarantine "/Applications/Momentum Mascot.app"`. Removing that friction
+needs a paid Apple Developer ID and a notarization step, which this project has not taken.
 
 macOS is the current target. Windows is a build target rather than a rewrite, and Linux is
 honestly uncertain: Wayland does not let applications position their own windows, so the pet is

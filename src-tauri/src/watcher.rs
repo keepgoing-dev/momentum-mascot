@@ -20,13 +20,23 @@ pub struct Watcher {
     watched: HashSet<PathBuf>,
 }
 
-/// `KEEPGOING_WATCH_DEBUG` prints every filesystem event and every reading.
+/// `KEEPGOING_WATCH_DEBUG` prints every filesystem event and every reading, **in debug builds
+/// only**.
 ///
 /// It earns its place: "the watcher is not firing" and "the reading is being discarded" look
 /// identical from the outside, and telling them apart by reasoning cost more than this line
 /// does. It was the thing that showed the watcher was working perfectly while the timestamps
 /// were arriving on the wrong timeline.
+///
+/// The build gate was missing at first, and packaging is what found it: the variable's name was
+/// still in the release binary while `KEEPGOING_CLOCK_SCALE` and `KEEPGOING_MASCOT_STATE` were
+/// compiled out of it. What it prints is filesystem paths inside the user's own repositories, so
+/// a shipped build that can be asked to write those into the system log is not what section 5.3
+/// promises, however deliberately somebody has to ask.
 pub fn debugging() -> bool {
+    if !cfg!(debug_assertions) {
+        return false;
+    }
     static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *ON.get_or_init(|| std::env::var_os("KEEPGOING_WATCH_DEBUG").is_some())
 }

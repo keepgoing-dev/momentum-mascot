@@ -6,7 +6,7 @@ publish = false
 description = "A retro pixel mascot that reflects side-project momentum"
 
 [build-dependencies]
-tauri-build = "2"
+tauri-build = { version = "2", features = [] }
 
 [dependencies]
 # macos-private-api is required for `transparent: true` on the pet window, and it makes the

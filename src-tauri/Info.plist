@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Merged into the bundle's Info.plist by Tauri on macOS.
+
+  LSUIElement is the declaration that this is an accessory application: no Dock icon, no app
+  menu, no window in the app switcher. `main.rs` already sets ActivationPolicy::Accessory at
+  runtime and this does not replace it, because the two happen at different moments. The
+  runtime call takes effect once the process is up, so a bundled build without this key shows
+  a Dock icon for the fraction of a second before that. A menu bar app that blinks into the
+  Dock on every launch is the kind of detail that reads as unfinished.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>LSUIElement</key>
+    <true/>
+  </dict>
+</plist>

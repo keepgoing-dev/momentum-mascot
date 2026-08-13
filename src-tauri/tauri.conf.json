@@ -43,5 +43,17 @@
     "security": {
       "csp": "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self'"
     }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg"],
+    "icon": ["icons/bundle/icon.icns"],
+    "category": "Utility",
+    "copyright": "Art: LimeZu Modern Interiors, limezu.itch.io. Type: Departure Mono, OFL 1.1.",
+    "shortDescription": "A pixel character who reflects how your side projects are going.",
+    "longDescription": "A retro pixel character who lives in a tiny room on your desktop and reflects how your side projects are going. Reads one thing from each repository you point it at: when you last committed. No network, no accounts, no streaks.",
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    }
   }
 }

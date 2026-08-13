@@ -14,3 +14,7 @@ src-tauri/gen/
 
 # The tray icon is the one piece of art here that is not from the pack: it is drawn by
 # tools/make-icons.sh and committed, so the app compiles without a licensed copy.
+#
+# The APPLICATION icon is a different case: it is the character at 1024px, so it IS derived from
+# the pack and falls under the same rule as the rooms. Built by tools/make-app-icon.sh.
+src-tauri/icons/bundle/

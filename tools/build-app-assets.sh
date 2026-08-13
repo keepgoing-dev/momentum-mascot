@@ -9,6 +9,7 @@
 #   src/assets/pet/<char>/<state>.png     12-frame pet strip, 384x32
 #   src/assets/fonts/                     the embedded pixel font
 #   src-tauri/icons/tray.png              the menu bar template image
+#   src-tauri/icons/bundle/icon.icns      the application icon, for `tauri build`
 #
 # None of that is in version control, and that is the point: section 4.2 permits shipping
 # these compiled into a binary and forbids redistributing them as assets. Anyone picking this
@@ -50,6 +51,12 @@ done
 mkdir -p "$ICONS"
 "$ROOT/tools/make-icons.sh" | sed 's/^/  /'
 
+# ---------------------------------------------------------------- the app icon
+# The Dock, Finder and disk-image icon, which unlike the tray mark IS derived from the pack and
+# is therefore build output. Bundling fails without it, which is correct: a distributable build
+# needs the licensed pack anyway, because the rooms and the pet come from it.
+"$ROOT/tools/make-app-icon.sh" | sed 's/^/  /'
+
 # ---------------------------------------------------------------- the font
 # Vendored under the SIL Open Font License 1.1 and committed at assets/fonts/. It is copied
 # rather than referenced because the webview can only load what is inside the frontend root,
@@ -60,4 +67,4 @@ cp "$FONT_SRC/LICENSE" "$APP_ASSETS/fonts/DepartureMono-LICENSE.txt"
 echo "  $APP_ASSETS/fonts/DepartureMono-Regular.woff2"
 
 echo
-echo "done. src/assets and src-tauri/icons are build output and stay out of git."
+echo "done. src/assets and src-tauri/icons/bundle are build output and stay out of git."

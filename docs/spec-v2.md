@@ -489,6 +489,11 @@ Two consequences to hold onto:
 
 - **Set it once at window creation.** Never adjust level or `collectionBehavior` at runtime. Section 11 explains why: reconfiguring a live window produced history-dependent results.
 - **`transparent: true` requires Tauri's `macos-private-api` feature**, which makes the app ineligible for the Mac App Store. Distribution is direct, so this costs nothing today, but it forecloses that option silently.
+- **The bundle is universal, `LSUIElement`, and ad-hoc signed.** Three things the first packaged build settled, each for a stated reason:
+  - **Universal rather than native-only**, because the default was worse than either: an older standalone Rust install in `/usr/local/bin` shadowed rustup's, so every build in the project until packaging was x86_64 running under Rosetta on an Apple Silicon machine, reporting no problem anywhere. Worth knowing generally: a toolchain silently building for the wrong architecture looks exactly like a toolchain building correctly.
+  - **`LSUIElement` in `src-tauri/Info.plist`**, not only `ActivationPolicy::Accessory` at runtime. They do the same job at different moments, and the runtime call cannot take effect until the process is up, so without the key a bundled build shows a Dock icon for a fraction of a second on every launch.
+  - **Ad-hoc signed and not notarized**, which is a real limit rather than a detail: Gatekeeper refuses the app on any machine other than the one that built it, so anyone receiving the disk image has to right-click and Open once. Removing that needs a paid Developer ID. Recorded because it is the first thing that will be reported as a bug by whoever is handed the demo.
+- **The application icon is derived from the pack; the tray icon is not.** They are different jobs at different sizes (section 6.2), and the split has a licensing consequence worth being explicit about. The tray mark is drawn by hand at 16px, is covered by nothing in the pack's licence, and is committed. The app icon is the character at 1024px inside the popover's own mat and mount colours, so it falls under section 4.2 exactly as the rooms do: shipped compiled into the binary, never committed as an asset. `tools/make-app-icon.sh` builds it, and `tauri build` therefore needs the licensed pack, which is already true for every other reason.
 
 ### 10.4 Repository layout
 
