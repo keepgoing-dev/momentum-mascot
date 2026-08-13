@@ -282,6 +282,11 @@ A user sharing a picture of a happy pixel room should not have to audit it for t
 
 The second reason matters more than the demo does. Section 18 requires that the awake to dozing to asleep transitions be verified **from time passing alone, without restarting the app**. Waiting three days per test run is not verification, it is hoping. Without an accelerated clock that requirement is untestable in practice, and an untestable line on a definition of done quietly becomes an unchecked one. So the demo and the test suite converge on the same small piece of plumbing, which is the cheapest kind of feature there is.
 
+**`tools/drive-states.sh` is that check made repeatable**, and it exists because the alternative is remembering a sequence. It builds a throwaway repository, seeds a throwaway state file at it so the folder picker is not in the way, prints the schedule it expects, launches the app, and commits at the moment that puts the comeback in front of you. The whole arc takes about two minutes at the default 3600x, and it prints its transitions next to a pet you can watch while they happen. Two details in it are load-bearing rather than incidental:
+
+- **The anchor commit is made immediately before launch, not during setup.** Every timestamp entering the app is mapped onto the accelerated timeline, so a commit is aged by the scale factor as much as anything else: at 3600x, three seconds spent writing files during setup makes the commit three hours old before the app starts, and at a high enough scale the run opens in `dozing` and awake is never seen at all.
+- **The dwell before the comeback commit is thirty real seconds, not a number of simulated hours.** What that number controls is how long a person gets to look at the asleep frame, and that is wall-clock time whatever the clock is doing. It is the same split the comeback's own cap makes (section 8.1), reappearing in the test harness for exactly the same reason.
+
 **Recorded with the real state machine, not a mock.** The clock is scaled and nothing else is faked: real commits into a real throwaway repository, the real watcher, the real derivation. A demo of a mocked path is a lie that also fails to test anything, and the point of recording it against the real thing is that making the demo *is* the integration test.
 
 ---
