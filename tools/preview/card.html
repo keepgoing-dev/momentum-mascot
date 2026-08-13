@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <base href="/src/" />
+    <title>card check</title>
+    <style>
+      body {
+        margin: 0;
+        background: #0e0e14;
+        color: #e8e8ee;
+        font: 13px ui-monospace, monospace;
+      }
+      canvas {
+        display: block;
+        width: 1200px;
+        height: 630px;
+        margin-bottom: 8px;
+      }
+      #out {
+        padding: 8px;
+        white-space: pre;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="out">working...</div>
+    <script type="module">
+      import { composeCard } from "./share.js";
+
+      const STATE = "comeback";
+      const QUOTE = "YOU CAME BACK.";
+
+      function load(src) {
+        return new Promise((res, rej) => {
+          const i = new Image();
+          i.onload = () => res(i);
+          i.onerror = () => rej(new Error(src));
+          i.src = src;
+        });
+      }
+
+      function pixels(img) {
+        const c = document.createElement("canvas");
+        c.width = 1200;
+        c.height = 630;
+        const g = c.getContext("2d", { willReadFrequently: true });
+        g.imageSmoothingEnabled = false;
+        g.drawImage(img, 0, 0);
+        return g.getImageData(0, 0, 1200, 630).data;
+      }
+
+      const png = await composeCard({ mood: STATE, quote: QUOTE, characterId: "07" });
+      const mine = await load(URL.createObjectURL(new Blob([png], { type: "image/png" })));
+      const reference = await load(`/docs/mockups/share-${STATE}-1200x630.png`);
+
+      const a = pixels(mine);
+      const b = pixels(reference);
+
+      // Where the two differ, and whether the difference is type or room. The room occupies
+      // x 200..1000 by y 12..572; anything outside that is mat, label and footer.
+      let differing = 0;
+      let inRoom = 0;
+      const diff = document.createElement("canvas");
+      diff.width = 1200;
+      diff.height = 630;
+      const dg = diff.getContext("2d");
+      const out = dg.createImageData(1200, 630);
+      for (let i = 0; i < a.length; i += 4) {
+        const same = a[i] === b[i] && a[i + 1] === b[i + 1] && a[i + 2] === b[i + 2];
+        const p = i / 4;
+        const x = p % 1200;
+        const y = (p / 1200) | 0;
+        if (!same) {
+          differing++;
+          if (x >= 200 && x < 1000 && y >= 12 && y < 572) inRoom++;
+          out.data[i] = 255;
+          out.data[i + 1] = 0;
+          out.data[i + 2] = 128;
+          out.data[i + 3] = 255;
+        } else {
+          out.data[i] = a[i];
+          out.data[i + 1] = a[i + 1];
+          out.data[i + 2] = a[i + 2];
+          out.data[i + 3] = 90;
+        }
+      }
+      dg.putImageData(out, 0, 0);
+      document.body.append(diff);
+
+      // The label is drawn ON the room by design, so it lands inside the room box and has to
+      // be excluded before "is the room pixel-exact" can be answered at all.
+      const LABEL = { x0: 210, x1: 480, y0: 55, y1: 155 };
+      let roomOnly = 0;
+      let label = 0;
+      const bbox = { x0: 9999, y0: 9999, x1: -1, y1: -1 };
+      for (let i = 0; i < a.length; i += 4) {
+        if (a[i] === b[i] && a[i + 1] === b[i + 1] && a[i + 2] === b[i + 2]) continue;
+        const p = i / 4;
+        const x = p % 1200;
+        const y = (p / 1200) | 0;
+        const inLabel = x >= LABEL.x0 && x < LABEL.x1 && y >= LABEL.y0 && y < LABEL.y1;
+        if (inLabel) label++;
+        else if (x >= 200 && x < 1000 && y >= 12 && y < 572) {
+          roomOnly++;
+          if (x < bbox.x0) bbox.x0 = x;
+          if (y < bbox.y0) bbox.y0 = y;
+          if (x > bbox.x1) bbox.x1 = x;
+          if (y > bbox.y1) bbox.y1 = y;
+        }
+      }
+
+      window.RESULT = {
+        bytes: png.length,
+        differing,
+        label,
+        roomExcludingLabel: roomOnly,
+        roomDiffBox: roomOnly ? bbox : null,
+        outsideRoom: differing - inRoom,
+        percent: ((differing / (1200 * 630)) * 100).toFixed(3),
+      };
+      document.getElementById("out").textContent = JSON.stringify(window.RESULT, null, 2);
+
+      // A number cannot tell hard-edged-but-shifted apart from blurry, so the label and the
+      // quote get looked at, canvas above compositor, magnified.
+      const zoom = document.createElement("canvas");
+      zoom.width = 1160;
+      zoom.height = 480;
+      zoom.style.width = "1160px";
+      zoom.style.height = "480px";
+      const zg = zoom.getContext("2d");
+      zg.imageSmoothingEnabled = false;
+      zg.fillStyle = "#0e0e14";
+      zg.fillRect(0, 0, zoom.width, zoom.height);
+      // label, 2x
+      zg.drawImage(mine, 215, 60, 280, 90, 0, 0, 560, 180);
+      zg.drawImage(reference, 215, 60, 280, 90, 580, 0, 560, 180);
+      // the quote's first characters, 4x
+      zg.drawImage(mine, 200, 585, 140, 30, 0, 200, 560, 120);
+      zg.drawImage(reference, 200, 585, 140, 30, 580, 200, 560, 120);
+      // the credit line at 1x unit, 6x
+      zg.drawImage(mine, 90, 596, 92, 16, 0, 340, 552, 96);
+      zg.drawImage(reference, 90, 596, 92, 16, 580, 340, 552, 96);
+      zoom.id = "zoom";
+      document.body.prepend(zoom);
+    </script>
+  </body>
+</html>

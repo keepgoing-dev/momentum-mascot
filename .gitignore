@@ -4,3 +4,13 @@
 # Licensed for use in the product, NOT for redistribution.
 # See docs/spec-v2.md section 4.2.
 docs/mockups/
+
+# App assets are composited at build time from a local licensed copy of the pack.
+# Same rule as docs/mockups: coordinates are committed, art is not.
+# Regenerate with tools/build-app-assets.sh.
+src/assets/
+src-tauri/target/
+src-tauri/gen/
+
+# The tray icon is the one piece of art here that is not from the pack: it is drawn by
+# tools/make-icons.sh and committed, so the app compiles without a licensed copy.

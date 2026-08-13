@@ -244,3 +244,21 @@ The spike has served its purpose. Delete `spikes/always-on-top/` once the AppKit
 ported, and **keep this file**, moving it to `docs/` if that reads better. The dead ends are
 the valuable part: if the pet stops appearing over fullscreen on some future macOS release,
 findings 4 through 8 turn a day of re-exploration into an afternoon.
+
+## Disposed
+
+Done, on 2026-08-13. The spike's `Cargo.toml`, `src/`, `dist/`, `tauri.conf.json` and build
+output are deleted; this file is what remains, kept in place rather than moved to `docs/`
+because a folder called `spikes/always-on-top/` holding only findings says what happened to
+the spike better than a filename in `docs/` would.
+
+The AppKit block now lives in `src-tauri/src/pet.rs`: `make_panel`, `apply`, level 25 and
+collection behaviour 273, applied once at window creation. The port kept the comments about
+*why* each call is there, which is the part that goes stale silently.
+
+One thing the product added on top of the spike's finding. The spike used the monitor's work
+area and a fixed inset, and noted that the work area does not reserve the Dock band. The pet
+now takes the **intersection** of Tauri's work area and AppKit's own `visibleFrame` rather
+than subtracting a Dock-sized guess from one of them. Taking the tighter of the two means the
+pet clears the Dock whichever of them accounts for it, and it cannot start double-counting if
+Tauri's behaviour changes underneath it later.

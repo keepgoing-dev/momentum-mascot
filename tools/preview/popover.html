@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <base href="/src/" />
+    <title>popover check</title>
+    <style>
+      body {
+        margin: 0;
+        background: #2b2b33;
+        font: 12px ui-monospace, monospace;
+        color: #8f8fa0;
+      }
+      .stage {
+        display: flex;
+        gap: 20px;
+        padding: 20px;
+        align-items: flex-start;
+      }
+      .shot {
+        background: #0e0e14;
+        padding: 12px;
+        border-radius: 8px;
+      }
+      .shot h2 {
+        font-size: 11px;
+        margin: 0 0 8px;
+        font-weight: 400;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage" id="stage"></div>
+    <script>
+      // Stub only what popover.js actually reaches for. If this list grows, the popover has
+      // grown a dependency on the backend that it probably should not have.
+      const calls = [];
+      let emit = () => {};
+      window.__TAURI__ = {
+        core: { invoke: async (cmd, args) => void calls.push([cmd, args]) },
+        event: { listen: async (_name, cb) => void (emit = cb) },
+        window: { getCurrentWindow: () => ({ setSize: async () => {} }) },
+        dpi: { LogicalSize: class {} },
+      };
+      window.CALLS = calls;
+    </script>
+    <script type="module">
+      const STATES = [
+        { mood: "awake", quote: "I saw that commit. I'm telling everyone." },
+        { mood: "dozing", quote: "Still warm. I've got the seat." },
+        { mood: "asleep", quote: "Dreaming about that thing you're building." },
+        { mood: "comeback", quote: "YOU CAME BACK." },
+      ];
+
+      const PROJECTS = [
+        { id: "1", name: "momentum-mascot", relative: "2 hours ago", available: true },
+        { id: "2", name: "a-project-with-a-very-long-name-indeed", relative: "3 days ago", available: true },
+        { id: "3", name: "on-an-external-drive", relative: "a while back", available: false },
+      ];
+
+      // The markup comes from index.html rather than being copied, so this harness cannot
+      // drift into testing a popover that does not exist.
+      const html = await (await fetch("index.html")).text();
+      const parsed = new DOMParser().parseFromString(html, "text/html");
+      for (const link of parsed.querySelectorAll("link[rel=stylesheet]")) {
+        document.head.append(link.cloneNode(true));
+      }
+      const template = parsed.querySelector(".panel");
+
+      // One state per load. popover.js binds to element ids, so four panels in one document
+      // would all be driven by whichever the first `getElementById` happened to return, and
+      // the screenshot would quietly show one state four times.
+      const wanted = new URLSearchParams(location.search).get("state") ?? "awake";
+      const state = STATES.find((s) => s.mood === wanted) ?? STATES[0];
+
+      const shot = document.createElement("div");
+      shot.className = "shot";
+      const title = document.createElement("h2");
+      title.textContent = `${state.mood}${state.mood === "awake" ? "  (nothing tracked yet)" : ""}`;
+      shot.append(title, template.cloneNode(true));
+      document.getElementById("stage").append(shot);
+
+      await import("./popover.js");
+      await emit({
+        payload: {
+          mood: state.mood,
+          quote: state.quote,
+          character_id: "07",
+          projects: state.mood === "awake" ? [] : PROJECTS,
+          clock_scale: state.mood === "comeback" ? 360 : 1,
+        },
+      });
+      window.READY = true;
+    </script>
+  </body>
+</html>

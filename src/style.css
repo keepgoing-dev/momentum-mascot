@@ -1,0 +1,65 @@
+/* Shared rules for both windows.
+ *
+ * Dark only in v1: a light palette implies a setting, and a settings screen is the guardrail
+ * this project is built around not crossing.
+ *
+ * Every pixel asset is authored at the pack's 16x16 native grid and scaled only here, only at
+ * integer factors. There is no fractional scaling anywhere in this file, and there must not
+ * be: a 2.5x room is not a smaller room, it is a blurry one.
+ */
+
+@font-face {
+  font-family: "Departure Mono";
+  src: url("assets/fonts/DepartureMono-Regular.woff2") format("woff2");
+  font-display: block;
+}
+
+:root {
+  --panel: #14141c;
+  --mat: #191924;
+  --edge: #2a2a36;
+  --mount: #3a3a50;
+  --cream: #f0e6d2;
+  --dim: #b6ab98;
+  --muted: #7c7c96;
+  --accent: #f5c65c;
+
+  /* The room's own unit. Everything drawn on the room is a multiple of it. */
+  --px: 2px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  color: var(--cream);
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* The character is a picture, and picture-like things that highlight blue on click read as
+   * broken. Plain `user-select` is not honoured in the WKWebView these render in, which is
+   * the sort of thing only found by clicking the spike. */
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+  overflow: hidden;
+}
+
+/* Pixel art, scaled by whole numbers and never resampled. */
+.pixels {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.type {
+  font-family: "Departure Mono", ui-monospace, monospace;
+  /* Departure Mono is drawn on an 11px cell and is pixel-exact only at multiples of 11.
+   * Any other size here is a blurry font wearing a pixel font's name. */
+  font-size: 11px;
+  line-height: 1.45;
+  letter-spacing: 0;
+}

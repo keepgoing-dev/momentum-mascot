@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Momentum Mascot</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="popover.css" />
+  </head>
+  <body>
+    <div class="panel">
+      <!-- 1. The room. 320x224, being the 160x112 scene at 2x, which is why the popover is
+              352px wide rather than 320. This is the reward: the surface where the craft is
+              fully on display. -->
+      <div class="room-wrap">
+        <div id="room" class="room pixels" data-mood="awake"></div>
+        <!-- Clicking the character cycles through the three shipped characters. This is the
+             entire selection mechanism: no picker, no settings screen. The hit area follows
+             the character around the room, because clicking the bed to change who is asleep
+             in it is not the same gesture. -->
+        <button id="charHit" class="char-hit" title="Someone else?"></button>
+      </div>
+
+      <!-- 2. The quote. Departure Mono at 11px, which is its native cell. -->
+      <p id="quote" class="quote type"></p>
+
+      <!-- 3. The tracked projects: name, and how long since each one saw work. Factual, and
+              the character never comments on it. -->
+      <ul id="projects" class="projects"></ul>
+      <p id="empty" class="empty" hidden>Nothing tracked yet. Add a project below.</p>
+      <p id="error" class="error" hidden></p>
+
+      <div class="buttons">
+        <button id="add">Add Project</button>
+        <button id="share">Share Status</button>
+      </div>
+
+      <!-- The credit is a licence requirement, not a courtesy (section 4.2). With no about
+           window and no settings screen, this is the only place in the app it can live. -->
+      <p class="credit">art: limezu.itch.io</p>
+      <p id="clock" class="clock" hidden></p>
+    </div>
+    <script type="module" src="popover.js"></script>
+  </body>
+</html>

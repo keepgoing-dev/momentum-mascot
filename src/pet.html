@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Momentum Mascot</title>
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      /* The pet is the character ONLY, never the room. Same register split as the tray icon:
+         the pet is the character, the popover is the scene. 64x64 is a 32x32 cell at 2x. */
+      body {
+        display: grid;
+        place-items: center;
+      }
+
+      #pet {
+        width: 64px;
+        height: 64px;
+        /* 12 frames of 32px, doubled: a 768x64 strip stepped one cell at a time. */
+        background-repeat: no-repeat;
+        background-size: 768px 64px;
+        animation: walk 2s steps(12) infinite;
+        cursor: pointer;
+      }
+
+      @keyframes walk {
+        from {
+          background-position: 0 0;
+        }
+        to {
+          background-position: -768px 0;
+        }
+      }
+
+      /* Motion is reserved on the pet, and this block is where that rule is enforced.
+         Every state animates, but the pet sits in peripheral vision all day, so it runs at
+         the bottom of the range and only the comeback is loud. The distinction is amplitude
+         first and rate second: the frames themselves carry a 1px breath, never a tail sweep
+         and never a typing loop. */
+      #pet[data-mood="awake"] {
+        animation-duration: 4s;
+      }
+      #pet[data-mood="dozing"] {
+        animation-duration: 6s;
+      }
+      #pet[data-mood="asleep"] {
+        animation-duration: 6s;
+      }
+      #pet[data-mood="comeback"] {
+        animation-duration: 1.5s;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Clickable, not click-through: this is the primary way into the popover. At 64x64 in
+         a screen corner an accidental click is rare enough that the trade is easy, and the
+         alternative makes the pet purely decorative. -->
+    <div id="pet" class="pixels" data-mood="awake" title="Momentum Mascot"></div>
+    <script src="pet.js"></script>
+  </body>
+</html>

@@ -1,0 +1,182 @@
+/* The popover: 352px wide, height sized to its content, anchored under the tray icon. */
+
+.panel {
+  width: 352px;
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+}
+
+/* ---------------------------------------------------------------- the room */
+
+.room-wrap {
+  position: relative;
+  width: 320px;
+  height: 224px;
+  /* The same mount line the share card uses, so the room is framed the same way in both
+     places it is looked at. */
+  outline: 2px solid var(--mount);
+  outline-offset: 0;
+}
+
+.room {
+  width: 320px;
+  height: 224px;
+  background-repeat: no-repeat;
+  /* 12 frames of the 160x112 room, doubled: a 3840x224 strip stepped one room at a time. */
+  background-size: 3840px 224px;
+  animation: room 2s steps(12) infinite;
+}
+
+@keyframes room {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -3840px 0;
+  }
+}
+
+/* Every state animates, and the rate is what separates them: a room where nothing at all
+   moves reads as a screenshot, and a screenshot is not a companion. 12 frames at 6, 3, 2 and
+   8 fps respectively. */
+.room[data-mood="awake"] {
+  animation-duration: 2s;
+}
+.room[data-mood="dozing"] {
+  animation-duration: 4s;
+}
+.room[data-mood="asleep"] {
+  animation-duration: 6s;
+}
+.room[data-mood="comeback"] {
+  animation-duration: 1.5s;
+}
+
+.char-hit {
+  position: absolute;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.char-hit:hover {
+  /* The lightest possible "this is clickable". Anything more would be a widget drawn on top
+     of the art, and the art is the product. */
+  outline: 2px solid rgba(240, 230, 210, 0.35);
+}
+
+/* ---------------------------------------------------------------- copy */
+
+.quote {
+  margin: 12px 2px 14px;
+  color: var(--cream);
+  min-height: 32px;
+}
+
+.projects {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 216px; /* about 12 rows, then it scrolls. It is not virtualised. */
+  overflow-y: auto;
+}
+
+.projects li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 2px;
+  border-top: 1px solid var(--edge);
+}
+
+.projects .name {
+  flex: 1 1 auto;
+  color: var(--cream);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projects .when {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.projects li.away .name {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+/* The untrack control appears on hover only. It earns its place because the alternative is
+   hand-editing JSON, and it stays hidden because it is the only destructive thing here. */
+.projects .drop {
+  flex: 0 0 auto;
+  width: 16px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  visibility: hidden;
+  font: inherit;
+}
+
+.projects li:hover .drop {
+  visibility: visible;
+}
+
+.projects .drop:hover {
+  color: var(--cream);
+}
+
+.empty,
+.error {
+  margin: 8px 2px;
+  color: var(--muted);
+}
+
+.error {
+  color: #e8a0a0;
+}
+
+/* ---------------------------------------------------------------- footer */
+
+.buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.buttons button {
+  flex: 1 1 0;
+  padding: 8px 10px;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  background: var(--mat);
+  color: var(--cream);
+  font: inherit;
+  cursor: pointer;
+}
+
+.buttons button:hover {
+  border-color: var(--mount);
+  background: #20202c;
+}
+
+.buttons button:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.credit,
+.clock {
+  margin: 12px 2px 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.clock {
+  color: var(--accent);
+}

@@ -21,6 +21,12 @@ OUT="${MASCOT_OUT:-docs/mockups}"
 CHAR="${MASCOT_CHAR:-07}"
 ZOOM="${MASCOT_ZOOM:-4}"
 
+# When set, the app's own asset tree is written too: one room strip and one pet strip per
+# state, under the character's own folder. Set by tools/build-app-assets.sh, which is the
+# only caller that wants it. Review artifacts and shipped assets are kept apart on purpose,
+# because the GIFs are for looking at and are never shipped.
+APP_OUT="${MASCOT_APP_OUT:-}"
+
 [ -d "$PACK" ] || { echo "asset pack not found: $PACK" >&2; exit 1; }
 mkdir -p "$OUT"
 WORK=$(mktemp -d -t mascot-compose)
@@ -201,6 +207,45 @@ EMOTE_DY=-13
 SLEEP_EMOTE_DX=13             # a sleeper has no headroom, so the Z drifts right
 SLEEP_EMOTE_DY=-9
 
+# ---------------------------------------------------------------- the pet
+# The desktop pet (spec section 6.1) is the character ONLY, never the room: the pet is the
+# character, the popover is the scene. 64x64 on screen is a 32x32 cell at 2x.
+#
+# The cell is decided by measurement, not by taste. A character sprite is 16x32 whose CONTENT
+# is 16x24 at +0+8, so there are exactly 8 transparent rows above the head. An emote is 16x16
+# with 15 rows of content. In the room the emote sits 13px ABOVE the character and clears the
+# head completely; in a 32px cell there is no such room, and 8 rows will not hold 15.
+#
+# So the emote moves from above the head to BESIDE it, which is the one arrangement where the
+# two 16-wide sprites tile the 32-wide cell with no overlap at all. Character in the left
+# half, emote in the right, aligned with the head rather than the body.
+#
+# The character sits 2px high of the cell floor so that both directions are available without
+# clipping: the comeback hop goes 2px up, the asleep slump 2px down, and neither loses a foot.
+PET_W=32
+PET_H=32
+PET_CHAR_X=0
+PET_CHAR_Y=-2
+PET_EMOTE_DX=16               # relative to the character, so the emote moves with them
+PET_EMOTE_DY=4
+PET_SPARK_DX=16
+PET_SPARK_DY=18
+
+# Motion is RESERVED on the pet, and this is a rule rather than a preference (section 6.1).
+# Every room state animates, but the pet is the one surface sitting in peripheral vision all
+# day, and a sprite that moves constantly AND largely in the corner of someone's eye is the
+# thing people quit. The distinction is amplitude, not presence: a 1px breath is fine, a tail
+# sweep or a hop is not, which is why the cat and the typing loop stay in the room.
+PET_BREATH="0 0 0 0 0 0 -1 -1 -1 -1 -1 -1"
+PET_SLUMP=2                   # asleep sits 2px lower than dozing: the same pose, more gone
+
+# The pet's own rates. Slower than the room everywhere except the comeback, which is the one
+# moment the pet is allowed to be loud.
+PET_FPS_AWAKE=3
+PET_FPS_DOZING=2
+PET_FPS_ASLEEP=2
+PET_FPS_COMEBACK=8
+
 # ---------------------------------------------------------------- animation
 # One loop length for every state, so each layer is indexed frame % count and
 # every layer's cycle closes at the same place. 12 is divisible by every layer
@@ -241,6 +286,12 @@ shift_pos() {  # shift_pos +x+y dx dy  ->  +x+y
 
 emote_pos() {  # emote_pos +x+y  ->  +x+y shifted to sit above a character
   shift_pos "$1" "$EMOTE_DX" "$EMOTE_DY"
+}
+
+# shift_pos cannot express a negative offset, because it splits the string on '+'. The pet
+# needs them, so the pet works in plain integers and formats at the point of use.
+geom() {  # geom <x> <y>  ->  +x+y, with either sign
+  printf '%+d%+d' "$1" "$2"
 }
 
 nth() {  # nth <i> <word> ...   0-indexed, wraps. No arrays: zsh indexes from 1.
@@ -361,6 +412,69 @@ frame_comeback() {
     -modulate "$COMEBACK_MODULATE" PNG32:"$out"
 }
 
+# ---------------------------------------------------------------- the pet
+# One art gap, stated honestly rather than worked around: the pack has NO sleeping character
+# without a bed. The sleep animation is a layered recipe of vertical bed plus bare head plus
+# blanket, so the pet cannot show asleep the way the room does. Dozing and asleep therefore
+# share the seated pose, and what separates them is the slump and the rate. Whether that is
+# enough is section 17, question 1, and it is deliberately still open.
+#
+# The seated frame is the rest pose only. The full seated row is a typing loop, and a pet
+# typing in the corner of the eye all day is exactly the thing the amplitude rule bans.
+
+frame_pet_awake() {
+  local i=$1 out=$2
+  local dy=$((PET_CHAR_Y + $(nth "$i" $PET_BREATH)))
+  magick -size ${PET_W}x${PET_H} xc:none \
+    "$(nth "$i" $IDLE_FRAMES)" -geometry "$(geom $PET_CHAR_X $dy)" -composite \
+    PNG32:"$out"
+}
+
+frame_pet_dozing() {
+  local i=$1 out=$2
+  local dy=$((PET_CHAR_Y + $(nth "$i" $PET_BREATH)))
+  magick -size ${PET_W}x${PET_H} xc:none \
+    "$(nth 0 $SEATED_FRAMES)" -geometry "$(geom $PET_CHAR_X $dy)" -composite \
+    "$(nth "$i" $Z_FRAMES)" \
+      -geometry "$(geom $((PET_CHAR_X + PET_EMOTE_DX)) $((dy + PET_EMOTE_DY)))" -composite \
+    PNG32:"$out"
+}
+
+frame_pet_asleep() {
+  local i=$1 out=$2
+  local dy=$((PET_CHAR_Y + PET_SLUMP + $(nth "$i" $PET_BREATH)))
+  magick -size ${PET_W}x${PET_H} xc:none \
+    "$(nth 0 $SEATED_FRAMES)" -geometry "$(geom $PET_CHAR_X $dy)" -composite \
+    "$(nth "$i" $Z_FRAMES)" \
+      -geometry "$(geom $((PET_CHAR_X + PET_EMOTE_DX)) $((dy + PET_EMOTE_DY)))" -composite \
+    PNG32:"$out"
+}
+
+# The one state the pet is allowed to be loud in, and the reason the pet exists at all: the
+# comeback plays out in peripheral vision the moment the commit lands, with no banner and no
+# click. Only one sparkle rather than the room's two, because the cell has one 16x16 slot
+# left once the character and the emote have tiled it.
+frame_pet_comeback() {
+  local i=$1 out=$2
+  local dy=$((PET_CHAR_Y + $(nth "$i" $HOP_COMEBACK)))
+  magick -size ${PET_W}x${PET_H} xc:none \
+    "$(nth "$i" $IDLE_FRAMES)" -geometry "$(geom $PET_CHAR_X $dy)" -composite \
+    "$(nth "$i" $BANG_FRAMES)" \
+      -geometry "$(geom $((PET_CHAR_X + PET_EMOTE_DX)) $((dy + PET_EMOTE_DY)))" -composite \
+    "$(nth "$i" $SPARK_FRAMES)" \
+      -geometry "$(geom $((PET_CHAR_X + PET_SPARK_DX)) $((dy + PET_SPARK_DY)))" -composite \
+    PNG32:"$out"
+}
+
+pet_fps_for() {
+  case $1 in
+    awake)    printf '%s' "$PET_FPS_AWAKE" ;;
+    dozing)   printf '%s' "$PET_FPS_DOZING" ;;
+    asleep)   printf '%s' "$PET_FPS_ASLEEP" ;;
+    comeback) printf '%s' "$PET_FPS_COMEBACK" ;;
+  esac
+}
+
 fps_for() {  # fps_for <state> -> frames per second
   case $1 in
     awake)    printf '%s' "$FPS_AWAKE" ;;
@@ -398,6 +512,25 @@ for s in "${STATES[@]}"; do
   fps=$(fps_for "$s")
   magick -delay $((100 / fps)) -loop 0 $strip \
     -filter point -resize "$((ZOOM * 100))%" -layers optimize "$OUT/state-$s.gif"
+
+  # The app's assets. The pet gets NO lighting tint, unlike the room: a blue multiply over a
+  # character standing on someone's desktop wallpaper reads as a recoloured sprite rather
+  # than as dim light, because there is no room around them for the light to be in. That is
+  # why section 6.1 gives the emote the job the room's lighting does.
+  if [ -n "$APP_OUT" ]; then
+    petstrip=""
+    i=0
+    while [ $i -lt $FRAMES ]; do
+      "frame_pet_$s" "$i" "$WORK/pet-$s-f$i.png"
+      petstrip="$petstrip $WORK/pet-$s-f$i.png"
+      i=$((i + 1))
+    done
+    mkdir -p "$APP_OUT/rooms/$CHAR" "$APP_OUT/pet/$CHAR"
+    magick $petstrip +append PNG32:"$APP_OUT/pet/$CHAR/$s.png"
+    cp "$OUT/state-$s-strip-${FRAMES}f.png" "$APP_OUT/rooms/$CHAR/$s.png"
+    magick -delay $((100 / $(pet_fps_for "$s"))) -loop 0 $petstrip \
+      -filter point -resize "$((ZOOM * 100))%" -layers optimize "$OUT/pet-$s.gif"
+  fi
 
   echo "  $s: ${FRAMES}f at ${fps}fps"
 done

@@ -23,6 +23,11 @@ Per state it writes the still (`state-<s>-160x112.png`), the 12-frame strip the 
 (`state-<s>-strip-12f.png`, 1920x112), and a GIF at that state's own rate for review
 (`state-<s>.gif`). Plus `states-four.png` and `states-four.gif` for looking at all four together.
 
+`tools/build-app-assets.sh` is what the application consumes. It runs the room compositor once per
+shipped character (07, 12, 20) with `MASCOT_APP_OUT` set, so each run also writes a room strip and
+a **pet strip** into `src/assets/`, then draws the icons and copies the font. That tree is build
+output and stays out of git for the same reason `docs/mockups/` does.
+
 `tools/compose-share.sh` then builds the 1200x630 share card for each state from those stills,
 writing `share-<s>-1200x630.png` and a `share-four.png` contact sheet. It consumes frame 0 only,
 so run the room compositor first. Review both in `docs/mockups/preview.html` (the rooms) and
@@ -381,6 +386,59 @@ its limit. At 180px all the type is gone and the state is **still** unmistakable
 room and the cool room do not look alike. The cheapest variable in the whole design, a flat colour
 multiply, is the one that survives the most compression.
 
+## The pet cell
+
+The desktop pet is the character only, never the room, at 64x64 on screen: a **32x32 cell at 2x**.
+The composition is decided by measurement rather than taste, and the measurement is the whole
+finding.
+
+| | value |
+| --- | --- |
+| cell | 32x32, 12 frames, so a 384x32 strip |
+| character | 16x32 sprite at `+0-2` |
+| emote | 16x16 at character `+16+4` |
+| sparkle (comeback only) | 16x16 at character `+16+18` |
+| breath | `0 0 0 0 0 0 -1 -1 -1 -1 -1 -1` |
+| asleep slump | 2px down from dozing, same pose |
+| rates | awake 3, dozing 2, asleep 2, comeback 8 |
+
+### The emote had to move beside the head
+
+In the room the emote sits 13px **above** the character and clears the head completely. That does
+not fit here, and the numbers say so before any rendering does: a character sprite is 16x32 whose
+content is `16x24+0+8`, so there are exactly **eight** transparent rows above the head, and an
+emote is 16x16 with **fifteen** rows of content.
+
+Beside the head is the one arrangement where two 16-wide sprites tile a 32-wide cell with no
+overlap at all. Character in the left half, emote in the right, aligned with the head rather than
+the body. The comeback gets one sparkle rather than the room's two, because one 16x16 slot is what
+is left once the character and the emote have tiled the cell.
+
+The character sits 2px clear of the cell floor so both directions are available: the comeback hop
+goes 2px up, the asleep slump 2px down, and neither loses a foot.
+
+### The pet is never tinted
+
+The room's lighting is a flat colour multiply, and the pet does not get one. A blue multiply over a
+character standing on somebody's desktop wallpaper reads as a **recoloured sprite**, not as dim
+light, because there is no room around them for the light to be in. That is why the emote carries
+the state on the pet and the lighting carries it in the room.
+
+## The tray icon is drawn, not cropped
+
+`tools/make-icons.sh`, and it is the only art here that is not from the pack, so it is committed.
+
+The obvious approach was to crop the character's head off the idle sprite at the measured content
+offset and reduce it to a silhouette. It renders as a **solid black blob**: at 16px a filled
+silhouette has no internal structure, because every internal edge in a sprite is a colour change
+rather than a hole, and a macOS template image has only ink and no ink to work with. Extracting the
+pack's outline colour (`#3a3a50`, fuzz 18%) instead gave structure and read as a burger.
+
+What works is drawing the mark **at** the size it is used rather than reducing to it: a capped head
+and shoulders with two eye holes, on a 16x16 grid, checked at 16, 18, 22 and 32px against a light
+and a dark bar. The eye holes survive all four. **A menu bar template is a different register from
+pixel art.**
+
 ## Open
 
 - Nothing blocking. The remaining Phase 1 step is the one-week live-with test (spec section 12),
@@ -393,6 +451,9 @@ multiply, is the one that survives the most compression.
 - **The card has not been posted anywhere real.** It has been checked at 1:1, in simulated light and
   dark timelines, and down a thumbnail ladder to 180px, but a local HTML page is not a timeline.
   That is the remaining Phase 2 step and it is the author's, not the compositor's.
+- **Dozing and asleep are nearly identical on the pet.** Same seated pose, 2px apart, same rate.
+  It is the thinnest distinction in the app and it is spec section 17 question 1. The week will
+  say whether a slump is enough.
 - **The card is a still of a room that moves.** Every state is a 12-frame loop and the card takes
   frame 0. Whether the comeback in particular should travel as an animation is spec section 17
   question 4, deliberately not answered in Phase 2.
