@@ -36,6 +36,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             commands::refresh,
             commands::toggle_popover,
+            commands::snap_pet,
             commands::hide_popover,
             commands::add_project,
             commands::untrack,

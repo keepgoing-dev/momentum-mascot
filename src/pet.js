@@ -1,7 +1,10 @@
-// The desktop pet. It has one job and one interaction, and it should stay that small.
+// The desktop pet. It has two interactions and no others: a click opens the popover, and a
+// drag to one of the four screen corners moves it there. That is the whole surface, and it
+// should stay that small.
 
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
+const { getCurrentWindow } = window.__TAURI__.window;
 
 const pet = document.getElementById("pet");
 
@@ -31,12 +34,64 @@ function render(payload) {
   pet.style.backgroundImage = `url("assets/pet/${payload.character_id}/${payload.mood}.png")`;
 }
 
-// Clicking the pet opens the popover. Nothing else here does anything: no drag, no menu, no
-// hover state. A pet with affordances is a widget, and a widget is a thing to configure.
-pet.addEventListener("click", () => invoke("toggle_popover"));
+// Clicking the pet opens the popover; dragging it to a corner moves it. The two are told
+// apart by movement alone, and the click path runs on `mouseup` rather than `click`, because
+// a browser still fires `click` after a drag that stays under its own threshold.
+//
+// The drag listens on `window`, not on the element. The pet is 64x64, so a cursor that leaves
+// it almost immediately would otherwise end the drag; a window that received a button press
+// keeps receiving mouse events until the button is released, however far the cursor travels,
+// and `window` catches them wherever they land. Pointer capture was tried and it failed: the
+// window moving out from under a captured pointer makes WebKit drop the events, so there is
+// deliberately no `setPointerCapture` here.
+//
+// Movement is accumulated from `movementX`/`movementY`, the cursor's own delta since the last
+// event. That is the one coordinate the drag can trust: the OS measures it in screen space, so
+// it is unaffected by the window being moved out from under the cursor, whereas a window-
+// relative read would cancel itself out and the pet would never budge. It is scaled by
+// `devicePixelRatio` into the physical pixels the backend uses.
+const DRAG_THRESHOLD = 4; // CSS px of movement below which a drag is a click.
 
-// The context menu and dragging both have to go, or a right-click turns the character into a
-// web page and a slow drag turns it into selected text.
+let drag = null;
+
+pet.addEventListener("mousedown", (e) => {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  getCurrentWindow()
+    .outerPosition()
+    .then((pos) => {
+      drag = { x: pos.x, y: pos.y, ox: pos.x, oy: pos.y, moved: false };
+      pet.style.cursor = "grabbing";
+    })
+    .catch(() => {
+      drag = null;
+    });
+});
+
+window.addEventListener("mousemove", (e) => {
+  if (!drag) return;
+  const scale = window.devicePixelRatio || 1;
+  drag.x += e.movementX * scale;
+  drag.y += e.movementY * scale;
+  if (Math.hypot(drag.x - drag.ox, drag.y - drag.oy) >= DRAG_THRESHOLD * scale) {
+    drag.moved = true;
+  }
+  const { PhysicalPosition } = window.__TAURI__.dpi;
+  getCurrentWindow().setPosition(new PhysicalPosition(drag.x, drag.y));
+});
+
+window.addEventListener("mouseup", (e) => {
+  if (!drag || e.button !== 0) return;
+  const wasDrag = drag.moved;
+  const { x, y } = drag;
+  drag = null;
+  pet.style.cursor = "";
+  if (wasDrag) invoke("snap_pet", { x, y });
+  else invoke("toggle_popover");
+});
+
+// The context menu and native HTML5 dragging both have to go, or a right-click turns the
+// character into a web page and a slow drag turns it into selected text.
 document.addEventListener("contextmenu", (e) => e.preventDefault());
 document.addEventListener("dragstart", (e) => e.preventDefault());
 

@@ -1,4 +1,4 @@
-//! Everything the webview is allowed to ask for. Six commands, and no seventh without a
+//! Everything the webview is allowed to ask for. Seven commands, and no eighth without a
 //! reason: this list is the whole API surface between the art and the machinery.
 
 use tauri::{AppHandle, Manager};
@@ -6,6 +6,7 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_dialog::DialogExt;
 
 use crate::app::{self, AppState};
+use crate::pet;
 
 /// Ask for the current mood without waiting for the next event. Called once when a window
 /// finishes loading, because a window that opens between ticks would otherwise be blank.
@@ -18,6 +19,30 @@ pub fn refresh(app: AppHandle) {
 #[tauri::command]
 pub fn toggle_popover(app: AppHandle) {
     app::toggle_popover(&app);
+}
+
+/// The pet finished being dragged. The webview reports where it let go (its top-left in
+/// physical pixels, which is the only coordinate the webview knows its own position in); the
+/// backend snaps it to the nearest corner and remembers that corner, so the drag survives a
+/// restart. No seventh parameter, no free placement: this is the whole drag API.
+#[tauri::command]
+pub fn snap_pet(app: AppHandle, x: f64, y: f64) {
+    let Some(win) = app.get_webview_window(app::PET) else {
+        return;
+    };
+    let Some(target) = pet::snap_to_nearest_corner(&win, (x, y)) else {
+        return;
+    };
+
+    let state = app.state::<AppState>();
+    let to_save = {
+        let mut momentum = state.momentum.lock().unwrap();
+        momentum.state.pet_position = Some(target);
+        momentum.state.clone()
+    };
+    if let Err(e) = crate::store::save(&state.store_path, &to_save) {
+        eprintln!("could not write state: {e}");
+    }
 }
 
 #[tauri::command]

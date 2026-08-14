@@ -17,7 +17,7 @@
 
 use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition};
 
-use crate::app::PET;
+use crate::app::{AppState, PET};
 
 /// The pet's size in **logical** pixels, which is the same unit `pet.html` draws in.
 ///
@@ -49,7 +49,7 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     };
 
     win.set_size(LogicalSize::new(SIZE, SIZE))?;
-    place(&win)?;
+    place(&win, app)?;
 
     #[cfg(target_os = "macos")]
     {
@@ -64,32 +64,39 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Bottom-right of the **usable** screen.
+/// The usable area the pet may occupy, in physical pixels, resolved the same way as the
+/// original bottom-right placement: the **intersection** of Tauri's work area and AppKit's
+/// `visibleFrame` on the right and bottom edges.
 ///
 /// `work_area` alone is not enough, and this cost real time to diagnose. On the author's
 /// display it returned a rect that reserved the menu bar and **not** the Dock band, so a pet
 /// placed relative to it sits underneath the Dock, which draws at window level 20. Every
 /// AppKit property reported the window healthy while it was hidden.
 ///
-/// So the usable corner is the **intersection** of Tauri's work area and AppKit's own
-/// `visibleFrame`. Taking the tighter of the two is deliberate: whichever of them accounts
-/// for the Dock, the pet clears it, and if Tauri's behaviour changes later this does not
-/// silently start double-counting.
-///
-/// **`outer_position()` read straight after `set_position` returns the OLD position**, and
-/// anyone checking this function's work needs to know that before they start. It reports the
-/// macOS default, which is near the middle of the display, and it keeps reporting it however
-/// many times the call is repeated. A few hundred milliseconds later the same read returns the
-/// corner. This cost an entire wrong diagnosis, a restructure of `main.rs` around
-/// `RunEvent::Ready`, and a fix for a bug that did not exist: placement worked correctly the
-/// whole time and the measurement was lying. **Read the position from a delayed thread, or do
-/// not read it.**
-fn place(win: &tauri::WebviewWindow) -> tauri::Result<()> {
-    let Some(mon) = win.current_monitor()? else {
-        return Ok(());
+/// Taking the tighter of the two is deliberate: whichever of them accounts for the Dock, the
+/// pet clears it, and if Tauri's behaviour changes later this does not silently start
+/// double-counting. The left and top edges come from the work area alone, which already
+/// reserves the menu bar; only the Dock, which sits on the right or bottom, needs the
+/// `visibleFrame` clamp.
+struct Bounds {
+    left: f64,
+    top: f64,
+    right: f64,
+    bottom: f64,
+    /// The pet's own extent (`SIZE * scale`) and its corner clearance (`MARGIN * scale`),
+    /// both already in physical pixels.
+    extent: f64,
+    margin: f64,
+}
+
+fn usable_bounds(win: &tauri::WebviewWindow) -> Option<Bounds> {
+    let Some(mon) = win.current_monitor().ok().flatten() else {
+        return None;
     };
     let scale = mon.scale_factor();
     let area = mon.work_area();
+    let left = area.position.x as f64;
+    let top = area.position.y as f64;
     let mut right = (area.position.x + area.size.width as i32) as f64;
     let mut bottom = (area.position.y + area.size.height as i32) as f64;
 
@@ -99,17 +106,100 @@ fn place(win: &tauri::WebviewWindow) -> tauri::Result<()> {
         bottom = bottom.min(vb);
     }
 
-    // The corner is in physical pixels, so the window's own extent has to be too. Subtracting
-    // a logical size from a physical coordinate hangs the pet off the bottom-right of the
-    // screen by exactly the amount the display is scaled by, which on a 1x monitor is nothing
-    // at all: the kind of bug that is invisible on the machine it was written on.
-    let extent = SIZE * scale;
-    let margin = MARGIN * scale;
-    win.set_position(PhysicalPosition::new(
-        (right - extent - margin) as i32,
-        (bottom - extent - margin) as i32,
-    ))?;
+    Some(Bounds {
+        left,
+        top,
+        right,
+        bottom,
+        extent: SIZE * scale,
+        margin: MARGIN * scale,
+    })
+}
+
+/// The four corner anchors, as the pet's top-left in physical pixels, in reading order:
+/// top-left, top-right, bottom-left, bottom-right.
+fn anchors(b: &Bounds) -> [(i32, i32); 4] {
+    let e = b.extent;
+    let m = b.margin;
+    [
+        ((b.left + m) as i32, (b.top + m) as i32),
+        ((b.right - e - m) as i32, (b.top + m) as i32),
+        ((b.left + m) as i32, (b.bottom - e - m) as i32),
+        ((b.right - e - m) as i32, (b.bottom - e - m) as i32),
+    ]
+}
+
+/// Whether a saved top-left still lies on a connected display. A position that does not (an
+/// unplugged monitor, a resolution change) falls back to the bottom-right default rather than
+/// leaving the pet off screen, which is the contract in section 13.
+fn within_bounds(x: f64, y: f64, b: &Bounds) -> bool {
+    x >= b.left && y >= b.top && x + b.extent <= b.right && y + b.extent <= b.bottom
+}
+
+/// The corner nearest to a position, by squared distance. All four corners are on screen by
+/// construction, so "nearest" is the only rule and there is no edge case to be wrong in.
+fn nearest(current: (f64, f64), corners: &[(i32, i32); 4]) -> (i32, i32) {
+    let mut best = corners[0];
+    let mut best_d = f64::INFINITY;
+    for &(x, y) in corners {
+        let d = (x as f64 - current.0).powi(2) + (y as f64 - current.1).powi(2);
+        if d < best_d {
+            best_d = d;
+            best = (x, y);
+        }
+    }
+    best
+}
+
+/// The saved corner, if there is one and it still lies on a connected display, otherwise the
+/// bottom-right default. This is the whole persistence story: placement reads the one field
+/// and asks no questions of the geometry it does not need.
+///
+/// **`outer_position()` read straight after `set_position` returns the OLD position**, and
+/// anyone checking this function's work needs to know that before they start. It reports the
+/// macOS default, which is near the middle of the display, and it keeps reporting it however
+/// many times the call is repeated. A few hundred milliseconds later the same read returns the
+/// corner. This cost an entire wrong diagnosis, a restructure of `main.rs` around
+/// `RunEvent::Ready`, and a fix for a bug that did not exist: placement worked correctly the
+/// whole time and the measurement was lying. **Read the position from a delayed thread, or do
+/// not read it.**
+fn place(win: &tauri::WebviewWindow, app: &AppHandle) -> tauri::Result<()> {
+    let Some(b) = usable_bounds(win) else {
+        return Ok(());
+    };
+    let corners = anchors(&b);
+
+    let saved = app
+        .state::<AppState>()
+        .momentum
+        .lock()
+        .unwrap()
+        .state
+        .pet_position;
+    let target = saved
+        .filter(|&(x, y)| within_bounds(x as f64, y as f64, &b))
+        .unwrap_or(corners[3]);
+
+    win.set_position(PhysicalPosition::new(target.0, target.1))?;
     Ok(())
+}
+
+/// Snap the pet to the corner nearest `current` and return the corner it landed on.
+///
+/// `current` is the pet's top-left in physical pixels, handed over by the webview rather than
+/// read back here, because the webview is the one that just moved it and its own last word on
+/// where it is is more recent than anything `outer_position()` would report. The backend owns
+/// the geometry (the display, the Dock-aware bounds, the anchors); the frontend owns the
+/// pointer. Called once on drag end.
+pub fn snap_to_nearest_corner(
+    win: &tauri::WebviewWindow,
+    current: (f64, f64),
+) -> Option<(i32, i32)> {
+    let b = usable_bounds(win)?;
+    let target = nearest(current, &anchors(&b));
+    win.set_position(PhysicalPosition::new(target.0, target.1))
+        .ok()?;
+    Some(target)
 }
 
 #[cfg(target_os = "macos")]
@@ -168,5 +258,55 @@ mod macos {
         let right = visible.origin.x + visible.size.width;
         let bottom_from_top = primary_height - visible.origin.y;
         Some((right * scale, bottom_from_top * scale))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn b() -> Bounds {
+        Bounds {
+            left: 0.0,
+            top: 0.0,
+            right: 1920.0,
+            bottom: 1080.0,
+            extent: 64.0,
+            margin: 20.0,
+        }
+    }
+
+    #[test]
+    fn the_four_corners_are_where_a_corner_is() {
+        assert_eq!(
+            anchors(&b()),
+            [(20, 20), (1836, 20), (20, 996), (1836, 996)]
+        );
+    }
+
+    #[test]
+    fn the_nearest_corner_is_chosen_by_distance() {
+        let c = anchors(&b());
+        assert_eq!(nearest((10.0, 10.0), &c), (20, 20));
+        assert_eq!(nearest((1900.0, 10.0), &c), (1836, 20));
+        assert_eq!(nearest((10.0, 1050.0), &c), (20, 996));
+        assert_eq!(nearest((1900.0, 1050.0), &c), (1836, 996));
+    }
+
+    #[test]
+    fn an_off_screen_position_falls_back_rather_than_leaving_the_pet_stranded() {
+        let b = b();
+        assert!(within_bounds(0.0, 0.0, &b));
+        assert!(
+            within_bounds(1856.0, 1016.0, &b),
+            "the far corner is the far edge"
+        );
+        assert!(!within_bounds(-1.0, 0.0, &b));
+        assert!(!within_bounds(0.0, -1.0, &b));
+        assert!(
+            !within_bounds(1857.0, 0.0, &b),
+            "an extent poking past the right edge"
+        );
+        assert!(!within_bounds(0.0, 1017.0, &b));
     }
 }
