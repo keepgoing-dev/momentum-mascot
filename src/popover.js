@@ -123,7 +123,7 @@ shareButton.addEventListener("click", async () => {
       characterId: current.character_id,
     });
     await invoke("copy_share_card", { png: Array.from(png) });
-    shareButton.textContent = "Copied";
+    shareButton.textContent = "Art copied";
     setTimeout(() => (shareButton.textContent = label), 1600);
   } catch (e) {
     showError(`Couldn't copy that: ${e}`);
