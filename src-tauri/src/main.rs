@@ -37,6 +37,7 @@ fn main() {
             commands::refresh,
             commands::toggle_popover,
             commands::snap_pet,
+            commands::cancel_glide,
             commands::hide_popover,
             commands::add_project,
             commands::untrack,

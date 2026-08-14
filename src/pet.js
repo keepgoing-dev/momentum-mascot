@@ -57,6 +57,9 @@ let drag = null;
 pet.addEventListener("mousedown", (e) => {
   if (e.button !== 0) return;
   e.preventDefault();
+  // A drag that starts while the last glide is still landing would have its own movement
+  // fought by the glide's remaining steps, so stop it before following the cursor.
+  invoke("cancel_glide");
   getCurrentWindow()
     .outerPosition()
     .then((pos) => {

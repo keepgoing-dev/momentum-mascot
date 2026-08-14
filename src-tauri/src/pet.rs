@@ -15,6 +15,9 @@
 //! The dead ends are kept in `spikes/always-on-top/RESULTS.md` so that a future macOS release
 //! breaking this is re-diagnosed in minutes rather than re-explored from scratch.
 
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
+
 use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition};
 
 use crate::app::{AppState, PET};
@@ -184,22 +187,59 @@ fn place(win: &tauri::WebviewWindow, app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Snap the pet to the corner nearest `current` and return the corner it landed on.
+/// The corner nearest `current`, without moving the window.
 ///
 /// `current` is the pet's top-left in physical pixels, handed over by the webview rather than
 /// read back here, because the webview is the one that just moved it and its own last word on
 /// where it is is more recent than anything `outer_position()` would report. The backend owns
-/// the geometry (the display, the Dock-aware bounds, the anchors); the frontend owns the
-/// pointer. Called once on drag end.
-pub fn snap_to_nearest_corner(
+/// the geometry (the display, the Dock-aware bounds, the anchors) and the motion; the frontend
+/// owns the pointer. Called once on drag end.
+pub fn nearest_corner(
     win: &tauri::WebviewWindow,
     current: (f64, f64),
 ) -> Option<(i32, i32)> {
     let b = usable_bounds(win)?;
-    let target = nearest(current, &anchors(&b));
-    win.set_position(PhysicalPosition::new(target.0, target.1))
-        .ok()?;
-    Some(target)
+    Some(nearest(current, &anchors(&b)))
+}
+
+/// Bumped whenever a glide starts or is cancelled. A running glide checks it against the value
+/// it started under and stops the moment it is no longer the latest, so the tail of an old
+/// glide can never fight a newer drag.
+static GLIDE_GENERATION: AtomicU64 = AtomicU64::new(0);
+
+/// Glide the window from `from` to `to`, both physical pixels, easing out over ~250ms.
+///
+/// The motion is driven from a thread here rather than from the webview, because the pet's
+/// window is never focused and WebKit throttles the webview's own timers — `requestAnimationFrame`
+/// included — for exactly that window. An animation the frontend runs may silently not run; a
+/// Rust thread is not subject to that throttling. The final step lands exactly on `to`, so the
+/// corner is reached even if an earlier step was coalesced away.
+pub fn glide_to(win: &tauri::WebviewWindow, from: (f64, f64), to: (i32, i32)) {
+    let generation = GLIDE_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+    let win = win.clone();
+    std::thread::spawn(move || {
+        const STEPS: u32 = 16;
+        const STEP: Duration = Duration::from_millis(16);
+        for i in 1..=STEPS {
+            if GLIDE_GENERATION.load(Ordering::SeqCst) != generation {
+                return;
+            }
+            let t = i as f64 / STEPS as f64;
+            let eased = 1.0 - (1.0 - t).powi(3);
+            let x = from.0 + (to.0 as f64 - from.0) * eased;
+            let y = from.1 + (to.1 as f64 - from.1) * eased;
+            if win.set_position(PhysicalPosition::new(x, y)).is_err() {
+                return;
+            }
+            std::thread::sleep(STEP);
+        }
+    });
+}
+
+/// Cancel any glide still in flight. Called when a new drag begins, before the cursor has a
+/// chance to be fought by the previous glide's remaining steps.
+pub fn cancel_glide() {
+    GLIDE_GENERATION.fetch_add(1, Ordering::SeqCst);
 }
 
 #[cfg(target_os = "macos")]

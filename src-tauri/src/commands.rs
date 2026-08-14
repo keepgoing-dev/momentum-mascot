@@ -1,4 +1,4 @@
-//! Everything the webview is allowed to ask for. Seven commands, and no eighth without a
+//! Everything the webview is allowed to ask for. Eight commands, and no ninth without a
 //! reason: this list is the whole API surface between the art and the machinery.
 
 use tauri::{AppHandle, Manager};
@@ -23,16 +23,19 @@ pub fn toggle_popover(app: AppHandle) {
 
 /// The pet finished being dragged. The webview reports where it let go (its top-left in
 /// physical pixels, which is the only coordinate the webview knows its own position in); the
-/// backend snaps it to the nearest corner and remembers that corner, so the drag survives a
-/// restart. No seventh parameter, no free placement: this is the whole drag API.
+/// backend resolves the nearest corner, glides the window there rather than teleporting it, and
+/// remembers that corner, so the drag survives a restart. No seventh parameter, no free
+/// placement: this is the whole drag API.
 #[tauri::command]
 pub fn snap_pet(app: AppHandle, x: f64, y: f64) {
     let Some(win) = app.get_webview_window(app::PET) else {
         return;
     };
-    let Some(target) = pet::snap_to_nearest_corner(&win, (x, y)) else {
+    let Some(target) = pet::nearest_corner(&win, (x, y)) else {
         return;
     };
+
+    pet::glide_to(&win, (x, y), target);
 
     let state = app.state::<AppState>();
     let to_save = {
@@ -43,6 +46,13 @@ pub fn snap_pet(app: AppHandle, x: f64, y: f64) {
     if let Err(e) = crate::store::save(&state.store_path, &to_save) {
         eprintln!("could not write state: {e}");
     }
+}
+
+/// A new drag is starting, so any glide still in flight must stop or its remaining steps will
+/// fight the cursor. Called on pointer-down, before the drag's own movement begins.
+#[tauri::command]
+pub fn cancel_glide() {
+    pet::cancel_glide();
 }
 
 #[tauri::command]
