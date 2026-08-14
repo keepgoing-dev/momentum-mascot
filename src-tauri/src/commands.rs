@@ -24,16 +24,13 @@ pub fn toggle_popover(app: AppHandle) {
 /// The pet finished being dragged. The webview reports where it let go (its top-left in
 /// physical pixels, which is the only coordinate the webview knows its own position in); the
 /// backend resolves the nearest corner, glides the window there rather than teleporting it, and
-/// remembers that corner, so the drag survives a restart. No seventh parameter, no free
-/// placement: this is the whole drag API.
+/// remembers that corner, so the drag survives a restart. It returns the corner so the webview
+/// can face the run that way. No seventh parameter, no free placement: this is the whole drag
+/// API.
 #[tauri::command]
-pub fn snap_pet(app: AppHandle, x: f64, y: f64) {
-    let Some(win) = app.get_webview_window(app::PET) else {
-        return;
-    };
-    let Some(target) = pet::nearest_corner(&win, (x, y)) else {
-        return;
-    };
+pub fn snap_pet(app: AppHandle, x: f64, y: f64) -> Option<(i32, i32)> {
+    let win = app.get_webview_window(app::PET)?;
+    let target = pet::nearest_corner(&win, (x, y))?;
 
     pet::glide_to(&win, (x, y), target);
 
@@ -46,6 +43,8 @@ pub fn snap_pet(app: AppHandle, x: f64, y: f64) {
     if let Err(e) = crate::store::save(&state.store_path, &to_save) {
         eprintln!("could not write state: {e}");
     }
+
+    Some(target)
 }
 
 /// A new drag is starting, so any glide still in flight must stop or its remaining steps will

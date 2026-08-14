@@ -168,6 +168,14 @@ CAT_AT="+76+84"
 IDLE_X=48
 IDLE_Y=0
 
+# The run is the sheet's side-view walk row (y=32), six frames per facing in the same
+# left/up/right/down order as row 0. The right-facing six (x=192..272) are the run: a real
+# stride with a 1px vertical bob baked in, unlike the front-facing walk which is mostly
+# static. The frontend flips the strip with scaleX(-1) for leftward travel, so one strip
+# serves both directions and only the right-facing half is ever cropped.
+RUN_XS="192 208 224 240 256 272"
+RUN_Y=32
+
 # Row 192 is seated, and the sheet has "4-9 loop" written next to it in pixels.
 # Those are 1-indexed, so the loop is x=48..128. Its shape is palindromic: four
 # frames that differ from rest by 15 to 36 pixels, two that differ by ~195, then
@@ -246,6 +254,7 @@ PET_W=32
 PET_H=32
 PET_CHAR_X=0
 PET_CHAR_Y=-2
+PET_RUN_X=8                  # the run is side-view; centred so a scaleX(-1) flip stays put
 PET_EMOTE_DX=16               # relative to the character, so the emote moves with them
 PET_EMOTE_DY=4
 PET_SPARK_DX=16
@@ -277,6 +286,7 @@ PET_FPS_AWAKE=3
 PET_FPS_DOZING=2
 PET_FPS_ASLEEP=2
 PET_FPS_COMEBACK=8
+PET_FPS_RUN=16
 
 # ---------------------------------------------------------------- animation
 # One loop length for every state, so each layer is indexed frame % count and
@@ -388,6 +398,7 @@ build_layers() {
   IDLE_FRAMES=$(cut_row idle   "$CHAR_SHEET" 16x32 "$IDLE_Y"   $IDLE_X)
   SEATED_FRAMES=$(cut_row seated "$CHAR_SHEET" 16x32 "$SEATED_Y" $SEATED_XS)
   SLEEP_FRAMES=$(cut_row sleep  "$CHAR_SHEET" 16x32 "$SLEEP_Y"  $SLEEP_XS)
+  RUN_FRAMES=$(cut_row run      "$CHAR_SHEET" 16x32 "$RUN_Y"    $RUN_XS)
 
   BLANKET=$(cut_row blanket "$CHAR_SHEET" 16x16 "$SLEEP_BLANKET_Y" $SLEEP_BLANKET_X)
 
@@ -518,12 +529,25 @@ frame_pet_comeback() {
     PNG32:"$out"
 }
 
+# The run is the only pet state that is not the front-facing or seated character: it is the
+# sheet's side-view walk, so the mascot reads as running when the frontend plays it during a
+# drag or a glide. It is the pet-only state, composed here rather than in the room loop, and
+# the frontend flips it with scaleX(-1) to face whichever way it is travelling. No emote and
+# no breath offset: the stride carries the motion and a hop on top of it would fight it.
+frame_pet_run() {
+  local i=$1 out=$2
+  magick -size ${PET_W}x${PET_H} xc:none \
+    "$(nth "$i" $RUN_FRAMES)" -geometry "$(geom $PET_RUN_X $PET_CHAR_Y)" -composite \
+    PNG32:"$out"
+}
+
 pet_fps_for() {
   case $1 in
     awake)    printf '%s' "$PET_FPS_AWAKE" ;;
     dozing)   printf '%s' "$PET_FPS_DOZING" ;;
     asleep)   printf '%s' "$PET_FPS_ASLEEP" ;;
     comeback) printf '%s' "$PET_FPS_COMEBACK" ;;
+    run)      printf '%s' "$PET_FPS_RUN" ;;
   esac
 }
 
@@ -586,6 +610,24 @@ for s in "${STATES[@]}"; do
 
   echo "  $s: ${FRAMES}f at ${fps}fps"
 done
+
+# ---------------------------------------------------------------- the run strip
+# Pet-only, so it is built outside the room loop above. The run is the side-view walk row
+# stepped twice over the same 12 frames the other pet states use, so the frontend's steps(12)
+# machinery plays it without a second case. No room state uses it and no contact-sheet tile is
+# drawn for it: it is not one of the four rooms.
+if [ -n "$APP_OUT" ]; then
+  runstrip=""
+  i=0
+  while [ $i -lt $FRAMES ]; do
+    frame_pet_run "$i" "$WORK/pet-run-f$i.png"
+    runstrip="$runstrip $WORK/pet-run-f$i.png"
+    i=$((i + 1))
+  done
+  magick $runstrip +append PNG32:"$APP_OUT/pet/$CHAR/run.png"
+  magick -delay $((100 / $(pet_fps_for run))) -loop 0 $runstrip \
+    -filter point -resize "$((ZOOM * 100))%" -layers optimize "$OUT/pet-run.gif"
+fi
 
 # ---------------------------------------------------------------- contact sheets
 # All four side by side, in lockstep at one rate. Per-state rates live in the

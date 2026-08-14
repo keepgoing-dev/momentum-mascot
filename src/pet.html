@@ -54,6 +54,21 @@
       #pet[data-mood="comeback"] {
         animation-duration: 1.5s;
       }
+
+      /* The run is not an idle mood, it is the drag/glide animation: the pet scrambles while
+         grabbed and sprints to its corner once dropped. It is the one state that is allowed to
+         be loud, because it is not motion in the corner of the eye, it is motion the user's
+         hand caused and their eye is on. */
+      #pet[data-mood="run"] {
+        animation-duration: 0.75s;
+      }
+
+      /* The run strip is side-view, composed once facing right and flipped here for leftward
+         travel. The strip is centred in its cell, so the flip turns the character in place
+         rather than shunting it across the window. */
+      #pet[data-facing="left"] {
+        transform: scaleX(-1);
+      }
     </style>
   </head>
   <body>

@@ -18,7 +18,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition};
+use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition};
 
 use crate::app::{AppState, PET};
 
@@ -207,6 +207,9 @@ pub fn nearest_corner(
 /// glide can never fight a newer drag.
 static GLIDE_GENERATION: AtomicU64 = AtomicU64::new(0);
 
+/// The event the pet webview listens for to know a glide has landed and it can stop running.
+const GLIDE_DONE_EVENT: &str = "glide-done";
+
 /// Glide the window from `from` to `to`, both physical pixels, easing out over ~250ms.
 ///
 /// The motion is driven from a thread here rather than from the webview, because the pet's
@@ -214,6 +217,9 @@ static GLIDE_GENERATION: AtomicU64 = AtomicU64::new(0);
 /// included — for exactly that window. An animation the frontend runs may silently not run; a
 /// Rust thread is not subject to that throttling. The final step lands exactly on `to`, so the
 /// corner is reached even if an earlier step was coalesced away.
+///
+/// Landing emits `glide-done`, and only landing does: a glide cut short by `cancel_glide` stays
+/// silent, so a re-grab does not get the frontend's run cut short out from under it.
 pub fn glide_to(win: &tauri::WebviewWindow, from: (f64, f64), to: (i32, i32)) {
     let generation = GLIDE_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     let win = win.clone();
@@ -233,6 +239,7 @@ pub fn glide_to(win: &tauri::WebviewWindow, from: (f64, f64), to: (i32, i32)) {
             }
             std::thread::sleep(STEP);
         }
+        let _ = win.emit(GLIDE_DONE_EVENT, ());
     });
 }
 

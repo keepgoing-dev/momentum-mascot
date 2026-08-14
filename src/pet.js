@@ -30,8 +30,37 @@ fit();
 window.addEventListener("resize", fit);
 
 function render(payload) {
-  pet.dataset.mood = payload.mood;
-  pet.style.backgroundImage = `url("assets/pet/${payload.character_id}/${payload.mood}.png")`;
+  currentMood = payload.mood;
+  characterId = payload.character_id;
+  if (!busy) applyMood(currentMood);
+}
+
+// The idle mood the tick reports, held separately from what is on screen so a drag can paint
+// "run" over it without the next tick walking the idle back on mid-glide. `busy` is true from
+// the moment a drag is recognised to the moment its glide lands, and while it is, `render`
+// updates `currentMood` but leaves the running sprite alone.
+let currentMood = "awake";
+let characterId = "07";
+let busy = false;
+
+function applyMood(mood) {
+  pet.dataset.mood = mood;
+  pet.style.backgroundImage = `url("assets/pet/${characterId}/${mood}.png")`;
+}
+
+function applyRun() {
+  pet.dataset.mood = "run";
+  pet.style.backgroundImage = `url("assets/pet/${characterId}/run.png")`;
+}
+
+function setFacing(dir) {
+  pet.dataset.facing = dir;
+}
+
+function endRun() {
+  busy = false;
+  delete pet.dataset.facing;
+  applyMood(currentMood);
 }
 
 // Clicking the pet opens the popover; dragging it to a corner moves it. The two are told
@@ -76,9 +105,12 @@ window.addEventListener("mousemove", (e) => {
   const scale = window.devicePixelRatio || 1;
   drag.x += e.movementX * scale;
   drag.y += e.movementY * scale;
-  if (Math.hypot(drag.x - drag.ox, drag.y - drag.oy) >= DRAG_THRESHOLD * scale) {
+  if (!drag.moved && Math.hypot(drag.x - drag.ox, drag.y - drag.oy) >= DRAG_THRESHOLD * scale) {
     drag.moved = true;
+    busy = true;
+    applyRun();
   }
+  if (drag.moved && e.movementX !== 0) setFacing(e.movementX > 0 ? "right" : "left");
   const { PhysicalPosition } = window.__TAURI__.dpi;
   getCurrentWindow().setPosition(new PhysicalPosition(drag.x, drag.y));
 });
@@ -89,8 +121,17 @@ window.addEventListener("mouseup", (e) => {
   const { x, y } = drag;
   drag = null;
   pet.style.cursor = "";
-  if (wasDrag) invoke("snap_pet", { x, y });
-  else invoke("toggle_popover");
+  if (wasDrag) {
+    // Keep running; the backend glides the window and the facing is set from the corner it
+    // reports. `busy` clears when the glide lands, signalled by `glide-done`.
+    invoke("snap_pet", { x, y }).then((target) => {
+      if (!target) return endRun();
+      setFacing(target[0] > x ? "right" : "left");
+    });
+  } else {
+    invoke("toggle_popover");
+    endRun();
+  }
 });
 
 // The context menu and native HTML5 dragging both have to go, or a right-click turns the
@@ -99,6 +140,10 @@ document.addEventListener("contextmenu", (e) => e.preventDefault());
 document.addEventListener("dragstart", (e) => e.preventDefault());
 
 listen("mood", (event) => render(event.payload));
+// The backend owns the glide, so the frontend's only way to know it has landed is this event,
+// which arrives when the glide thread reaches the corner. Only a glide that completes emits it;
+// one cancelled by a newer drag does not, so a re-grab does not get its run cut short.
+listen("glide-done", () => endRun());
 
 // A window that opens between ticks would otherwise be blank until the next one.
 invoke("refresh");
