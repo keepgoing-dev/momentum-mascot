@@ -469,14 +469,17 @@ frame_comeback() {
 # furniture around it, and a capped head under a blanket needs no bed to say asleep. What made
 # this look impossible was reasoning about the sheet instead of cropping it.
 #
-# The seated frame is the rest pose only. The full seated row is a typing loop, and a pet
-# typing in the corner of the eye all day is exactly the thing the amplitude rule bans.
+# Awake is the seated pose, the same one the room shows at the desk. It is the rest frame of
+# the seated row, never the typing loop: a pet leaning in to type in the corner of the eye all
+# day is exactly the thing the amplitude rule bans. Dozing then takes the standing idle pose,
+# which matches the room's dozing (standing with coffee) and undoes the old inversion where the
+# pet's working state stood around while its dozing state sat down.
 
 frame_pet_awake() {
   local i=$1 out=$2
   local dy=$((PET_CHAR_Y + $(nth "$i" $PET_BREATH)))
   magick -size ${PET_W}x${PET_H} xc:none \
-    "$(nth "$i" $IDLE_FRAMES)" -geometry "$(geom $PET_CHAR_X $dy)" -composite \
+    "$(nth 0 $SEATED_FRAMES)" -geometry "$(geom $PET_CHAR_X $dy)" -composite \
     PNG32:"$out"
 }
 
@@ -484,7 +487,7 @@ frame_pet_dozing() {
   local i=$1 out=$2
   local dy=$((PET_CHAR_Y + $(nth "$i" $PET_BREATH)))
   magick -size ${PET_W}x${PET_H} xc:none \
-    "$(nth 0 $SEATED_FRAMES)" -geometry "$(geom $PET_CHAR_X $dy)" -composite \
+    "$(nth "$i" $IDLE_FRAMES)" -geometry "$(geom $PET_CHAR_X $dy)" -composite \
     "$(nth "$i" $DOTS_FRAMES)" \
       -geometry "$(geom $((PET_CHAR_X + PET_EMOTE_DX)) $((dy + PET_EMOTE_DY)))" -composite \
     PNG32:"$out"
