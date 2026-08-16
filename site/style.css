@@ -84,8 +84,9 @@ h2 {
 
 /* Header */
 
-header {
-  padding: 24px 0;
+header.wrap {
+  padding-top: 36px;
+  padding-bottom: 36px;
   border-bottom: 1px solid var(--border);
 }
 
