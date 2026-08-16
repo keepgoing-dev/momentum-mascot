@@ -85,8 +85,8 @@ h2 {
 /* Header */
 
 header.wrap {
-  padding-top: 36px;
-  padding-bottom: 36px;
+  padding-top: 20px;
+  padding-bottom: 20px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -98,13 +98,8 @@ nav {
 
 .nav-left {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 16px;
-}
-
-.tagline-nav {
-  color: var(--muted);
-  font-size: 0.8rem;
 }
 
 .nav-links {
@@ -123,9 +118,19 @@ nav {
 }
 
 .logo {
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-pixel);
   color: var(--text);
-  font-size: 1.1rem;
+  font-size: 0.95rem;
+}
+
+.logo img {
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  image-rendering: pixelated;
 }
 
 /* Hero */
