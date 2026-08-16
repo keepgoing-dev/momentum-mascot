@@ -93,7 +93,13 @@
 
         <div class="feature reverse">
           <div class="feature-visual">
-            <img src="share.png" alt="Four share cards showing each mascot mood" class="feature-media share-media" width="600" height="315" />
+            <div
+              class="share-card"
+              data-mood="awake"
+              role="img"
+              aria-label="Share cards cycling through each mascot mood"
+            ></div>
+            <p class="share-state" aria-live="polite">Awake</p>
           </div>
           <div class="feature-text">
             <h2>Share without leaking</h2>
@@ -157,22 +163,35 @@
       (function () {
         const moods = ["awake", "dozing", "asleep", "comeback"];
         const labels = { awake: "Awake", dozing: "Dozing", asleep: "Asleep", comeback: "Comeback" };
-        const room = document.querySelector(".hero-room");
-        const label = document.querySelector(".hero-state");
-        if (!room) return;
 
-        moods.forEach((mood) => {
-          const img = new Image();
-          img.src = `assets/rooms/20/${mood}.png`;
+        function cycle({ target, label, assetDir }) {
+          if (!target) return;
+
+          moods.forEach((mood) => {
+            const img = new Image();
+            img.src = `${assetDir}/${mood}.png`;
+          });
+
+          let i = 0;
+          setInterval(() => {
+            i = (i + 1) % moods.length;
+            const mood = moods[i];
+            target.dataset.mood = mood;
+            if (label) label.textContent = labels[mood];
+          }, 3000);
+        }
+
+        cycle({
+          target: document.querySelector(".hero-room"),
+          label: document.querySelector(".hero-state"),
+          assetDir: "assets/rooms/20",
         });
 
-        let i = 0;
-        setInterval(() => {
-          i = (i + 1) % moods.length;
-          const mood = moods[i];
-          room.dataset.mood = mood;
-          if (label) label.textContent = labels[mood];
-        }, 3000);
+        cycle({
+          target: document.querySelector(".share-card"),
+          label: document.querySelector(".share-state"),
+          assetDir: "assets/share",
+        });
       })();
     </script>
   </body>

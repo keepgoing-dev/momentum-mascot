@@ -311,10 +311,37 @@ nav {
   max-width: 128px;
 }
 
-.share-media {
-  max-width: 100%;
+.share-card {
   width: 360px;
-  height: auto;
+  max-width: 100%;
+  aspect-ratio: 600 / 315;
+  border-radius: var(--radius);
+  border: 2px solid var(--border);
+  image-rendering: pixelated;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+}
+
+.share-card[data-mood="awake"] {
+  background-image: url("assets/share/awake.png");
+}
+.share-card[data-mood="dozing"] {
+  background-image: url("assets/share/dozing.png");
+}
+.share-card[data-mood="asleep"] {
+  background-image: url("assets/share/asleep.png");
+}
+.share-card[data-mood="comeback"] {
+  background-image: url("assets/share/comeback.png");
+}
+
+.share-state {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin: 0;
+  min-height: 1.2em;
 }
 
 .caption {
