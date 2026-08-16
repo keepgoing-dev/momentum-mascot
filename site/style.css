@@ -175,20 +175,25 @@ nav {
   96% { opacity: 0.9; }
 }
 
-.pet-placeholder {
-  width: 64px;
-  height: 64px;
-  background: var(--panel);
-  border: 2px dashed var(--border);
+.feature-media {
+  max-width: 100%;
+  height: auto;
   border-radius: var(--radius);
+  border: 2px solid var(--border);
+  image-rendering: pixelated;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
 }
 
-.share-placeholder {
-  width: 300px;
-  height: 158px;
-  background: var(--panel);
-  border: 2px dashed var(--border);
-  border-radius: var(--radius);
+.pet-media {
+  width: 128px;
+  height: 128px;
+  max-width: 128px;
+}
+
+.share-media {
+  max-width: 100%;
+  width: 360px;
+  height: auto;
 }
 
 .caption {
