@@ -207,7 +207,7 @@ nav {
   position: relative;
 }
 
-.hero-visual::after {
+.hero-room::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -223,31 +223,52 @@ nav {
   z-index: 1;
 }
 
-.room-placeholder {
-  width: 320px;
-  height: 224px;
-  background: var(--panel);
-  border: 2px dashed var(--border);
-  border-radius: var(--radius);
-  display: grid;
-  place-items: center;
+.hero-room {
   position: relative;
-  overflow: hidden;
-}
-
-.hero-media {
+  width: 480px;
   max-width: 100%;
-  height: auto;
+  aspect-ratio: 480 / 336;
   border-radius: var(--radius);
   border: 2px solid var(--border);
   image-rendering: pixelated;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
-  animation: breathe 4s ease-in-out infinite;
+  background-repeat: no-repeat;
+  /* 12 frames of the 160x112 room, tripled: a 5760x336 strip stepped one room at a time. */
+  background-size: 5760px 336px;
+  animation: hero-room 2s steps(12) infinite;
 }
 
-@keyframes breathe {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.02); }
+.hero-room[data-mood="awake"] {
+  background-image: url("assets/rooms/20/awake.png");
+  animation-duration: 2s;
+}
+.hero-room[data-mood="dozing"] {
+  background-image: url("assets/rooms/20/dozing.png");
+  animation-duration: 4s;
+}
+.hero-room[data-mood="asleep"] {
+  background-image: url("assets/rooms/20/asleep.png");
+  animation-duration: 6s;
+}
+.hero-room[data-mood="comeback"] {
+  background-image: url("assets/rooms/20/comeback.png");
+  animation-duration: 1.5s;
+}
+
+@keyframes hero-room {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -5760px 0;
+  }
+}
+
+.hero-state {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin: 0;
+  min-height: 1.2em;
 }
 
 @keyframes flicker {
@@ -487,10 +508,5 @@ footer {
 @media (max-width: 480px) {
   .grid.four {
     grid-template-columns: 1fr;
-  }
-
-  .room-placeholder {
-    width: 100%;
-    max-width: 320px;
   }
 }

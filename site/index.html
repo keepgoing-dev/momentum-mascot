@@ -43,7 +43,13 @@
           <p class="meta">Universal build · Apple Silicon + Intel · Free · No sign-up</p>
         </div>
         <div class="hero-visual">
-          <img src="hero.gif" alt="Momentum Mascot's four moods: awake, dozing, asleep, and comeback" class="hero-media" width="320" height="224" />
+          <div
+            class="hero-room"
+            data-mood="awake"
+            role="img"
+            aria-label="Momentum Mascot's room cycling through moods: awake, dozing, asleep, and comeback"
+          ></div>
+          <p class="hero-state" aria-live="polite">Awake</p>
         </div>
       </section>
 
@@ -146,5 +152,28 @@
         <feBlend in="SourceGraphic" in2="gray" mode="multiply" />
       </filter>
     </svg>
+
+    <script>
+      (function () {
+        const moods = ["awake", "dozing", "asleep", "comeback"];
+        const labels = { awake: "Awake", dozing: "Dozing", asleep: "Asleep", comeback: "Comeback" };
+        const room = document.querySelector(".hero-room");
+        const label = document.querySelector(".hero-state");
+        if (!room) return;
+
+        moods.forEach((mood) => {
+          const img = new Image();
+          img.src = `assets/rooms/20/${mood}.png`;
+        });
+
+        let i = 0;
+        setInterval(() => {
+          i = (i + 1) % moods.length;
+          const mood = moods[i];
+          room.dataset.mood = mood;
+          if (label) label.textContent = labels[mood];
+        }, 3000);
+      })();
+    </script>
   </body>
 </html>
