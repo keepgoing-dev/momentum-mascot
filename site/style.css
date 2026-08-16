@@ -1,0 +1,397 @@
+/* Momentum Mascot landing page */
+
+:root {
+  --bg: #11111a;
+  --panel: #191924;
+  --panel-2: #232333;
+  --text: #f4f4f8;
+  --muted: #a0a0b8;
+  --accent: #ff7eb3;
+  --accent-2: #7af0d6;
+  --awake: #ffd470;
+  --dozing: #7ab8ff;
+  --asleep: #9b8cff;
+  --comeback: #ff8f7a;
+  --border: #2d2d42;
+  --radius: 8px;
+  --font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.wrap {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* Header */
+
+header {
+  padding: 24px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logo {
+  font-weight: 700;
+  color: var(--text);
+  font-size: 1.1rem;
+}
+
+/* Hero */
+
+.hero {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: center;
+  padding: 72px 24px;
+}
+
+.hero-text h1 {
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  line-height: 1.2;
+  margin: 0 0 20px;
+  color: var(--text);
+}
+
+.lead {
+  color: var(--muted);
+  font-size: 1.05rem;
+  margin: 0 0 20px;
+}
+
+.tagline {
+  color: var(--accent);
+  font-weight: 700;
+  margin: 0 0 28px;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.btn {
+  display: inline-block;
+  padding: 12px 20px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-weight: 600;
+  transition: transform 0.05s, background 0.15s;
+}
+
+.btn:hover {
+  text-decoration: none;
+  background: var(--panel-2);
+}
+
+.btn.primary {
+  background: var(--accent);
+  color: #111;
+  border-color: var(--accent);
+}
+
+.btn.primary:hover {
+  filter: brightness(1.1);
+}
+
+.meta {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+/* Visual placeholders */
+
+.hero-visual,
+.feature-visual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.room-placeholder {
+  width: 320px;
+  height: 224px;
+  background: var(--panel);
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  display: grid;
+  place-items: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.room-frame {
+  width: 160px;
+  height: 112px;
+  background: repeating-linear-gradient(
+    0deg,
+    var(--panel-2) 0px,
+    var(--panel-2) 16px,
+    transparent 16px,
+    transparent 32px
+  );
+  border: 2px solid var(--accent);
+  animation: flicker 3s steps(2) infinite;
+}
+
+@keyframes flicker {
+  0%, 90%, 100% { opacity: 1; }
+  92% { opacity: 0.7; }
+  94% { opacity: 0.3; }
+  96% { opacity: 0.9; }
+}
+
+.pet-placeholder {
+  width: 64px;
+  height: 64px;
+  background: var(--panel);
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+.share-placeholder {
+  width: 300px;
+  height: 158px;
+  background: var(--panel);
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+.caption {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin: 0;
+}
+
+/* States */
+
+.states,
+.install,
+.privacy,
+.about {
+  padding: 64px 24px;
+  border-top: 1px solid var(--border);
+}
+
+.states h2,
+.install h2,
+.privacy h2,
+.about h2,
+.features h2 {
+  font-size: 1.5rem;
+  margin: 0 0 12px;
+}
+
+.subhead {
+  color: var(--muted);
+  margin: 0 0 36px;
+}
+
+.grid {
+  display: grid;
+  gap: 20px;
+}
+
+.grid.four {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+article {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+article h3 {
+  margin: 12px 0 8px;
+  font-size: 1rem;
+}
+
+article p {
+  color: var(--muted);
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.state-dot {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+
+.state-dot.awake { background: var(--awake); box-shadow: 0 0 12px var(--awake); }
+.state-dot.dozing { background: var(--dozing); }
+.state-dot.asleep { background: var(--asleep); }
+.state-dot.comeback { background: var(--comeback); }
+
+/* Features */
+
+.features {
+  padding: 64px 24px;
+  border-top: 1px solid var(--border);
+}
+
+.feature {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: center;
+  margin-bottom: 64px;
+}
+
+.feature:last-child {
+  margin-bottom: 0;
+}
+
+.feature.reverse {
+  direction: rtl;
+}
+
+.feature.reverse > * {
+  direction: ltr;
+}
+
+.feature-text p {
+  color: var(--muted);
+}
+
+/* Install */
+
+.install ol {
+  padding-left: 20px;
+  color: var(--muted);
+}
+
+.install li {
+  margin-bottom: 10px;
+}
+
+.install pre {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  overflow-x: auto;
+  color: var(--text);
+  margin: 12px 0 0;
+}
+
+.install code {
+  font-family: var(--font);
+  font-size: 0.9rem;
+}
+
+.note {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-top: 20px;
+}
+
+/* Privacy */
+
+.checks {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.checks li {
+  padding: 10px 0 10px 28px;
+  position: relative;
+  color: var(--muted);
+}
+
+.checks li::before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  color: var(--accent-2);
+  font-weight: 700;
+}
+
+/* About */
+
+.about p {
+  color: var(--muted);
+}
+
+/* Footer */
+
+footer {
+  padding: 40px 24px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* Responsive */
+
+@media (max-width: 760px) {
+  .hero,
+  .feature,
+  .feature.reverse {
+    grid-template-columns: 1fr;
+    direction: ltr;
+  }
+
+  .grid.four {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .hero {
+    padding: 48px 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .grid.four {
+    grid-template-columns: 1fr;
+  }
+
+  .room-placeholder {
+    width: 100%;
+    max-width: 320px;
+  }
+}

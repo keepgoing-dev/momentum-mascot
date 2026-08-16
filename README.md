@@ -23,6 +23,20 @@ Four states: awake under 24 hours, dozing from 24 to 72, asleep past 72, and the
 which fires when a real commit lands after a sleep. Checking out a branch or pulling does not
 count as work and cannot trigger it.
 
+## Install
+
+Pre-built releases are on the [GitHub Releases](https://github.com/keepgoing-dev/momentum-mascot/releases)
+page. Download `Momentum Mascot.dmg`, open it, and drag the app to `Applications`.
+
+The current build is **ad-hoc signed and not notarized**, so macOS Gatekeeper will warn you the
+first time you open it. Right-click the app and choose **Open**, or run:
+
+```sh
+xattr -d com.apple.quarantine "/Applications/Momentum Mascot.app"
+```
+
+The app does not start on login yet — open it yourself after a restart.
+
 ## Privacy
 
 There is no network layer. The app makes zero network requests, has no accounts, no telemetry
