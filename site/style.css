@@ -67,8 +67,8 @@ h1, h2 {
 }
 
 h1 {
-  font-size: clamp(1.4rem, 3.5vw, 2rem);
-  line-height: 1.8;
+  font-size: clamp(1.15rem, 2.8vw, 1.6rem);
+  line-height: 1.5;
 }
 
 h2 {
@@ -132,26 +132,27 @@ nav {
 .hero {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 48px;
+  gap: 40px;
   align-items: center;
-  padding: 72px 24px;
+  padding: 48px 24px;
 }
 
 .hero-text h1 {
-  margin: 0 0 20px;
+  margin: 0 0 14px;
   color: var(--text);
 }
 
 .lead {
   color: var(--muted);
-  font-size: 1.05rem;
-  margin: 0 0 20px;
+  font-size: 0.95rem;
+  margin: 0 0 14px;
 }
 
 .tagline {
   color: var(--accent);
+  font-size: 0.9rem;
   font-weight: 700;
-  margin: 0 0 28px;
+  margin: 0 0 22px;
 }
 
 .actions {
@@ -225,7 +226,7 @@ nav {
 
 .hero-room {
   position: relative;
-  width: 480px;
+  width: 420px;
   max-width: 100%;
   aspect-ratio: 480 / 336;
   border-radius: var(--radius);
