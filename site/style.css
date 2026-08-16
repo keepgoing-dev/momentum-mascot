@@ -159,18 +159,13 @@ nav {
   overflow: hidden;
 }
 
-.room-frame {
-  width: 160px;
-  height: 112px;
-  background: repeating-linear-gradient(
-    0deg,
-    var(--panel-2) 0px,
-    var(--panel-2) 16px,
-    transparent 16px,
-    transparent 32px
-  );
-  border: 2px solid var(--accent);
-  animation: flicker 3s steps(2) infinite;
+.hero-media {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  border: 2px solid var(--border);
+  image-rendering: pixelated;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
 }
 
 @keyframes flicker {
