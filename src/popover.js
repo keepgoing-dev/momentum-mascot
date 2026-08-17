@@ -7,6 +7,7 @@ const { listen } = window.__TAURI__.event;
 
 const room = document.getElementById("room");
 const charHit = document.getElementById("charHit");
+const charsEl = document.getElementById("characters");
 const quoteEl = document.getElementById("quote");
 const list = document.getElementById("projects");
 const emptyEl = document.getElementById("empty");
@@ -16,6 +17,10 @@ const addButton = document.getElementById("add");
 const shareButton = document.getElementById("share");
 
 let current = null;
+
+// The three shipped characters. Kept in one place so the picker, the room, and the backend
+// all agree on what can be selected.
+const CHARACTERS = ["07", "12", "20"];
 
 /**
  * Where the character actually is, per state, in room pixels at 2x.
@@ -32,6 +37,29 @@ const CHARACTER_AT = {
   comeback: { left: 108, top: 128, width: 32, height: 64 },
 };
 
+function buildCharacters() {
+  charsEl.replaceChildren(
+    ...CHARACTERS.map((id) => {
+      const btn = document.createElement("button");
+      btn.className = "char-btn";
+      btn.dataset.id = id;
+      btn.type = "button";
+      btn.title = `Character ${id}`;
+      btn.setAttribute("aria-label", `Use character ${id}`);
+      btn.style.backgroundImage = `url("assets/pet/${id}/dozing.png")`;
+      btn.addEventListener("click", () => invoke("set_character", { id }));
+      return btn;
+    }),
+  );
+}
+
+function updateCharacters(selectedId) {
+  for (const btn of charsEl.children) {
+    btn.classList.toggle("selected", btn.dataset.id === selectedId);
+    btn.setAttribute("aria-pressed", btn.dataset.id === selectedId ? "true" : "false");
+  }
+}
+
 function render(payload) {
   current = payload;
 
@@ -45,6 +73,8 @@ function render(payload) {
     width: `${at.width}px`,
     height: `${at.height}px`,
   });
+
+  updateCharacters(payload.character_id);
 
   quoteEl.textContent = payload.quote;
 
@@ -139,6 +169,8 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") invoke("hide_popover");
 });
 document.addEventListener("contextmenu", (e) => e.preventDefault());
+
+buildCharacters();
 
 listen("mood", (event) => render(event.payload));
 

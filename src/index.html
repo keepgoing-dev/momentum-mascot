@@ -13,12 +13,15 @@
               fully on display. -->
       <div class="room-wrap">
         <div id="room" class="room pixels" data-mood="awake"></div>
-        <!-- Clicking the character cycles through the three shipped characters. This is the
-             entire selection mechanism: no picker, no settings screen. The hit area follows
-             the character around the room, because clicking the bed to change who is asleep
-             in it is not the same gesture. -->
-        <button id="charHit" class="char-hit" title="Someone else?"></button>
+        <!-- Clicking the character still cycles through the three shipped characters, but the
+             visible picker below is the discoverable path. The hit area follows the character
+             around the room, because clicking the bed to change who is asleep in it is not the
+             same gesture. -->
+        <button id="charHit" class="char-hit" title="Click to switch character"></button>
       </div>
+
+      <!-- A visible picker so the character switch is discoverable. Three heads, one row. -->
+      <div class="characters" id="characters"></div>
 
       <!-- 2. The quote. Departure Mono at 11px, which is its native cell. -->
       <p id="quote" class="quote type"></p>

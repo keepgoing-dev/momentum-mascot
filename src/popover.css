@@ -68,6 +68,39 @@
   outline: 2px solid rgba(240, 230, 210, 0.35);
 }
 
+/* ---------------------------------------------------------------- character picker */
+
+.characters {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.char-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  background-size: 384px 32px;
+  background-position: 0 0;
+  background-repeat: no-repeat;
+  outline: 2px solid var(--edge);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  cursor: pointer;
+}
+
+.char-btn:hover {
+  outline-color: var(--mount);
+}
+
+.char-btn.selected {
+  outline-color: var(--accent);
+}
+
 /* ---------------------------------------------------------------- copy */
 
 .quote {

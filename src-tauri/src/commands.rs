@@ -1,4 +1,4 @@
-//! Everything the webview is allowed to ask for. Eight commands, and no ninth without a
+//! Everything the webview is allowed to ask for. Nine commands, and no tenth without a
 //! reason: this list is the whole API surface between the art and the machinery.
 
 use tauri::{AppHandle, Manager};
@@ -7,6 +7,7 @@ use tauri_plugin_dialog::DialogExt;
 
 use crate::app::{self, AppState};
 use crate::pet;
+use crate::store;
 
 /// Ask for the current mood without waiting for the next event. Called once when a window
 /// finishes loading, because a window that opens between ticks would otherwise be blank.
@@ -114,8 +115,8 @@ pub fn untrack(app: AppHandle, id: String) {
     app::publish(&app);
 }
 
-/// Clicking the character cycles to the next of the three. This is the entire selection
-/// mechanism: no picker UI and no settings screen, so the guardrail holds.
+/// Clicking the character cycles to the next of the three. This is the original selection
+/// mechanism, kept alongside the visible picker so the room itself still responds to a click.
 #[tauri::command]
 pub fn cycle_character(app: AppHandle) {
     app.state::<AppState>()
@@ -123,6 +124,19 @@ pub fn cycle_character(app: AppHandle) {
         .lock()
         .unwrap()
         .cycle_character();
+    app::publish(&app);
+}
+
+/// The visible character picker sets the mascot directly. Unknown ids are ignored rather than
+/// relaxed, because the only valid characters are the three shipped ones.
+#[tauri::command]
+pub fn set_character(app: AppHandle, id: String) {
+    let state = app.state::<AppState>();
+    let mut momentum = state.momentum.lock().unwrap();
+    if store::CHARACTERS.contains(&id.as_str()) {
+        momentum.state.character_id = id;
+    }
+    drop(momentum);
     app::publish(&app);
 }
 

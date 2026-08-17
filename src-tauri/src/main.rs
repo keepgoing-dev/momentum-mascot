@@ -42,6 +42,7 @@ fn main() {
             commands::add_project,
             commands::untrack,
             commands::cycle_character,
+            commands::set_character,
             commands::copy_share_card,
         ])
         .setup(|tauri_app| {
