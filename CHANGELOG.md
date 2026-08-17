@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 (2026-08-17)
+
+- Release 0.1.1.
+
 Versions follow [semantic versioning](https://semver.org). The state file carries its own
 `version` field, currently `2.0`, and it moves independently of this one: the app version says
 what changed for a person, the schema version says whether an older build can still read the
