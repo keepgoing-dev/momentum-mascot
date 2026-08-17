@@ -68,6 +68,8 @@ builds only.
 
 ## Packaging it
 
+### Manual build
+
 ```sh
 cargo install tauri-cli --version "^2.0" --locked
 cargo tauri build --target universal-apple-darwin
@@ -76,6 +78,38 @@ cargo tauri build --target universal-apple-darwin
 That produces `Momentum Mascot.app` and a `.dmg` under
 `src-tauri/target/universal-apple-darwin/release/bundle/`, universal so it runs natively on both
 Apple Silicon and Intel.
+
+### Automated release
+
+The preferred release path builds locally on the machine that already has the licensed asset
+pack, then publishes the `.dmg` and tag automatically:
+
+```sh
+tools/release.sh patch     # 0.1.0 -> 0.1.1
+tools/release.sh minor     # 0.1.0 -> 0.2.0
+tools/release.sh 0.1.1     # explicit version
+```
+
+This script:
+
+1. Bumps the version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `Cargo.lock`
+2. Dates the matching section in `CHANGELOG.md`
+3. Commits and tags the release
+4. Builds the universal `.dmg`
+5. Creates the GitHub Release and uploads the `.dmg`
+
+Set `MASCOT_PACK` first if you want to recomposite the art; otherwise it uses the assets already
+on disk.
+
+```sh
+MASCOT_PACK=/path/to/moderninteriors-win tools/release.sh patch
+```
+
+### CI release (optional)
+
+If you ever want to build entirely in GitHub Actions, `.github/workflows/release.yml` is also
+available. It needs a `MASCOT_PACK_URL` repository secret pointing to a privately hosted archive
+of the licensed pack, because the pack cannot be committed to git.
 
 **Check which `cargo` is on your `PATH` first.** If an older standalone Rust install sits in
 `/usr/local/bin`, it shadows rustup's and you will silently get an x86_64-only build on an Apple

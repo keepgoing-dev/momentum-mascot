@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2.0" --locked
+
+      # The app assets (rooms, pet, icon) are derived from LimeZu's Modern Interiors.
+      # They are deliberately not committed to git because the licence permits shipping
+      # them compiled into the app but forbids redistributing them as standalone assets.
+      # To build automatically, provide the pack as a zip at a URL stored in the
+      # MASCOT_PACK_URL repository secret. The zip should extract to a single
+      # 'moderninteriors-win' directory.
+      - name: Fetch licensed asset pack
+        env:
+          MASCOT_PACK_URL: ${{ secrets.MASCOT_PACK_URL }}
+        run: |
+          if [ -z "$MASCOT_PACK_URL" ]; then
+            echo "::error::MASCOT_PACK_URL repository secret is not set."
+            echo "::error::Automated releases need a private URL to a licensed copy of LimeZu's Modern Interiors."
+            exit 1
+          fi
+
+          curl -fsSL -o "$RUNNER_TEMP/mascot-pack.zip" "$MASCOT_PACK_URL"
+          unzip -q "$RUNNER_TEMP/mascot-pack.zip" -d "$RUNNER_TEMP"
+
+          PACK_DIR=$(find "$RUNNER_TEMP" -maxdepth 2 -type d -name 'moderninteriors-win' | head -n 1)
+          if [ -z "$PACK_DIR" ]; then
+            echo "::error::Could not find 'moderninteriors-win' directory in the downloaded archive."
+            exit 1
+          fi
+
+          echo "MASCOT_PACK=$PACK_DIR" >> "$GITHUB_ENV"
+          echo "Asset pack resolved to: $PACK_DIR"
+
+      - name: Build app assets
+        run: tools/build-app-assets.sh
+
+      - name: Build universal macOS app
+        run: cargo tauri build --target universal-apple-darwin
+        working-directory: src-tauri
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          generate_release_notes: true
