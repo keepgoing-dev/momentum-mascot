@@ -122,6 +122,7 @@ fi
 git add src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock CHANGELOG.md
 git commit -m "Release v$VERSION"
 git tag -a "v$VERSION" -m "Release v$VERSION"
+git push origin "$(git branch --show-current)" "v$VERSION"
 
 # ---------------------------------------------------------------- build
 
