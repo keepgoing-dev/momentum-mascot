@@ -41,6 +41,7 @@ fn main() {
             commands::hide_popover,
             commands::add_project,
             commands::untrack,
+            commands::toggle_operating,
             commands::cycle_character,
             commands::set_character,
             commands::copy_share_card,

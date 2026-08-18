@@ -18,7 +18,7 @@ use serde_json::{json, Map, Value};
 
 use crate::mood::Rest;
 
-pub const SCHEMA_VERSION: &str = "2.0";
+pub const SCHEMA_VERSION: &str = "3.0";
 pub const CHARACTERS: [&str; 3] = ["07", "12", "20"];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -31,6 +31,11 @@ pub struct Project {
     /// `None` for a repository with no commits yet. Subject to the monotonicity rule in
     /// section 9.2: this never decreases for a given project.
     pub last_commit_at: Option<i64>,
+    /// Last time a non-ignored working-tree file changed. Factual signal independent of commits.
+    pub last_active_at: Option<i64>,
+    /// Display-only tag: the user says this project is being worked on outside of commits.
+    /// Operating projects are excluded from mood evaluation entirely.
+    pub operating: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -149,6 +154,8 @@ fn project_from_value(v: &Value) -> Option<Project> {
         name,
         added_at: v.get("added_at").and_then(parse_time).unwrap_or(0),
         last_commit_at: v.get("last_commit_at").and_then(parse_time),
+        last_active_at: v.get("last_active_at").and_then(parse_time),
+        operating: v.get("operating").and_then(Value::as_bool).unwrap_or(false),
     })
 }
 
@@ -201,6 +208,8 @@ fn to_json(state: &StateFile) -> Value {
                         "name": p.name,
                         "added_at": format_time(p.added_at),
                         "last_commit_at": p.last_commit_at.map(format_time),
+                        "last_active_at": p.last_active_at.map(format_time),
+                        "operating": p.operating,
                     })
                 })
                 .collect(),
@@ -314,6 +323,28 @@ mod tests {
     }
 
     #[test]
+    fn a_v2_file_loads_into_v3_with_sane_defaults() {
+        let s = from_json(
+            r#"{
+                "version": "2.0",
+                "tracked_projects": [
+                    {
+                        "id": "p1",
+                        "path": "/a/b",
+                        "name": "b",
+                        "added_at": "2025-08-01T08:00:00Z",
+                        "last_commit_at": "2025-08-02T08:00:00Z"
+                    }
+                ]
+            }"#,
+        );
+        assert_eq!(s.projects.len(), 1);
+        assert_eq!(s.projects[0].id, "p1");
+        assert_eq!(s.projects[0].last_active_at, None);
+        assert!(!s.projects[0].operating);
+    }
+
+    #[test]
     fn one_bad_entry_does_not_take_the_good_ones_with_it() {
         let s = from_json(
             r#"{"tracked_projects": [
@@ -352,6 +383,8 @@ mod tests {
                 name: "thing".into(),
                 added_at: 1_754_035_200,
                 last_commit_at: Some(1_755_000_000),
+                last_active_at: Some(1_755_000_100),
+                operating: true,
             }],
         };
         let back = from_json(&serde_json::to_string(&to_json(&state)).unwrap());
@@ -372,11 +405,14 @@ mod tests {
                 name: "b".into(),
                 added_at: 1_754_035_200,
                 last_commit_at: None,
+                last_active_at: None,
+                operating: false,
             }],
             ..Default::default()
         };
         let back = from_json(&serde_json::to_string(&to_json(&state)).unwrap());
         assert_eq!(back.projects[0].last_commit_at, None);
+        assert_eq!(back.projects[0].last_active_at, None);
     }
 
     #[test]
@@ -388,6 +424,8 @@ mod tests {
                 name: "b".into(),
                 added_at: 1_754_035_200,
                 last_commit_at: Some(1_754_035_200),
+                last_active_at: None,
+                operating: false,
             }],
             ..Default::default()
         });

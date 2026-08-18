@@ -1,4 +1,4 @@
-//! Everything the webview is allowed to ask for. Nine commands, and no tenth without a
+//! Everything the webview is allowed to ask for. Ten commands, and no eleventh without a
 //! reason: this list is the whole API surface between the art and the machinery.
 
 use tauri::{AppHandle, Manager};
@@ -113,6 +113,15 @@ pub fn untrack(app: AppHandle, id: String) {
     app.state::<AppState>().momentum.lock().unwrap().remove(&id);
     app::sync_watcher(&app);
     app::publish(&app);
+}
+
+/// Toggle whether a project is in operating mode. Operating projects are excluded from the
+/// mascot's mood evaluation and show an "operating" label in the project list.
+#[tauri::command]
+pub fn toggle_operating(app: AppHandle, id: String) -> Option<bool> {
+    let new_state = app.state::<AppState>().momentum.lock().unwrap().toggle_operating(&id);
+    app::publish(&app);
+    new_state
 }
 
 /// Clicking the character cycles to the next of the three. This is the original selection

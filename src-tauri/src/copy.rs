@@ -59,9 +59,9 @@ pub fn quote(mood: Mood, turn: usize) -> &'static str {
 ///
 /// "a while back" past 30 days is the one that matters: it is where an honest relative time
 /// would start to read as an accusation, so the scale simply stops there.
-pub fn relative_time(last_commit_at: Option<i64>, now: i64) -> String {
-    let Some(then) = last_commit_at else {
-        return "no commits yet".into();
+pub fn relative_time(last_at: Option<i64>, now: i64) -> String {
+    let Some(then) = last_at else {
+        return "no activity yet".into();
     };
     let secs = (now - then).max(0);
     let (mins, hours, days) = (secs / 60, secs / 3600, secs / 86400);
@@ -130,6 +130,6 @@ mod tests {
         assert_eq!(ago(30 * 86400), "30 days ago");
         assert_eq!(ago(31 * 86400), "a while back");
         assert_eq!(ago(365 * 86400), "a while back");
-        assert_eq!(relative_time(None, now), "no commits yet");
+        assert_eq!(relative_time(None, now), "no activity yet");
     }
 }

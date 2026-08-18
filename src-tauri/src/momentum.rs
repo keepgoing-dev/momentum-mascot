@@ -20,6 +20,9 @@ pub struct Momentum {
     /// from the path and re-resolving it on load costs nothing, and a stored copy would go
     /// stale the first time someone moves a worktree.
     git_dirs: HashMap<String, PathBuf>,
+    /// Working tree root per project id. The path the user picked is the root of the project,
+    /// so this is just that path. Kept alongside `git_dirs` so the watcher can register both.
+    work_trees: HashMap<String, PathBuf>,
     /// When the celebration started, on the **real** clock rather than the scaled one.
     ///
     /// The 30 minute cap is a dwell time on a piece of UI, not a quantity the state machine
@@ -49,6 +52,8 @@ pub struct ProjectRow {
     /// A tracked project whose path has gone is kept and shown as unavailable rather than
     /// silently deleted: a disconnected external drive must not erase the user's list.
     pub available: bool,
+    /// Display-only tag: opted out of mood evaluation.
+    pub operating: bool,
 }
 
 impl Momentum {
@@ -57,33 +62,50 @@ impl Momentum {
         let mut m = Momentum {
             state,
             git_dirs: HashMap::new(),
+            work_trees: HashMap::new(),
             comeback_since: None,
             quote_turn: 0,
             clock,
         };
-        m.resolve_git_dirs();
+        m.resolve_paths();
         m
     }
 
-    fn resolve_git_dirs(&mut self) {
-        self.git_dirs = self
-            .state
-            .projects
-            .iter()
-            .filter_map(|p| repo::resolve(&p.path).ok().map(|g| (p.id.clone(), g)))
-            .collect();
+    fn resolve_paths(&mut self) {
+        self.git_dirs.clear();
+        self.work_trees.clear();
+        for p in &self.state.projects {
+            if let Ok(git_dir) = repo::resolve(&p.path) {
+                self.git_dirs.insert(p.id.clone(), git_dir);
+            }
+            self.work_trees.insert(p.id.clone(), p.path.clone());
+        }
     }
 
     /// Every path that is currently watchable. A project on an unplugged drive simply is not
     /// in this list, and reappears when the drive does.
-    pub fn watch_paths(&self) -> Vec<PathBuf> {
-        self.git_dirs.values().cloned().collect()
+    pub fn watch_paths(&self) -> (HashMap<String, PathBuf>, HashMap<String, PathBuf>) {
+        (self.git_dirs.clone(), self.work_trees.clone())
     }
 
-    /// The single number the whole product runs on: the most recent qualifying commit across
-    /// every tracked project. Not per project, not averaged, not weighted (section 4.4).
+    /// The single number the whole product runs on: the most recent real activity across every
+    /// non-operating tracked project. Not per project, not averaged, not weighted (section 4.4).
+    /// Operating projects are excluded; if none are left to evaluate, this returns `None`,
+    /// which resolves to Awake.
     pub fn latest(&self) -> Option<i64> {
-        self.state.projects.iter().filter_map(|p| p.last_commit_at).max()
+        let best = self
+            .state
+            .projects
+            .iter()
+            .filter(|p| !p.operating)
+            .filter_map(|p| {
+                let commit = p.last_commit_at.unwrap_or(0);
+                let active = p.last_active_at.unwrap_or(0);
+                let best = commit.max(active);
+                if best > 0 { Some(best) } else { None }
+            })
+            .max();
+        best
     }
 
     /// Re-read every tracked project's reflog. Returns true if anything moved.
@@ -137,7 +159,9 @@ impl Momentum {
                 self.state.last_displayed_state = Some(rest);
                 return Mood::Comeback;
             }
-        } else if mood::is_comeback(self.state.last_displayed_state, rest) {
+        } else if self.latest().is_some()
+            && mood::is_comeback(self.state.last_displayed_state, rest)
+        {
             self.comeback_since = Some(real_now);
             self.state.last_displayed_state = Some(rest);
             return Mood::Comeback;
@@ -166,8 +190,19 @@ impl Momentum {
                 .map(|p| ProjectRow {
                     id: p.id.clone(),
                     name: p.name.clone(),
-                    relative: copy::relative_time(p.last_commit_at, now),
+                    relative: if p.operating {
+                        "operating".into()
+                    } else {
+                        let last = match (p.last_commit_at, p.last_active_at) {
+                            (Some(c), Some(a)) => Some(c.max(a)),
+                            (Some(c), None) => Some(c),
+                            (None, Some(a)) => Some(a),
+                            (None, None) => None,
+                        };
+                        copy::relative_time(last, now)
+                    },
                     available: self.git_dirs.contains_key(&p.id),
+                    operating: p.operating,
                 })
                 .collect(),
         }
@@ -199,10 +234,13 @@ impl Momentum {
             name: store::display_name(path),
             added_at: now,
             last_commit_at: None,
+            last_active_at: None,
+            operating: false,
         };
         let reading = read_commit_time(&git_dir, path).map(|ts| self.clock.to_simulated(ts));
         apply_reading(&mut project, reading);
         self.git_dirs.insert(project.id.clone(), git_dir);
+        self.work_trees.insert(project.id.clone(), path.to_path_buf());
         self.state.projects.push(project);
         Ok(true)
     }
@@ -210,6 +248,27 @@ impl Momentum {
     pub fn remove(&mut self, id: &str) {
         self.state.projects.retain(|p| p.id != id);
         self.git_dirs.remove(id);
+        self.work_trees.remove(id);
+    }
+
+    /// Record that a non-ignored file changed in a project's working tree.
+    /// The monotonicity rule applies: the timestamp never moves backwards.
+    pub fn touch_activity(&mut self, id: &str, now: i64) -> bool {
+        let Some(project) = self.state.projects.iter_mut().find(|p| p.id == id) else {
+            return false;
+        };
+        if project.last_active_at.is_some_and(|stored| stored >= now) {
+            return false;
+        }
+        project.last_active_at = Some(now);
+        true
+    }
+
+    /// Toggle whether a project is in operating mode. Returns the new value.
+    pub fn toggle_operating(&mut self, id: &str) -> Option<bool> {
+        let project = self.state.projects.iter_mut().find(|p| p.id == id)?;
+        project.operating = !project.operating;
+        Some(project.operating)
     }
 }
 
@@ -250,6 +309,8 @@ mod tests {
             name: "b".into(),
             added_at: T,
             last_commit_at: last,
+            last_active_at: None,
+            operating: false,
         }
     }
 
@@ -261,6 +322,7 @@ mod tests {
                 ..Default::default()
             },
             git_dirs: HashMap::new(),
+            work_trees: HashMap::new(),
             comeback_since: None,
             quote_turn: 0,
             clock: Clock::real(),
@@ -297,6 +359,68 @@ mod tests {
             None,
         );
         assert_eq!(m.latest(), Some(T - 3600));
+    }
+
+    #[test]
+    fn operating_projects_are_excluded_from_mood() {
+        let mut m = with(
+            vec![
+                Project {
+                    id: "a".into(),
+                    operating: true,
+                    ..project(Some(T))
+                },
+                Project {
+                    id: "b".into(),
+                    last_commit_at: Some(T - 100 * 3600),
+                    ..project(None)
+                },
+            ],
+            None,
+        );
+        // Only the non-operating project matters for the mascot.
+        assert_eq!(m.latest(), Some(T - 100 * 3600));
+        assert_eq!(m.evaluate(T, T), Mood::Rest(Rest::Asleep));
+
+        // Mark the only evaluated project as operating too: nothing left to evaluate.
+        m.toggle_operating("b");
+        assert_eq!(m.latest(), None);
+        assert_eq!(m.evaluate(T, T), Mood::Rest(Rest::Awake));
+    }
+
+    #[test]
+    fn file_activity_counts_as_much_as_a_commit() {
+        let mut m = with(
+            vec![Project {
+                id: "a".into(),
+                last_commit_at: Some(T - 100 * 3600),
+                last_active_at: Some(T - 30),
+                ..project(None)
+            }],
+            None,
+        );
+        assert_eq!(m.latest(), Some(T - 30));
+        assert_eq!(m.evaluate(T, T), Mood::Rest(Rest::Awake));
+    }
+
+    #[test]
+    fn activity_never_moves_backwards() {
+        let mut m = with(
+            vec![Project {
+                id: "p1".into(),
+                last_active_at: Some(T - 100 * 3600),
+                ..project(Some(T - 100 * 3600))
+            }],
+            None,
+        );
+        assert!(!m.touch_activity("p1", T - 200 * 3600));
+        assert_eq!(m.state.projects[0].last_active_at, Some(T - 100 * 3600));
+
+        assert!(m.touch_activity("p1", T));
+        assert_eq!(m.state.projects[0].last_active_at, Some(T));
+
+        assert!(!m.touch_activity("p1", T - 1));
+        assert_eq!(m.state.projects[0].last_active_at, Some(T));
     }
 
     #[test]

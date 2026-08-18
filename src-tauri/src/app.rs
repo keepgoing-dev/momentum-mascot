@@ -9,7 +9,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::clock::Clock;
 use crate::momentum::Momentum;
-use crate::watcher::Watcher;
+use crate::watcher::{ChangeEvent, Watcher};
 
 pub const POPOVER: &str = "popover";
 pub const PET: &str = "pet";
@@ -52,6 +52,7 @@ pub struct ProjectDto {
     pub name: String,
     pub relative: String,
     pub available: bool,
+    pub operating: bool,
 }
 
 impl AppState {
@@ -95,6 +96,7 @@ pub fn publish(app: &AppHandle) {
                     name: p.name,
                     relative: p.relative,
                     available: p.available,
+                    operating: p.operating,
                 })
                 .collect(),
             clock_scale: state.clock.scale(),
@@ -151,10 +153,10 @@ pub fn refresh(app: &AppHandle) {
 
 pub fn sync_watcher(app: &AppHandle) {
     let state = app.state::<AppState>();
-    let paths = state.momentum.lock().unwrap().watch_paths();
+    let (git_dirs, work_trees) = state.momentum.lock().unwrap().watch_paths();
     let mut watcher = state.watcher.lock().unwrap();
     if let Some(w) = watcher.as_mut() {
-        w.sync(&paths);
+        w.sync(&git_dirs, &work_trees);
     }
 }
 
@@ -277,11 +279,35 @@ pub fn start_tick(app: AppHandle) {
 
 pub fn start_watcher(app: AppHandle) {
     let handle = app.clone();
-    match Watcher::new(move || refresh(&handle)) {
+    match Watcher::new(move |event| on_change(&handle, event)) {
         Ok(w) => {
             *app.state::<AppState>().watcher.lock().unwrap() = Some(w);
             sync_watcher(&app);
         }
         Err(e) => eprintln!("file watching is unavailable, falling back to the tick: {e}"),
+    }
+}
+
+fn on_change(app: &AppHandle, event: ChangeEvent) {
+    match event {
+        ChangeEvent::ReflogChanged => refresh(app),
+        ChangeEvent::TreeChanged(id) => {
+            let state = app.state::<AppState>();
+            let now = state.clock.now();
+            {
+                let mut momentum = state.momentum.lock().unwrap();
+                let changed = momentum.touch_activity(&id, now);
+                if crate::watcher::debugging() {
+                    eprintln!(
+                        "tree changed: id={id} changed={changed} latest={:?} now={}",
+                        momentum.latest(),
+                        now
+                    );
+                }
+            }
+            // Publish even if the timestamp did not move: the UI may need to refresh for
+            // other reasons, and publish is cheap and idempotent.
+            publish(app);
+        }
     }
 }
