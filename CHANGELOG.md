@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0 (2026-08-18)
+
+- Release 0.2.0.
+
 ## [Unreleased]
 
 - Added a visible character picker under the room so users can switch mascots directly. Clicking the mascot still cycles through the three characters.
