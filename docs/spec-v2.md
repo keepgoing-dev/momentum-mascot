@@ -8,7 +8,7 @@
 
 ## 1. Purpose and Success Criteria
 
-KeepGoing Momentum Mascot is a small retro pixel character who lives in a tiny room in your system tray and reacts to whether your side projects are moving. It reads the commit history of a handful of local git repositories you explicitly point it at, turns that into a mood, and shows you the character in that mood.
+KeepGoing Momentum Mascot is a small retro pixel character who lives in a tiny room in your system tray and reacts to whether your side projects are moving. It reads commit and working-tree activity from a handful of local git repositories you explicitly point it at, turns that into a mood, and shows you the character in that mood.
 
 That is the whole product.
 
@@ -44,7 +44,7 @@ Permanent product positions, not v1 deferrals:
 
 v1 is one Tauri application with a tray icon and one popover. It ships exactly this:
 
-1. A pixel character in a tiny room, in four states, driven by commit recency.
+1. A pixel character in a tiny room, in four states, driven by project activity.
 2. A **desktop pet**: a small always-on-top character in the corner of the screen, showing the same state. This is the primary ambient surface and the primary way into the app.
 3. A choice of three characters, cycled by clicking the character.
 4. A tray icon that opens the popover and holds Quit.
@@ -147,7 +147,7 @@ Every piece of copy passes one test: **would this line make a tired person feel 
 
 ### 4.4 States
 
-State derives from a single number: the most recent qualifying commit across all tracked projects (section 9). Not per project, not averaged, not weighted. Any real work anywhere counts.
+State derives from a single number: the most recent real activity across all non-operating tracked projects (sections 7 and 9). Not per project, not averaged, not weighted. Any real work anywhere counts. Operating projects are excluded; if none are left to evaluate, the mascot is awake by default.
 
 **The room never changes.** It is one static background, and exactly three variables move on top of it:
 
@@ -157,7 +157,7 @@ State derives from a single number: the most recent qualifying commit across all
 
 | State | Trigger | Character | Lighting | Emote |
 | --- | --- | --- | --- | --- |
-| **Awake / hyped** | latest qualifying commit < 24h | seated behind the desk, monitor on | normal | none |
+| **Awake / hyped** | latest real activity < 24h | seated behind the desk, monitor on | normal | none |
 | **Dozing** | 24h to 72h | standing, away from the desk | 10% blue tint | `Z` |
 | **Asleep / dreaming** | >= 72h | in bed under the blanket | 34% blue tint | `Z` |
 | **Comeback** | asleep to awake | out of bed, on the rug | +13% brightness, +20% saturation | `!` plus two sparkles |
@@ -174,7 +174,7 @@ There is no state beyond 72 hours. A project untouched for a year shows the same
 
 This is the emotional payload of the entire product. Everything else is setup. The character dozing off over three days is the loaded spring; the moment a commit lands after a long silence and they leap out of bed is the release. It is the moment most likely to be screenshotted and most likely to make someone feel something about a piece of software. **Design it first and design it hardest.**
 
-**Trigger:** derived state transitions from `asleep` to `awake`. A transition from `dozing` to `awake` does not trigger it. The user has to have been gone long enough for the return to mean something. Because only real commits move the state (section 9.1), the celebration cannot fire for someone who merely checked out a branch after three weeks away.
+**Trigger:** derived state transitions from `asleep` to `awake`. A transition from `dozing` to `awake` does not trigger it. The user has to have been gone long enough for the return to mean something. Because only real commits and working-tree edits move the state (sections 9.1 and 9.4), the celebration cannot fire for someone who merely checked out a branch after three weeks away.
 
 **The desktop pet solves the hardest problem in this design.** Earlier drafts had to accept that a popover-only product cannot guarantee the celebration is ever seen, and settled for "a celebration nobody attended is not a debt". That compromise is no longer necessary. The pet (section 6.1) is already on screen, so the comeback plays out in the user's peripheral vision at the moment it happens, with no notification banner and no click required. The one thing this design previously could not deliver, it now delivers by default, and the pet is the reason.
 
@@ -345,7 +345,7 @@ Fixed width of 352px, height sized to content, anchored to the tray icon, closin
 1. **Room panel.** 320x224, being the 160x112 room at 2x, which fits the 352px popover with 16px padding each side. The popover widened from 320px to 352px purely to accommodate the larger room (section 4.1).
 2. **Character.** Clicking the character cycles to the next of the three shipped characters. This is the entire selection mechanism: no picker UI and no settings screen, so the guardrail holds. The choice persists in `state.json` as `character_id` (section 13) and applies to the pet as well as the room.
 3. **Quote line.** One or two lines of pixel-font copy for the current state.
-4. **Project list.** One row per tracked project: name on the left, relative time since its last commit on the right ("2 hours ago", "yesterday", "3 days ago", "a while back" past 30 days). No per-project moods, sorting, or counts. The only interactive element is a small `x` on hover that untracks the project, which earns its place because the alternative is hand-editing JSON. When nothing is tracked, a single line invites the user to add one.
+4. **Project list.** One row per tracked project: name on the left, relative time since its last activity on the right ("2 hours ago", "yesterday", "3 days ago", "a while back" past 30 days), or the word `operating` if the project is marked operating. No per-project moods, sorting, or counts. Two interactive elements: a small toggle that marks a project as operating, and a small `x` on hover that untracks it. Both earn their place because the alternative is hand-editing JSON. When nothing is tracked, a single line invites the user to add one.
 5. **Buttons.** **Add Project** (section 7) and **Share Status** (section 5), side by side.
 6. **Credit line.** A single small `art: limezu.itch.io` at the bottom. This is a license requirement (section 4.2), and with no about window or settings screen the popover is the only place it can live.
 
@@ -367,11 +367,13 @@ Fixed width of 352px, height sized to content, anchored to the tray icon, closin
 
 ## 7. Tracking Projects
 
-**Add flow:** click **Add Project**, the native folder picker opens, the path is validated, and on success the project is appended to state, its last commit time is read, a watcher is registered, and the room re-evaluates. On failure a single short line appears inline in the popover. No modal, no alert dialog.
+**Add flow:** click **Add Project**, the native folder picker opens, the path is validated, and on success the project is appended to state, its last commit time is read, both its reflog and its working tree are watched, and the room re-evaluates. On failure a single short line appears inline in the popover. No modal, no alert dialog.
 
-**Validation.** A folder is accepted only if it exists, contains a `.git` entry (a directory, or a file with a `gitdir:` pointer for linked worktrees and submodules, both resolved and both accepted), the resolved git directory has a readable `HEAD`, and the path is not already tracked. Re-adding an existing project is a friendly no-op, not an error. A repository with zero commits is accepted; its `last_commit_at` is null and it contributes nothing until it has a commit.
+**Validation.** A folder is accepted only if it exists, contains a `.git` entry (a directory, or a file with a `gitdir:` pointer for linked worktrees and submodules, both resolved and both accepted), the resolved git directory has a readable `HEAD`, and the path is not already tracked. Re-adding an existing project is a friendly no-op, not an error. A repository with zero commits is accepted; its `last_commit_at` is null and it contributes nothing until it has a commit or a file change.
 
-**What gets stored.** Per project: a generated id, the absolute path, a display name (the directory's base name, not user-editable in v1), when it was added, and the last known commit timestamp. **Nothing else is read from the repository.** No commit messages, author identities, diffs, branch names, or file contents. The product needs one timestamp per repo and reads exactly that.
+**Operating mode.** A tracked project can be marked as **operating**. This is a display-only tag: the project stays in the list, but it is excluded from the mascot's mood evaluation. It exists for projects whose current work is not commit-shaped — marketing, content, planning — so the mascot does not fall asleep while the user is busy elsewhere. If every tracked project is marked operating, the mascot has nothing to evaluate and is awake by default, the same as having no projects at all.
+
+**What gets stored.** Per project: a generated id, the absolute path, a display name (the directory's base name, not user-editable in v1), when it was added, the last known commit timestamp, the last known working-tree activity timestamp, and whether it is operating. **Nothing else is read from the repository.** No commit messages, author identities, diffs, branch names, or file contents beyond whether a file changed and whether `.gitignore` says to ignore it.
 
 There is no cap on tracked projects, but the design assumes a handful. The list scrolls beyond roughly 12 rows and is not virtualised.
 
@@ -382,9 +384,10 @@ There is no cap on tracked projects, but the design assumes a handful. The list 
 ### 8.1 Derivation
 
 ```
-latest = max(last_commit_at) over all tracked projects, ignoring nulls
+latest = max(last_commit_at, last_active_at) over all tracked projects
+         that are not marked operating, ignoring nulls
 
-if latest is null      -> awake      (nothing tracked yet, or no commits yet)
+if latest is null      -> awake      (nothing tracked/evaluated yet)
 if now - latest < 24h  -> awake
 if now - latest < 72h  -> dozing
 otherwise              -> asleep
@@ -407,10 +410,11 @@ State derivation is a **pure function of the tracked timestamps and the current 
 
 ### 8.2 Re-evaluation triggers
 
-Two sources, and both must be handled:
+Three sources, and all must be handled:
 
 1. **A commit lands**, event-driven via the watcher (section 9).
-2. **Time passes.** The awake to dozing to asleep transitions happen with no event at all. This is easy to forget and is the more common transition in practice.
+2. **A working-tree file changes**, event-driven via the watcher (section 9.4).
+3. **Time passes.** The awake to dozing to asleep transitions happen with no event at all. This is easy to forget and is the more common transition in practice.
 
 A tick re-evaluates state every 60 seconds. It is cheap because it compares in-memory timestamps and touches no disk.
 
@@ -423,11 +427,13 @@ A tick re-evaluates state every 60 seconds. It is cheap because it compares in-m
 
 ---
 
-## 9. Commit Detection
+## 9. Activity Detection
 
 ### 9.1 Only real work counts
 
 The mascot must respond to **work on the project**, not to a developer taking a look and leaving. This is a correctness requirement, not a nicety: `git checkout` and `git pull` move `HEAD` without the user writing anything, so treating all `HEAD` movement as momentum would let a **comeback celebration fire because someone checked out a branch after three weeks away**, hollowing out the single most important moment in the product.
+
+Two signals count as real work: a qualifying commit in the reflog, and a non-ignored file change in the working tree.
 
 Reflog lines have the form `<old-sha> <new-sha> <name> <email> <unix-ts> <tz>\t<message>`. The filter is on that trailing message.
 
@@ -452,6 +458,20 @@ Reflog parsing is preferred over shelling out per event because it is a single s
 The previous spec installed a `post-commit` hook into each tracked repository. Rejected because it **collides** (husky, lefthook, pre-commit, and hand-rolled hooks all own `post-commit`, and merging into one safely is a real engineering problem for a mascot), because it **creates an uninstall problem** (deleting the app would leave shell fragments across the user's repositories pointing at a missing binary, breaking their commits, and a toy that can break `git commit` after being deleted is not a toy), and because it **requires a second executable** for the hook to call, which is exactly the dependency this design removes.
 
 Watching the reflog gets the same near-instant update with zero footprint inside user repositories, through one code path on all three platforms. Untracking is a line removed from JSON, and uninstalling leaves nothing behind.
+
+### 9.4 Working-tree activity
+
+Not all project work is commit-shaped. Editing files before a commit, writing drafts, updating assets, or running local builds are all real activity, and the mascot should see them.
+
+For each tracked project the app also watches the project's root directory with `notify`, recursively. On an event:
+
+1. Ignore paths inside `.git` (those are handled by the reflog watcher).
+2. Ignore paths matched by the project's own `.gitignore`. This is the most tech-stack-agnostic filter available: it already encodes what the user considers noise — build artifacts, dependencies, editor files — without requiring per-language configuration in the app.
+3. Ignore directories. Only file changes count.
+4. Record the current simulated time as `last_active_at` for that project, subject to the same monotonicity rule as `last_commit_at`.
+5. Re-derive state and update the UI.
+
+Working-tree events are debounced the same 250ms as reflog events. A single save burst collapses to one update.
 
 ---
 
@@ -606,7 +626,7 @@ This is deliberately its own phase rather than a task inside Phase 3. It is the 
 
 ```json
 {
-  "version": "2.0",
+  "version": "3.0",
   "last_displayed_state": "asleep",
   "character_id": "07",
   "pet_position": { "x": 1780, "y": 940 },
@@ -616,17 +636,21 @@ This is deliberately its own phase rather than a task inside Phase 3. It is the 
       "path": "/Users/username/Projects/my-side-project",
       "name": "my-side-project",
       "added_at": "2026-08-01T08:00:00Z",
-      "last_commit_at": "2026-08-12T08:00:00Z"
+      "last_commit_at": "2026-08-12T08:00:00Z",
+      "last_active_at": "2026-08-12T10:30:00Z",
+      "operating": false
     }
   ]
 }
 ```
 
-- `version` allows a future migration. v1 reads `"2.0"` and treats anything else as best-effort.
+- `version` allows a future migration. This release reads `"3.0"` and treats older files as best-effort, filling missing new fields with sane defaults.
 - `last_displayed_state` is `awake`, `dozing`, or `asleep`. It exists solely so comeback detection survives a restart, and is never used as the current state.
 - `character_id` is one of the three shipped characters. Missing, unknown, or malformed values fall back to the first character rather than erroring, per the resilient-parsing contract in section 8.3. A future release that ships more characters must not break on a value it does not recognise.
 - `pet_position` is the desktop pet's top-left corner, in physical pixels. It starts unset, which places the pet bottom-right by default, and is written whenever the pet is dragged to a corner (section 6.1). A missing value, or one that falls outside the current display bounds (an unplugged monitor, a resolution change), resets to the bottom-right default rather than leaving the pet off screen.
 - `last_commit_at` is nullable, for a repository with no commits yet, and is subject to the monotonicity rule in section 9.2.
+- `last_active_at` is nullable, records the last non-ignored working-tree file change, and is subject to the same monotonicity rule.
+- `operating` is a boolean defaulting to `false`. When `true`, the project is excluded from mood evaluation and shown with an `operating` label in the project list.
 - `id` is a generated UUID, stable for the lifetime of the entry.
 - **No per-project `status` field.** The previous schema stored one, and a derived value written to disk is a cache-invalidation bug waiting to happen. Per-project mood is not displayed anyway.
 
@@ -640,14 +664,15 @@ Effort follows risk, and the risk is concentrated in a small amount of logic.
 
 **Unit tested in Rust:**
 
-- **State derivation**, table-driven across the boundaries: just under and exactly 24h, just under and exactly 72h, far past 72h, empty list, all-null, mixed null and present.
+- **State derivation**, table-driven across the boundaries: just under and exactly 24h, just under and exactly 72h, far past 72h, empty list, all-null, mixed null and present, operating projects excluded, and activity timestamps treated equally with commit timestamps.
 - **Comeback detection**, confirming `asleep -> awake` fires, `dozing -> awake` does not, and the restart case where the previous state comes from disk.
 - **Reflog filtering**, on fixture lines: `checkout:` ignored, `pull:` ignored, fast-forward `merge <branch>:` ignored, `reset:` ignored, `commit:` counted, `commit (initial):` counted, `commit (amend):` counted, `commit (merge):` counted, a message containing tabs parsed correctly, a reflog whose last qualifying entry is many lines back found correctly, and a reflog with no qualifying entry within the bound falling through to `HEAD`.
-- **Monotonicity**, confirming an older reading does not overwrite a newer stored value.
-- **State file resilience**: missing file, empty file, `{}`, empty array, missing fields, unknown fields, and invalid JSON all load without panicking, plus a write-then-read round trip and an atomic-write test.
+- **Monotonicity**, confirming an older reading does not overwrite a newer stored value, for both commits and activity.
+- **Operating mode**, confirming operating projects do not affect mood and that toggling updates the display.
+- **State file resilience**: missing file, empty file, `{}`, empty array, missing fields, unknown fields, and invalid JSON all load without panicking, plus a write-then-read round trip, an atomic-write test, and backward compatibility for v2 files.
 - **Repository validation**: `.git` as a directory, `.git` as a gitdir pointer file, a non-repo directory, a nonexistent path, and a repo with zero commits.
 
-**Manually verified per platform:** tray icon appears and reads against light and dark menu bars; popover opens and closes and renders the room at crisp integer scale on standard and HiDPI displays; folder picker returns a usable path; Share Status pastes correctly into a real chat app and a real social composer; a real `git commit` updates the state within about a second; a `git checkout` does not.
+**Manually verified per platform:** tray icon appears and reads against light and dark menu bars; popover opens and closes and renders the room at crisp integer scale on standard and HiDPI displays; folder picker returns a usable path; Share Status pastes correctly into a real chat app and a real social composer; a real `git commit` updates the state within about a second; an edited file updates the state within about a second; a `git checkout` does not; marking a project operating excludes it from the mood.
 
 **The pet needs its own manual pass**, because it is a window rather than logic and none of it is unit-testable:
 
@@ -693,7 +718,7 @@ The distinction that keeps this section from becoming the deprecated ecosystem:
 - **Architectural seams are cheap and worth leaving.** The `version` field so a schema migration is possible; states defined as data (a manifest mapping state names to room sheets and quote pools) so a fifth state is content rather than code; the state-derivation function being pure and independently replaceable; Tauri already abstracting the platform. These cost nothing today and are just good structure.
 - **Extension points built ahead of need are not.** No plugin system, no config file format, no abstraction layers for hypothetical futures, no interfaces with a single implementation. YAGNI applies, and it applies hardest to a project whose thesis is restraint.
 
-Named, deferred, and undesigned: a fifth state such as a deep-work or on-a-streak room; per-project rooms rather than one room reflecting the newest commit anywhere; alternative characters or seasonal rooms; a light theme, if the dark-only room ever looks wrong on a light desktop; non-git signals, such as another version control system or a manual "I worked on this today" action; and a community showcase of shared images, which is the only direction that could ever become the revenue path in section 1.
+Named, deferred, and undesigned: a fifth state such as a deep-work or on-a-streak room; per-project rooms rather than one room reflecting the newest activity anywhere; alternative characters or seasonal rooms; a light theme, if the dark-only room ever looks wrong on a light desktop; non-git signals, such as another version control system; and a community showcase of shared images, which is the only direction that could ever become the revenue path in section 1.
 
 Any of these requires its own spec and its own argument against the guardrail in section 3.
 
@@ -731,11 +756,13 @@ v1 ships when all of these are true. Nothing else is required, and nothing else 
 - [ ] Clicking the pet opens the popover.
 - [ ] The pet's dozing and asleep loops are the lowest-amplitude ones in the app, and it does not fidget when awake.
 - [ ] Tray icon is a monochrome template image that reads on both light and dark menu bars, and its right-click menu holds Open and Quit.
-- [ ] The popover opens from the tray at 352px wide, shows the room at 320x224, a state-appropriate quote, the tracked-project list with relative times, two buttons, and the credit line.
+- [ ] The popover opens from the tray at 352px wide, shows the room at 320x224, a state-appropriate quote, the tracked-project list with relative times and operating toggles, two buttons, and the credit line.
 - [ ] Clicking the character cycles through all three, and the choice survives a restart.
 - [ ] Add Project opens a native folder picker, validates the repo, and starts watching it.
 - [ ] Hover-`x` untracks a project.
+- [ ] Each project row has a toggle that marks it operating and excludes it from the mascot's mood.
 - [ ] A real `git commit` in a tracked repo updates the pet and the room within about a second.
+- [ ] A real file edit in a tracked repo updates the pet and the room within about a second.
 - [x] A `git checkout` or `git pull` in a tracked repo does **not** change the state. *Verified against a real repository, not only against fixture lines.*
 - [x] Checking out an older branch does not move `last_commit_at` backwards.
 - [x] The awake to dozing to asleep transitions happen from time passing alone, verified without restarting the app, under an accelerated clock rather than by waiting three days. *Driven at 3600x: 24.05h and 72.10h.*
@@ -745,7 +772,7 @@ v1 ships when all of these are true. Nothing else is required, and nothing else 
 - [x] State persists across restarts, and a corrupt or missing state file starts the app cleanly rather than failing.
 - [ ] The app makes zero network requests, verified.
 - [ ] macOS build runs with no dock icon and no app window.
-- [x] The Rust unit tests in section 14 pass. *49 of them.*
+- [x] The Rust unit tests in section 14 pass. *56 of them.*
 
 ---
 
@@ -763,7 +790,7 @@ v1 ships when all of these are true. Nothing else is required, and nothing else 
 - **The license is settled.** Commercial use is permitted outright. Three binding consequences: **credit to `limezu.itch.io` is mandatory** and therefore a functional requirement (popover footer, share image, README); assets come from `moderninteriors-win/` only, never the non-commercial `Modern tiles_Free/`; and raw assets stay out of version control, which is why `docs/mockups/` is already gitignored, though shipping them compiled into a binary is ordinary permitted use.
 - **The mascot never dies. It waits.** The previous spec's `Dead` state at 72h is rejected as guilt-ware aimed at the exact user being targeted. Four states: awake (<24h), dozing (24h to 72h), asleep (>=72h), and comeback on `asleep -> awake`.
 - **The comeback is the emotional payload, and the pet solves it.** Earlier drafts had to accept that a popover-only design cannot guarantee the celebration is ever seen. The pet delivers it in peripheral vision the moment the commit lands, with no banner and no click. The 30 minute cap and popover-open resolution remain as the mechanism for settling back to `awake`, but nothing is owed if the popover is never opened.
-- **Only real commits count.** The reflog is scanned backwards and filtered to messages beginning with `commit`; checkout, pull, fast-forward merge, reset, clone, and rebase replays are ignored, so a comeback can never fire because someone checked out a branch. `last_commit_at` never decreases. The reflog entry's timestamp is used rather than committer time, because amend and rebase rewrite committer time while the reflog records when the user acted.
+- **Two real signals count: commits and working-tree edits.** The reflog is scanned backwards and filtered to messages beginning with `commit`; checkout, pull, fast-forward merge, reset, clone, and rebase replays are ignored, so a comeback can never fire because someone checked out a branch. Working-tree changes are filtered through the project's own `.gitignore`. `last_commit_at` and `last_active_at` never decrease. The reflog entry's timestamp is used rather than committer time, because amend and rebase rewrite committer time while the reflog records when the user acted.
 - **Tone:** warm, encouraging, a little snarky, never guilt-inducing. No elapsed-time shaming anywhere.
 - **There are two share artifacts, and conflating them was this spec's biggest mistake to date** (section 5). **The demo** is a 20 to 30 second timelapse the author records once, and it is what *explains* the product, because the product is a transition and no still frame can show one. **The card** is the 1200x630 image users copy from the app, and it carries mood and the URL to people who already know what they are looking at. A card posted cold explains nothing, which is why the discovery job could never have been its own. Validation stays with the card alone: a video the author posts once is a claim, and a thousand cards posted by users is evidence.
 - **The card is composed** (section 5.2), on a 1200x630 canvas with the room letterboxed at integer scale, because a 10:7 room in a 1.91:1 crop gets a mat rather than fractional scaling. Building it produced a rule worth keeping: **anything drawn on the room matches the room's pixel unit, and anything drawn on the mat is free.** The label obeys the first half at 5x, the quote the second at 2x, and the quote had to move off the room entirely to get there, because the composed room has no quiet strip left in it. The typeface is **Departure Mono** under the OFL, chosen on measured widths rather than taste (section 6.4).

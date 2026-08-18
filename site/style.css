@@ -351,6 +351,17 @@ nav {
   min-height: 1.2em;
 }
 
+.op-badge {
+  display: inline-block;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
 .caption {
   color: var(--muted);
   font-size: 0.75rem;
