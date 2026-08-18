@@ -1,9 +1,14 @@
 name: Release
 
-on:
-  push:
-    tags:
-      - 'v*'
+# Disabled: releases are built and published locally via tools/release.sh.
+# Re-enable by uncommenting the push-tags trigger below if MASCOT_PACK_URL
+# is configured and CI builds are desired.
+#
+# on:
+#   push:
+#     tags:
+#       - 'v*'
+on: workflow_dispatch
 
 permissions:
   contents: write
