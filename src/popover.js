@@ -92,11 +92,21 @@ function render(payload) {
 function row(project) {
   const li = document.createElement("li");
   if (!project.available) li.classList.add("away");
+  if (project.operating) li.classList.add("operating");
 
   const name = document.createElement("span");
   name.className = "name";
   name.textContent = project.name;
   name.title = project.available ? project.name : `${project.name} (not reachable right now)`;
+
+  const op = document.createElement("button");
+  op.className = "op";
+  op.type = "button";
+  op.textContent = project.operating ? "●" : "○";
+  op.title = project.operating
+    ? "Operating: excluded from mascot mood"
+    : "Mark as operating";
+  op.addEventListener("click", () => invoke("toggle_operating", { id: project.id }));
 
   const when = document.createElement("span");
   when.className = "when";
@@ -108,7 +118,7 @@ function row(project) {
   drop.title = `Stop tracking ${project.name}`;
   drop.addEventListener("click", () => invoke("untrack", { id: project.id }));
 
-  li.append(name, when, drop);
+  li.append(name, op, when, drop);
   return li;
 }
 

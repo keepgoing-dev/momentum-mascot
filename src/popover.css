@@ -143,6 +143,28 @@
   text-decoration: line-through;
 }
 
+.projects li.operating .when {
+  color: var(--accent);
+}
+
+/* The operating toggle. Always visible but quiet; filled when active so the state is
+   readable at a glance without adding another label to every row. */
+.projects .op {
+  flex: 0 0 auto;
+  width: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  text-align: center;
+}
+
+.projects li.operating .op {
+  color: var(--accent);
+}
+
 /* The untrack control appears on hover only. It earns its place because the alternative is
    hand-editing JSON, and it stays hidden because it is the only destructive thing here. */
 .projects .drop {
