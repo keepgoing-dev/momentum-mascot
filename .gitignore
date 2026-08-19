@@ -22,3 +22,7 @@ src-tauri/gen/
 # The APPLICATION icon is a different case: it is the character at 1024px, so it IS derived from
 # the pack and falls under the same rule as the rooms. Built by tools/make-app-icon.sh.
 src-tauri/icons/bundle/
+
+# Apple signing and notarization credentials. Real secrets, never committed.
+# Copy tools/.release-env.example to create it. See docs/notarization.md.
+tools/.release-env

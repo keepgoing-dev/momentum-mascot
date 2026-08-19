@@ -28,14 +28,10 @@ count as work and cannot trigger it.
 Pre-built releases are on the [GitHub Releases](https://github.com/keepgoing-dev/momentum-mascot/releases)
 page. Download `Momentum Mascot.dmg`, open it, and drag the app to `Applications`.
 
-The current build is **ad-hoc signed and not notarized**, so macOS Gatekeeper will warn you the
-first time you open it. Right-click the app and choose **Open**, or run:
+That is the whole process. The build is signed with a Developer ID certificate and notarized by
+Apple, so it opens with no Gatekeeper warning and nothing to run in Terminal.
 
-```sh
-xattr -d com.apple.quarantine "/Applications/Momentum Mascot.app"
-```
-
-The app does not start on login yet — open it yourself after a restart.
+The app does not start on login yet, so open it yourself after a restart.
 
 ## Privacy
 
@@ -92,11 +88,17 @@ tools/release.sh 0.1.1     # explicit version
 
 This script:
 
-1. Bumps the version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `Cargo.lock`
-2. Dates the matching section in `CHANGELOG.md`
-3. Commits and tags the release
-4. Builds the universal `.dmg`
-5. Creates the GitHub Release and uploads the `.dmg`
+1. Checks the signing certificate and notarization credentials before anything is pushed
+2. Bumps the version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `Cargo.lock`
+3. Dates the matching section in `CHANGELOG.md`
+4. Commits and tags the release
+5. Builds the universal `.dmg`, signed with a Developer ID certificate
+6. Notarizes the `.dmg` with Apple and staples the ticket to it
+7. Creates the GitHub Release and uploads the `.dmg`
+
+Credentials live in `tools/.release-env`, which is gitignored. Copy
+`tools/.release-env.example` and fill it in once; the one-time Apple setup is in
+[`docs/notarization.md`](docs/notarization.md).
 
 Set `MASCOT_PACK` first if you want to recomposite the art; otherwise it uses the assets already
 on disk.
@@ -116,11 +118,15 @@ of the licensed pack, because the pack cannot be committed to git.
 Silicon machine, which runs under Rosetta and reports no problem at all. `rustc -vV | grep host`
 is the check, and `PATH="$HOME/.cargo/bin:$PATH"` in front of the build command is the fix.
 
-**The build is ad-hoc signed, not notarized**, so macOS Gatekeeper will refuse to open it on any
-machine other than the one that built it: *"cannot be opened because the developer cannot be
-verified"*. Anyone you hand the `.dmg` to has to right-click the app and choose **Open** once, or
-run `xattr -d com.apple.quarantine "/Applications/Momentum Mascot.app"`. Removing that friction
-needs a paid Apple Developer ID and a notarization step, which this project has not taken.
+**Releases are signed and notarized**, which needs an Apple Developer Program membership, a
+Developer ID Application certificate, and an app-specific password. The whole setup is in
+[`docs/notarization.md`](docs/notarization.md), and `tools/release.sh` refuses to start without
+it rather than discovering the problem after it has already pushed a tag.
+
+`MASCOT_SKIP_NOTARIZE=1 tools/release.sh patch` builds ad-hoc signed instead. That build only
+opens on the machine that produced it, so it is for testing the release plumbing, never for
+publishing: on macOS Sequoia and later, Control-click then **Open** no longer bypasses
+Gatekeeper, and the user has to dig through System Settings to Privacy & Security to allow it.
 
 macOS is the current target. Windows is a build target rather than a rewrite, and Linux is
 honestly uncertain: Wayland does not let applications position their own windows, so the pet is

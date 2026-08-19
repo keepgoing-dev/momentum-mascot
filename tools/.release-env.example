@@ -1,0 +1,25 @@
+# Copy to tools/.release-env and fill in. That file is gitignored.
+#
+#   cp tools/.release-env.example tools/.release-env
+#
+# tools/release.sh sources this, and Tauri reads all four during the build: it signs the .app
+# with the identity, submits it to Apple's notary service, and staples the ticket before
+# assembling the .dmg. The script then notarizes and staples the .dmg separately.
+#
+# Full one-time setup is in docs/notarization.md.
+
+# The certificate's full common name, exactly as Keychain Access shows it.
+# Find it with:  security find-identity -v -p codesigning
+# Leave unset to auto-detect the first Developer ID Application cert in the keychain.
+# APPLE_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID1234)"
+
+# The Apple ID on the Developer Program membership.
+APPLE_ID="you@example.com"
+
+# An APP-SPECIFIC password, not the Apple ID password.
+# Generate at https://account.apple.com > Sign-In and Security > App-Specific Passwords.
+# Format is xxxx-xxxx-xxxx-xxxx.
+APPLE_PASSWORD="xxxx-xxxx-xxxx-xxxx"
+
+# The 10-character Team ID, from https://developer.apple.com/account under Membership details.
+APPLE_TEAM_ID="TEAMID1234"
