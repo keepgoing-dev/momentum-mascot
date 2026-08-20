@@ -12,7 +12,7 @@ This skill automates the release workflow for the Momentum Mascot Tauri app.
 - Source repo: `keepgoing-dev/momentum-mascot`
 - Release script: `tools/release.sh`
 - Version files: `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`
-- Changelog: `CHANGELOG.md`
+- Changelog: `CHANGELOG.md` (used as the GitHub release body)
 - Output artifact: universal macOS `.dmg`
 
 The app assets (`src/assets/rooms/`, `src/assets/pet/`, `src-tauri/icons/bundle/`) are
@@ -44,6 +44,7 @@ set.
 
 5. **Report the result**
    - On success, report the new tag, the `.dmg` path, and the GitHub release URL
+   - Mention that the release body was taken from the `CHANGELOG.md` entry for the version
    - On failure, report the exact error and do not claim success
    - If the tag was created but the release failed, warn the user about the partial state
 
@@ -62,3 +63,4 @@ Before running `tools/release.sh`, verify:
 - Do not suggest creating a release if the working tree has uncommitted changes.
 - Do not override the user's explicit version choice.
 - If the user says "release" without specifying a version, always analyze changes and suggest a bump first.
+- The GitHub release body is taken from the `CHANGELOG.md` entry for the released version. If a `## [Unreleased]` section exists, `tools/release.sh` promotes its bullets into the release entry and resets it.

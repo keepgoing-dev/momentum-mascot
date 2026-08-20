@@ -166,21 +166,43 @@ cargo update --manifest-path src-tauri/Cargo.toml -p momentum-mascot >/dev/null
 
 DATE=$(date +%Y-%m-%d)
 
+# Promote any [Unreleased] bullets into this release so the changelog and the
+# GitHub release notes stay in sync.
+UNRELEASED_NOTES=$(
+  awk '/^## \[Unreleased\]/{flag=1; next} /^## /{flag=0} flag && !/^[[:space:]]*$/ { print }' CHANGELOG.md
+)
+
 if grep -q "^## $VERSION$" CHANGELOG.md; then
   # Add release date to an existing unreleased section.
   sed -i '' "s/^## $VERSION$/## $VERSION ($DATE)/" CHANGELOG.md
 elif ! grep -q "^## $VERSION (" CHANGELOG.md; then
-  # Prepend a new section if none exists.
+  # Prepend a new section. Use the [Unreleased] bullets if there are any,
+  # otherwise fall back to a generic release line.
+  if [ -n "$UNRELEASED_NOTES" ]; then
+    BULLETS="$UNRELEASED_NOTES"
+  else
+    BULLETS="- Release $VERSION."
+  fi
+
   {
     echo "# Changelog"
     echo ""
     echo "## $VERSION ($DATE)"
     echo ""
-    echo "- Release $VERSION."
+    echo "$BULLETS"
     echo ""
+    echo "## [Unreleased]"
+    echo ""
+    echo "- Nothing yet."
+    echo ""
+    awk '
+      /^# Changelog/ { next }
+      /^## \[Unreleased\]/ { in_unreleased = 1; next }
+      /^## / { in_unreleased = 0 }
+      in_unreleased { next }
+      { print }
+    ' CHANGELOG.md
   } > CHANGELOG.md.new
-  # Append the rest of the existing changelog, skipping its own title.
-  tail -n +3 CHANGELOG.md >> CHANGELOG.md.new
   mv CHANGELOG.md.new CHANGELOG.md
 fi
 
@@ -237,13 +259,31 @@ else
   echo "notarized and stapled."
 fi
 
+# ---------------------------------------------------------------- release notes
+
+RELEASE_NOTES_FILE=$(mktemp)
+
+awk -v ver="$VERSION" '
+  /^## / {
+    if ($0 ~ "^## " ver "($| \\()") {
+      flag = 1
+      next
+    } else {
+      flag = 0
+    }
+  }
+  flag { print }
+' CHANGELOG.md > "$RELEASE_NOTES_FILE"
+
 # ---------------------------------------------------------------- publish
 
 echo "creating GitHub release v$VERSION..."
 gh release create "v$VERSION" \
   --title "$APP v$VERSION" \
-  --generate-notes \
+  --notes-file "$RELEASE_NOTES_FILE" \
   "$DMG"
+
+rm -f "$RELEASE_NOTES_FILE"
 
 echo ""
 echo "released v$VERSION"
