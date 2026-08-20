@@ -10,8 +10,10 @@
 
 # The certificate's full common name, exactly as Keychain Access shows it.
 # Find it with:  security find-identity -v -p codesigning
-# Leave unset to auto-detect the first Developer ID Application cert in the keychain.
-# APPLE_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID1234)"
+# release.sh auto-detects the first Developer ID Application cert if this is unset, but a bare
+# `cargo tauri build` does not: it ad-hoc signs without warning. Set it, so the smoke test in
+# docs/notarization.md signs the same way a release does.
+APPLE_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID1234)"
 
 # The Apple ID on the Developer Program membership.
 APPLE_ID="you@example.com"

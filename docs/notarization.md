@@ -76,8 +76,14 @@ history, which is why the script sources a file rather than taking arguments.
 real release leaves a published tag to clean up. The preflight catches missing credentials, but
 it cannot catch a certificate that exists and does not work. Prove the build end to end first:
 
+Set `APPLE_SIGNING_IDENTITY` in `tools/.release-env` before doing this. `release.sh` falls back
+to auto-detecting the certificate, but a bare `cargo tauri build` does not: with the variable
+empty, Tauri does not complain, it silently ad-hoc signs and skips notarization, and the build
+looks like it succeeded.
+
 ```sh
 set -a; . tools/.release-env; set +a
+[ -n "$APPLE_SIGNING_IDENTITY" ] || { echo "APPLE_SIGNING_IDENTITY is unset"; exit 1; }
 (cd src-tauri && cargo tauri build --target universal-apple-darwin)
 ```
 
@@ -101,6 +107,11 @@ What each one is telling you:
   with no network.
 - `spctl` printing `accepted` and `source=Notarized Developer ID` is the actual answer to the
   question this whole document exists for.
+
+If instead `codesign` reports `Signature=adhoc` and `TeamIdentifier=not set`, the identity was
+not in the environment and nothing was signed or notarized. Fix the variable and rebuild. Delete
+`src-tauri/target/universal-apple-darwin/release/bundle` first, because Tauri reuses an existing
+bundle and the stale unsigned one will otherwise pass straight through.
 
 **Launch it once from that path before releasing.** The hardened runtime is the change most
 likely to break something at runtime rather than at build time, and the way it breaks here is

@@ -194,6 +194,12 @@ git push origin "$(git branch --show-current)" "v$VERSION"
 # ---------------------------------------------------------------- build
 
 echo "building universal macOS app..."
+
+# Start from an empty bundle directory. Tauri will reuse what is already there, so a leftover
+# ad-hoc signed .app from a MASCOT_SKIP_NOTARIZE run or an interrupted build can survive into a
+# real release and ship unsigned.
+rm -rf "$ROOT/src-tauri/target/universal-apple-darwin/release/bundle"
+
 (cd src-tauri && cargo tauri build --target universal-apple-darwin)
 
 DMG=$(ls "$ROOT/src-tauri/target/universal-apple-darwin/release/bundle/dmg/"*.dmg | head -n 1)
