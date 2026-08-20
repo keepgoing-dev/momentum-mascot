@@ -127,10 +127,7 @@
         <ol>
           <li>Download <code>Momentum Mascot.dmg</code> from the <a href="https://github.com/keepgoing-dev/momentum-mascot/releases/latest" target="_blank" rel="noopener">latest release</a>.</li>
           <li>Open the DMG and drag the app to <code>Applications</code>.</li>
-          <li>First launch: right-click the app and choose <strong>Open</strong>, because the build is ad-hoc signed and not notarized.</li>
-          <li>Or run this in Terminal:
-            <pre><code>xattr -d com.apple.quarantine "/Applications/Momentum Mascot.app"</code></pre>
-          </li>
+          <li>Open it. That is the whole process: the build is signed with a Developer ID certificate and notarized by Apple, so there is no Gatekeeper warning and nothing to run in Terminal.</li>
         </ol>
         <p class="note">The app does not start on login yet. After a restart, open it yourself.</p>
       </section>
