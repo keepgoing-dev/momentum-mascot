@@ -7,6 +7,7 @@ use tauri_plugin_dialog::DialogExt;
 
 use crate::app::{self, AppState};
 use crate::pet;
+use crate::scoped;
 use crate::store;
 
 /// Ask for the current mood without waiting for the next event. Called once when a window
@@ -93,13 +94,18 @@ pub async fn add_project(app: AppHandle) -> Result<(), String> {
         .into_path()
         .map_err(|_| "That folder has a path this app can't read.".to_string())?;
 
+    // Created here and nowhere else: the bookmark has to be made while the picker's grant is
+    // live, and this is the only moment the app knows it is. A failure costs the bookmark, not
+    // the project.
+    let bookmark = scoped::create(&path);
+
     let state = app.state::<AppState>();
     let now = state.clock.now();
     state
         .momentum
         .lock()
         .unwrap()
-        .add(&path, now)
+        .add(&path, now, bookmark)
         .map_err(|e| e.to_string())?;
 
     app::sync_watcher(&app);

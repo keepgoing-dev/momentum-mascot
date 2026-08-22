@@ -223,7 +223,15 @@ impl Momentum {
     }
 
     /// Re-adding an existing project is a friendly no-op, not an error (section 7).
-    pub fn add(&mut self, path: &Path, now: i64) -> Result<bool, RepoError> {
+    ///
+    /// `bookmark` comes from the caller rather than being made here, because it must be created
+    /// while the picker's grant is live and only `commands::add_project` knows when that is.
+    pub fn add(
+        &mut self,
+        path: &Path,
+        now: i64,
+        bookmark: Option<String>,
+    ) -> Result<bool, RepoError> {
         let git_dir = repo::resolve(path)?;
         if self.state.projects.iter().any(|p| p.path == path) {
             return Ok(false);
@@ -236,7 +244,7 @@ impl Momentum {
             last_commit_at: None,
             last_active_at: None,
             operating: false,
-            bookmark: None,
+            bookmark,
         };
         let reading = read_commit_time(&git_dir, path).map(|ts| self.clock.to_simulated(ts));
         apply_reading(&mut project, reading);
@@ -522,5 +530,30 @@ mod tests {
         assert_eq!(m.cycle_character(), "12");
         assert_eq!(m.cycle_character(), "20");
         assert_eq!(m.cycle_character(), "07");
+    }
+
+    #[test]
+    fn adding_a_project_keeps_the_bookmark_it_was_handed() {
+        let t = std::env::temp_dir().join(format!("mascot-add-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&t);
+        std::fs::create_dir_all(t.join(".git")).unwrap();
+        std::fs::write(t.join(".git/HEAD"), "ref: refs/heads/main\n").unwrap();
+
+        let mut m = with(vec![], None);
+        assert_eq!(m.add(&t, T, Some("Ym9va21hcms=".into())), Ok(true));
+        assert_eq!(
+            m.state.projects[0].bookmark.as_deref(),
+            Some("Ym9va21hcms=")
+        );
+
+        // A bookmark that could not be created is not an error: the project is added anyway and
+        // degrades to today's behaviour, which is "works this launch, unavailable on the next".
+        let t2 = t.join("nested");
+        std::fs::create_dir_all(t2.join(".git")).unwrap();
+        std::fs::write(t2.join(".git/HEAD"), "ref: refs/heads/main\n").unwrap();
+        assert_eq!(m.add(&t2, T, None), Ok(true));
+        assert_eq!(m.state.projects[1].bookmark, None);
+
+        let _ = std::fs::remove_dir_all(&t);
     }
 }
