@@ -38,8 +38,14 @@
       </div>
 
       <!-- The credit is a licence requirement, not a courtesy (section 4.2). With no about
-           window and no settings screen, this is the only place in the app it can live. -->
-      <p class="credit">art: limezu.itch.io</p>
+           window and no settings screen, this is the only place in the app it can live. The
+           privacy link shares the line because App Review has to be able to find it (guideline
+           5.1.1(i) wants the policy inside the app, not only in App Store Connect) and the
+           352x540 budget has no room for a line of its own. -->
+      <p class="credit">
+        art: limezu.itch.io
+        <button id="privacy" class="linkish" type="button">privacy</button>
+      </p>
       <p id="clock" class="clock" hidden></p>
     </div>
     <script type="module" src="popover.js"></script>

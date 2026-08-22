@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy Policy | Momentum Mascot</title>
+    <meta name="description" content="Momentum Mascot collects nothing, sends nothing, and stores everything on your own machine." />
+    <link rel="stylesheet" href="/style.css" />
+    <link rel="icon" href="assets/logo.png" />
+  </head>
+  <body>
+    <main>
+      <section class="privacy wrap">
+        <h1>Privacy Policy</h1>
+        <p><strong>Last updated: 22 August 2026</strong></p>
+
+        <p>
+          Momentum Mascot does not collect, transmit, sell, or share any personal data. There is
+          no analytics, no telemetry, no crash reporting, no accounts, and no network layer at
+          all. This is not a policy choice layered on top of the app; it is what the app is made
+          of.
+        </p>
+
+        <h2>What the app reads</h2>
+        <p>
+          For each git repository you explicitly add through the folder picker, the app reads the
+          repository's reflog and the modification times of files in the working tree. From that
+          it derives one thing: when you last did work there. It does not read commit messages,
+          diffs, branch names, file contents, or anything that identifies your code.
+        </p>
+
+        <h2>What the app stores, and where</h2>
+        <p>
+          A single JSON file on your machine, holding the folders you added, the timestamps
+          derived from them, which character you picked, and where you dragged the pet. You can
+          read it or delete it at any time.
+        </p>
+        <ul class="checks">
+          <li>Mac App Store version: <code>~/Library/Containers/dev.keepgoing.momentum-mascot/Data/.keepgoing/mascot/state.json</code></li>
+          <li>Direct download version: <code>~/.keepgoing/mascot/state.json</code></li>
+        </ul>
+        <p>Nothing in that file leaves your machine. There is no server to send it to.</p>
+
+        <h2>The share card</h2>
+        <p>
+          Share Status draws a 1200x630 image and puts it on your clipboard. The image carries the
+          mood and the room and deliberately nothing that identifies a project: no names, paths,
+          commit messages, hashes, or timestamps. It goes to your clipboard, not to us. What you
+          then paste it into is between you and that app.
+        </p>
+
+        <h2>Children</h2>
+        <p>The app collects no data from anyone, of any age.</p>
+
+        <h2>Changes</h2>
+        <p>
+          If this ever changes, this page changes with it, and the date at the top moves. Any
+          release that starts collecting anything would say so here first.
+        </p>
+
+        <h2>Contact</h2>
+        <p>
+          Questions go to
+          <a href="https://github.com/keepgoing-dev/momentum-mascot/issues">the issue tracker</a>.
+        </p>
+
+        <p><a href="/">Back to Momentum Mascot</a></p>
+      </section>
+    </main>
+  </body>
+</html>

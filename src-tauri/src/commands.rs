@@ -1,4 +1,4 @@
-//! Everything the webview is allowed to ask for. Ten commands, and no eleventh without a
+//! Everything the webview is allowed to ask for. Eleven commands, and no twelfth without a
 //! reason: this list is the whole API surface between the art and the machinery.
 
 use tauri::{AppHandle, Manager};
@@ -6,6 +6,7 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_dialog::DialogExt;
 
 use crate::app::{self, AppState};
+use crate::appkit;
 use crate::pet;
 use crate::scoped;
 use crate::store;
@@ -164,3 +165,22 @@ pub fn copy_share_card(app: AppHandle, png: Vec<u8>) -> Result<(), String> {
     let image = tauri::image::Image::from_bytes(&png).map_err(|e| e.to_string())?;
     app.clipboard().write_image(&image).map_err(|e| e.to_string())
 }
+
+/// The privacy policy, opened in the user's browser.
+///
+/// Narrow on purpose: it takes no URL. Guideline 5.1.1(i) wants the policy reachable from inside
+/// the app, and an `open_url(url)` command would hand the webview the ability to open anything,
+/// which is a larger API than the requirement. One constant, one destination.
+///
+/// This is the eleventh command, and this module's own rule is that there is no eleventh without
+/// a reason. The reason is a review guideline.
+#[tauri::command]
+pub fn open_privacy_policy() {
+    if !appkit::open_url(PRIVACY_POLICY_URL) {
+        eprintln!("could not open {PRIVACY_POLICY_URL}");
+    }
+}
+
+/// Kept next to the command that opens it, and it must stay in step with the URL in App Store
+/// Connect: guideline 5.1.1(i) asks for the policy in both places.
+pub const PRIVACY_POLICY_URL: &str = "https://keepgoing.dev/privacy";

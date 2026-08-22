@@ -180,6 +180,12 @@ shareButton.addEventListener("click", async () => {
 
 charHit.addEventListener("click", () => invoke("cycle_character"));
 
+// Guideline 5.1.1(i): the policy has to be reachable from inside the app. The tray is not the
+// place (tray.rs holds the line at exactly two items), so it lives on the credit line.
+document
+  .getElementById("privacy")
+  .addEventListener("click", () => invoke("open_privacy_policy"));
+
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") invoke("hide_popover");
 });

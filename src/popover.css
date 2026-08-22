@@ -244,3 +244,18 @@ body {
 .clock {
   color: var(--accent);
 }
+
+.credit .linkish {
+  margin-left: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.credit .linkish:hover {
+  color: var(--cream);
+}

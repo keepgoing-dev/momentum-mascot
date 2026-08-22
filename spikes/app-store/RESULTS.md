@@ -223,3 +223,27 @@ channels. This finding does not contradict that (a signed app bundle is not a ba
 binary) but it does weaken it. What the DMG channel actually gets is worth measuring when a
 real bundle is next signed: if `create` always fails there, the behaviour is still correct,
 because that channel does not need bookmarks, but the claim in section 3 needs rewording.
+
+## Trap: keepgoing.dev returns 200 with the homepage for every unknown path
+
+Found while wiring the privacy policy link, 2026-08-22.
+
+```
+curl -o /dev/null -w '%{http_code}'  https://keepgoing.dev/privacy                  -> 200
+curl -o /dev/null -w '%{http_code}'  https://keepgoing.dev/definitely-not-a-page    -> 200
+```
+
+Both serve the **homepage**, title "Momentum Mascot - a tiny desktop companion for side
+projects". There is a catch-all fallback, so a missing page is indistinguishable from a
+present one by status code.
+
+Two consequences:
+
+1. **Verify the policy page by content, never by status.** The check is
+   `curl -sS https://keepgoing.dev/privacy | grep -q "<title>Privacy Policy"`, not a 200.
+   An earlier version of the plan's Task 12 checked the status code and would have passed
+   against a homepage.
+2. **App Review would see the homepage, not a policy**, if the site is not redeployed before
+   submission. Guideline 5.1.1(i) wants a real policy at the URL given in App Store Connect.
+   `site/privacy.html` exists in the repo now; it has to be deployed, and the content check
+   above is what proves it.

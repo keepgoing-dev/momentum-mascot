@@ -47,6 +47,7 @@ fn main() {
             commands::cycle_character,
             commands::set_character,
             commands::copy_share_card,
+            commands::open_privacy_policy,
         ])
         .setup(|tauri_app| {
             let handle = tauri_app.handle().clone();
