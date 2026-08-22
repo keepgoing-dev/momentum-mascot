@@ -53,6 +53,9 @@ pub struct ProjectDto {
     pub relative: String,
     pub available: bool,
     pub operating: bool,
+    /// Why it is unavailable, when there is something specific to say. The popover prefers this
+    /// over its own generic line.
+    pub reason: Option<&'static str>,
 }
 
 impl AppState {
@@ -97,6 +100,7 @@ pub fn publish(app: &AppHandle) {
                     relative: p.relative,
                     available: p.available,
                     operating: p.operating,
+                    reason: p.reason,
                 })
                 .collect(),
             clock_scale: state.clock.scale(),

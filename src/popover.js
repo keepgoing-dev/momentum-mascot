@@ -97,7 +97,12 @@ function row(project) {
   const name = document.createElement("span");
   name.className = "name";
   name.textContent = project.name;
-  name.title = project.available ? project.name : `${project.name} (not reachable right now)`;
+  // The backend's specific reason wins when there is one. Under sandbox a linked worktree or a
+  // submodule is unavailable for a reason worth naming, and "not reachable right now" covered
+  // four different causes.
+  name.title = project.available
+    ? project.name
+    : `${project.name} (${project.reason ?? "not reachable right now"})`;
 
   const op = document.createElement("button");
   op.className = "op";

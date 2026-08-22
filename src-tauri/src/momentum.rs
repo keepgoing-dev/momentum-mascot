@@ -24,6 +24,12 @@ pub struct Momentum {
     /// Working tree root per project id. The path the user picked is the root of the project,
     /// so this is just that path. Kept alongside `git_dirs` so the watcher can register both.
     work_trees: HashMap<String, PathBuf>,
+    /// Why a project failed to resolve, per project id.
+    ///
+    /// `resolve_paths` used to discard this error, and `available` was derived from `git_dirs`
+    /// alone, so the popover could only ever say "not reachable right now" for four different
+    /// causes. Under sandbox one of those causes is specific enough to be worth naming.
+    reasons: HashMap<String, &'static str>,
     /// Held security-scoped access, per project id.
     ///
     /// **These live for the whole process and that is not an accident.** `read_commit_time` runs
@@ -64,6 +70,9 @@ pub struct ProjectRow {
     pub available: bool,
     /// Display-only tag: opted out of mood evaluation.
     pub operating: bool,
+    /// Why it is unavailable, when it is. `None` when it is available, so the popover falls back
+    /// to its own generic line only when there really is nothing more specific to say.
+    pub reason: Option<&'static str>,
 }
 
 impl Momentum {
@@ -73,6 +82,7 @@ impl Momentum {
             state,
             git_dirs: HashMap::new(),
             work_trees: HashMap::new(),
+            reasons: HashMap::new(),
             access: HashMap::new(),
             comeback_since: None,
             quote_turn: 0,
@@ -85,6 +95,7 @@ impl Momentum {
     fn resolve_paths(&mut self) {
         self.git_dirs.clear();
         self.work_trees.clear();
+        self.reasons.clear();
 
         // Built locally and assigned at the end rather than cleared first. See the comment on
         // the `access` field: dropping a grant we are about to re-take would close it under a
@@ -115,8 +126,13 @@ impl Momentum {
             }
 
             let path = self.state.projects[i].path.clone();
-            if let Ok(git_dir) = repo::resolve(&path) {
-                self.git_dirs.insert(id.clone(), git_dir);
+            match repo::resolve(&path) {
+                Ok(git_dir) => {
+                    self.git_dirs.insert(id.clone(), git_dir);
+                }
+                Err(e) => {
+                    self.reasons.insert(id.clone(), e.message());
+                }
             }
             self.work_trees.insert(id, path);
         }
@@ -245,6 +261,7 @@ impl Momentum {
                     },
                     available: self.git_dirs.contains_key(&p.id),
                     operating: p.operating,
+                    reason: self.reasons.get(&p.id).copied(),
                 })
                 .collect(),
         }
@@ -397,6 +414,7 @@ mod tests {
             },
             git_dirs: HashMap::new(),
             work_trees: HashMap::new(),
+            reasons: HashMap::new(),
             access: HashMap::new(),
             comeback_since: None,
             quote_turn: 0,
@@ -677,6 +695,59 @@ mod tests {
         m.resolve_paths();
         assert!(m.git_dirs.contains_key("p1"));
         assert_eq!(m.state.projects[0].path, t);
+
+        let _ = std::fs::remove_dir_all(&t);
+    }
+
+    #[test]
+    fn an_unavailable_project_carries_the_reason_it_is_unavailable() {
+        let t = std::env::temp_dir().join(format!("mascot-reason-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&t);
+        let wt = t.join("checkout");
+        std::fs::create_dir_all(&wt).unwrap();
+        std::fs::write(wt.join(".git"), "gitdir: /nowhere/that/exists\n").unwrap();
+
+        let mut m = with(
+            vec![Project {
+                id: "p1".into(),
+                path: wt,
+                bookmark: None,
+                ..project(None)
+            }],
+            None,
+        );
+        m.resolve_paths();
+
+        let snap = m.snapshot(T, T);
+        assert!(!snap.projects[0].available);
+        assert_eq!(
+            snap.projects[0].reason,
+            Some("That worktree's git folder isn't reachable from here.")
+        );
+
+        let _ = std::fs::remove_dir_all(&t);
+    }
+
+    #[test]
+    fn an_available_project_carries_no_reason() {
+        let t = std::env::temp_dir().join(format!("mascot-noreason-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&t);
+        std::fs::create_dir_all(t.join(".git")).unwrap();
+        std::fs::write(t.join(".git/HEAD"), "ref: refs/heads/main\n").unwrap();
+
+        let mut m = with(
+            vec![Project {
+                id: "p1".into(),
+                path: t.clone(),
+                bookmark: None,
+                ..project(None)
+            }],
+            None,
+        );
+        m.resolve_paths();
+        let snap = m.snapshot(T, T);
+        assert!(snap.projects[0].available);
+        assert_eq!(snap.projects[0].reason, None);
 
         let _ = std::fs::remove_dir_all(&t);
     }

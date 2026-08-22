@@ -9,18 +9,40 @@ pub enum RepoError {
     Missing,
     NotARepo,
     Unreadable,
+    /// The `.git` file held a valid `gitdir:` pointer and the target is not reachable.
+    ///
+    /// A linked worktree or a submodule under App Sandbox: the pointer leads outside the folder
+    /// the user picked, so it is outside the picker's grant and outside any bookmark, on the
+    /// launch the picker ran as well as every later one. Bookmarks do not fix this, because the
+    /// grant never covered that path.
+    ///
+    /// Distinct from `NotARepo`, which is what this path returned before, because the DMG channel
+    /// handles worktrees fine and a user whose project reads as unavailable in one channel and
+    /// not the other deserves to know which case they are in.
+    GitDirOutside,
+}
+
+impl RepoError {
+    /// The line the popover shows. Split out from `Display` so a `ProjectRow` can carry it
+    /// without allocating a `String` per project per publish.
+    pub fn message(&self) -> &'static str {
+        // These strings appear inline in the popover, so they follow section 4.6's voice:
+        // factual, short, and never implying the user did something stupid.
+        match self {
+            RepoError::Missing => "That folder isn't there any more.",
+            RepoError::NotARepo => "That folder isn't a git repository.",
+            RepoError::Unreadable => "That repository can't be read.",
+            // Deliberately "isn't reachable from here" and not "is outside the folder you
+            // picked": the same code path also fires for a worktree whose git folder was simply
+            // deleted, where the other wording would be false.
+            RepoError::GitDirOutside => "That worktree's git folder isn't reachable from here.",
+        }
+    }
 }
 
 impl fmt::Display for RepoError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // These strings appear inline in the popover, so they follow section 4.6's voice:
-        // factual, short, and never implying the user did something stupid.
-        let s = match self {
-            RepoError::Missing => "That folder isn't there any more.",
-            RepoError::NotARepo => "That folder isn't a git repository.",
-            RepoError::Unreadable => "That repository can't be read.",
-        };
-        f.write_str(s)
+        f.write_str(self.message())
     }
 }
 
@@ -52,7 +74,7 @@ pub fn resolve(path: &Path) -> Result<PathBuf, RepoError> {
             path.join(pointer)
         };
         if !resolved.is_dir() {
-            return Err(RepoError::NotARepo);
+            return Err(RepoError::GitDirOutside);
         }
         resolved
     } else {
@@ -170,5 +192,42 @@ mod tests {
         let t = Temp::new("headless");
         std::fs::create_dir_all(t.path().join(".git")).unwrap();
         assert_eq!(resolve(t.path()), Err(RepoError::Unreadable));
+    }
+
+    #[test]
+    fn a_worktree_pointing_outside_the_picked_folder_is_told_apart_from_a_plain_folder() {
+        // Under sandbox this is the shape of every linked worktree and every submodule: the
+        // `.git` file holds a perfectly good `gitdir:` pointer and the target is not reachable,
+        // because the grant never covered it. That is a different thing from "this is not a
+        // repository", and the popover says so.
+        let t = Temp::new("outside");
+        let wt = t.path().join("checkout");
+        std::fs::create_dir_all(&wt).unwrap();
+        std::fs::write(
+            wt.join(".git"),
+            "gitdir: /nowhere/that/exists/.git/worktrees/x\n",
+        )
+        .unwrap();
+        assert_eq!(resolve(&wt), Err(RepoError::GitDirOutside));
+
+        // A `.git` file with no pointer in it at all is still just not a repository.
+        let bad = t.path().join("bad");
+        std::fs::create_dir_all(&bad).unwrap();
+        std::fs::write(bad.join(".git"), "this is not a pointer\n").unwrap();
+        assert_eq!(resolve(&bad), Err(RepoError::NotARepo));
+    }
+
+    #[test]
+    fn every_error_has_a_message_that_blames_nobody() {
+        for e in [
+            RepoError::Missing,
+            RepoError::NotARepo,
+            RepoError::Unreadable,
+            RepoError::GitDirOutside,
+        ] {
+            let m = e.message();
+            assert!(!m.is_empty());
+            assert_eq!(m, e.to_string(), "Display and message disagree");
+        }
     }
 }
