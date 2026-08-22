@@ -188,3 +188,38 @@ The popover hides itself on focus loss (`main.rs`'s `WindowEvent::Focused(false)
 which closed it the instant focus moved and made the observation unreliable. The probe
 disabled that handler to hold the window on screen. Anyone doing visual work on the popover
 should expect to do the same: it is not a bug, it is the click-outside rule doing its job.
+
+## Incidental: `WithSecurityScope` cannot be exercised from a cargo test binary at all
+
+Found while writing `scoped.rs`'s tests, and it corrects two sentences in the spec.
+
+Spec section 9 says of the `scoped.rs` round trip: "Unsandboxed, creation, resolution and
+`startAccessing` all return success trivially, so a green result proves only 'doesn't crash,
+doesn't leak, guard drops'." The premise is wrong. From a `cargo test` binary,
+`bookmarkDataWithOptions:` with `NSURLBookmarkCreationWithSecurityScope` does not succeed
+trivially. It **fails**:
+
+```
+NSError { code: 256, localizedDescription: "The file couldn't be opened.",
+          domain: "NSCocoaErrorDomain" }
+```
+
+The same call with **empty** options succeeds in the same binary, on the same directory, in
+the same run. So the cause is the security-scope flag needing the sandbox entitlements, not
+the path and not the FFI.
+
+**What this changed in the code.** `create` and `resolve` now delegate to private
+`create_with(path, options)` and `resolve_with(bookmark, options)`. The tests drive those
+with empty options, which covers every line of the FFI plumbing: the selector names, the
+`NSData` bridge, the base64 in both directions, and `ScopedAccess`'s `Drop`. Only the option
+flag itself is left uncovered. Without the split, `scoped.rs` would have had **no** automated
+coverage of its FFI, and a mistyped selector would have surfaced for the first time in a
+manual test after signing.
+
+**Still open, for the sandbox persistence test to settle.** Spec section 3 says
+`WithSecurityScope` creation was measured working in an *unsandboxed* context, byte-identical
+to the sandboxed result, and uses that to justify one code path with no `cfg` across both
+channels. This finding does not contradict that (a signed app bundle is not a bare test
+binary) but it does weaken it. What the DMG channel actually gets is worth measuring when a
+real bundle is next signed: if `create` always fails there, the behaviour is still correct,
+because that channel does not need bookmarks, but the claim in section 3 needs rewording.

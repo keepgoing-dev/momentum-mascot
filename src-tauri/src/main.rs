@@ -20,6 +20,7 @@ mod mood;
 mod pet;
 mod reflog;
 mod repo;
+mod scoped;
 mod store;
 mod tray;
 mod watcher;
