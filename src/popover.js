@@ -124,6 +124,21 @@ function row(project) {
   drop.addEventListener("click", () => invoke("untrack", { id: project.id }));
 
   li.append(name, op, when, drop);
+
+  // The reason goes on its own line, visibly, and not in a tooltip.
+  //
+  // It was a tooltip first, and that was measured not to work: a `title` on a span never renders
+  // in this webview, though one on a button does. An explanation nobody can see is not an
+  // explanation, and under sandbox a linked worktree reads as unavailable for a reason the user
+  // cannot otherwise guess. The `title` above is kept as well, because it costs nothing and does
+  // work in some contexts.
+  if (!project.available && project.reason) {
+    const why = document.createElement("span");
+    why.className = "reason";
+    why.textContent = project.reason;
+    li.append(why);
+  }
+
   return li;
 }
 

@@ -247,3 +247,82 @@ Two consequences:
    submission. Guideline 5.1.1(i) wants a real policy at the URL given in App Store Connect.
    `site/privacy.html` exists in the repo now; it has to be deployed, and the content check
    above is what proves it.
+
+## The sandbox persistence test: PASS
+
+**Measured:** 2026-08-22, on the release build, ad-hoc signed with
+`codesign --force --sign - --options runtime --entitlements src-tauri/Entitlements.mas.plist`,
+container state cleared first. Two folders added through the app's own picker: an ordinary
+git repository and a linked `git worktree` whose parent repo lives in `/private/tmp`, outside
+anything the picker granted.
+
+### Bookmarks are created for real inside a sandboxed bundle
+
+`state.json` in the container, immediately after adding:
+
+```
+schema version: 3.1
+  mascot-mas-test           bookmark=YES 952 chars   last_commit_at=2026-08-22T10:55:10Z
+  mascot-mas-test-worktree  bookmark=YES 960 chars   last_commit_at=None
+```
+
+This settles the question left open above: `NSURLBookmarkCreationWithSecurityScope` **works**
+in a signed, entitled app bundle. It fails only in a bare `cargo test` binary. So spec
+section 3's "one code path serves both channels" claim stands for the sandboxed channel, and
+what the unsandboxed DMG channel gets is still worth a look when one is next signed.
+
+### The test itself
+
+"The project is still listed" proves nothing: the list and its timestamps persist in
+`state.json` regardless of whether the folder can be read. So the measurement was: quit, make
+a **new commit while the app was closed**, relaunch, and see whether `last_commit_at`
+advances. It can only advance if `resolve_paths` resolved the bookmark, took the grant, and
+`repo::resolve` then succeeded at that path.
+
+```
+before quit      last_commit_at=2026-08-22T10:55:10Z
+new commit       2026-08-22T16:11:54Z
+after relaunch   last_commit_at=2026-08-22T16:11:54Z     PASS
+```
+
+Without section 6 this would have stayed at 10:55:10Z, because the picker's grant expired
+with the first launch.
+
+### The watcher, inside the sandbox, on a live commit
+
+A third commit made while the relaunched app was running:
+
+```
+after live commit  last_commit_at=2026-08-22T16:12:00Z    PASS
+```
+
+That exercises recursive FSEvents inside a held security scope and a read of
+`.git/logs/HEAD`, a dot-directory, both of which spec 6.4 predicted would work.
+`watcher.rs` needed no change.
+
+### Section 7.2, confirmed as designed
+
+The linked worktree's `last_commit_at` stayed `None` through all of it: its git dir is in
+`/private/tmp`, outside the grant, so `repo::resolve` returns the new `GitDirOutside`. The
+accepted degradation behaves exactly as the spec said it would.
+
+## Defect found by the manual test: a `title` tooltip on a span never renders here
+
+The plan surfaced the unavailable-reason as a `title` attribute on the project name, per spec
+7.2. **It does not render.** Hovering a row's name shows nothing; hovering the operating
+toggle, which is a `<button>` with a `title`, does show its tooltip. So the attribute works on
+buttons in this webview and not on the span.
+
+No CSS explains it: `.projects .name` sets only flex, colour and ellipsis, and nothing in the
+row disables pointer events.
+
+**Fixed by not using a tooltip.** The reason is now a visible line of its own under the name,
+present only on unavailable rows, at 10px in `var(--muted)`. `.projects li` gained
+`flex-wrap: wrap` and the new `.reason` element takes `flex: 0 0 100%`. The `title` is kept as
+well, since it costs nothing and does work in some contexts.
+
+This is worth more than the layout change: spec 7.2's whole argument is that silent acceptance
+was rejected because "the affected user gets no explanation". An explanation in a tooltip that
+never appears is the same thing as no explanation. Verified afterwards with a fixture holding
+one healthy repo, one unreachable worktree and one deleted folder: both reasons render, the
+healthy row gets no extra line.

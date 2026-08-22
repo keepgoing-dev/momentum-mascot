@@ -128,10 +128,23 @@ body {
 
 .projects li {
   display: flex;
+  /* Wraps so an unavailable project's reason can take a line of its own below the name. Rows
+     without a reason are unaffected: nothing is appended to them. */
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 8px;
+  gap: 0 8px;
   padding: 4px 2px;
   border-top: 1px solid var(--edge);
+}
+
+/* Why a project is unavailable, in full, on its own line. Only ever present on unavailable
+   rows. */
+.projects .reason {
+  flex: 0 0 100%;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10px;
+  white-space: normal;
 }
 
 .projects .name {
