@@ -12,6 +12,7 @@ use crate::copy;
 use crate::mood::{self, Mood, Rest, COMEBACK_CAP};
 use crate::reflog;
 use crate::repo::{self, RepoError};
+use crate::scoped::{self, ScopedAccess};
 use crate::store::{self, Project, StateFile};
 
 pub struct Momentum {
@@ -23,6 +24,15 @@ pub struct Momentum {
     /// Working tree root per project id. The path the user picked is the root of the project,
     /// so this is just that path. Kept alongside `git_dirs` so the watcher can register both.
     work_trees: HashMap<String, PathBuf>,
+    /// Held security-scoped access, per project id.
+    ///
+    /// **These live for the whole process and that is not an accident.** `read_commit_time` runs
+    /// on every tick (`app.rs`'s `start_tick`) and every watcher event, and the watcher registers
+    /// watches later still, so a guard scoped to load would revoke access under a live
+    /// `refresh_all`. Anyone adding a fourth map here: `resolve_paths` opens by clearing
+    /// `git_dirs` and `work_trees`, and this map is deliberately **replaced** at the end instead,
+    /// so the old grants drop only once the new ones are held.
+    access: HashMap<String, ScopedAccess>,
     /// When the celebration started, on the **real** clock rather than the scaled one.
     ///
     /// The 30 minute cap is a dwell time on a piece of UI, not a quantity the state machine
@@ -63,6 +73,7 @@ impl Momentum {
             state,
             git_dirs: HashMap::new(),
             work_trees: HashMap::new(),
+            access: HashMap::new(),
             comeback_since: None,
             quote_turn: 0,
             clock,
@@ -74,12 +85,43 @@ impl Momentum {
     fn resolve_paths(&mut self) {
         self.git_dirs.clear();
         self.work_trees.clear();
-        for p in &self.state.projects {
-            if let Ok(git_dir) = repo::resolve(&p.path) {
-                self.git_dirs.insert(p.id.clone(), git_dir);
+
+        // Built locally and assigned at the end rather than cleared first. See the comment on
+        // the `access` field: dropping a grant we are about to re-take would close it under a
+        // reader.
+        let mut access: HashMap<String, ScopedAccess> = HashMap::new();
+
+        // By index, because what the bookmark resolves to is written back into the project it
+        // came from.
+        for i in 0..self.state.projects.len() {
+            let id = self.state.projects[i].id.clone();
+
+            if let Some(resolved) = self.state.projects[i]
+                .bookmark
+                .as_deref()
+                .and_then(scoped::resolve)
+            {
+                let moved = apply_resolved(&mut self.state.projects[i], &resolved.path);
+
+                // Re-created while access is held, so a moved folder repairs its own entry
+                // without asking the user for it again.
+                if resolved.stale || moved {
+                    if let Some(fresh) = scoped::create(&resolved.path) {
+                        self.state.projects[i].bookmark = Some(fresh);
+                    }
+                }
+
+                access.insert(id.clone(), resolved.access);
             }
-            self.work_trees.insert(p.id.clone(), p.path.clone());
+
+            let path = self.state.projects[i].path.clone();
+            if let Ok(git_dir) = repo::resolve(&path) {
+                self.git_dirs.insert(id.clone(), git_dir);
+            }
+            self.work_trees.insert(id, path);
         }
+
+        self.access = access;
     }
 
     /// Every path that is currently watchable. A project on an unplugged drive simply is not
@@ -290,6 +332,28 @@ pub fn read_commit_time(git_dir: &Path, work_tree: &Path) -> Option<i64> {
         .or_else(|| repo::head_commit_time(work_tree))
 }
 
+/// Take what a bookmark resolved to and write it back into the project.
+///
+/// Returns whether the folder moved, which is the caller's cue to re-create the bookmark.
+///
+/// Pure, and separated from the NSURL call on purpose: a `WithSecurityScope` bookmark can be
+/// neither created nor resolved from a `cargo test` binary, because the option needs the sandbox
+/// entitlements (`scoped::create_with` documents the measurement). So this function holds the
+/// part that can be wrong and can be tested, and the FFI around it is covered by the sandbox
+/// persistence test after signing.
+///
+/// The display name is refreshed alongside the path because it is derived from it and drifts for
+/// the same reason. An unchanged path is left completely alone, so a name the user's file already
+/// carried is not clobbered on every launch.
+fn apply_resolved(project: &mut Project, resolved: &Path) -> bool {
+    if resolved == project.path {
+        return false;
+    }
+    project.name = store::display_name(resolved);
+    project.path = resolved.to_path_buf();
+    true
+}
+
 /// Step 4, the monotonicity rule: **`last_commit_at` never decreases for a given project.**
 ///
 /// Without this, checking out an older branch drags the timestamp backwards and puts the
@@ -333,6 +397,7 @@ mod tests {
             },
             git_dirs: HashMap::new(),
             work_trees: HashMap::new(),
+            access: HashMap::new(),
             comeback_since: None,
             quote_turn: 0,
             clock: Clock::real(),
@@ -553,6 +618,65 @@ mod tests {
         std::fs::write(t2.join(".git/HEAD"), "ref: refs/heads/main\n").unwrap();
         assert_eq!(m.add(&t2, T, None), Ok(true));
         assert_eq!(m.state.projects[1].bookmark, None);
+
+        let _ = std::fs::remove_dir_all(&t);
+    }
+
+    #[test]
+    fn a_moved_folder_is_followed_and_its_display_name_refreshed() {
+        // The rule this exists for: for a folder the user moved, the bookmark resolves to the
+        // NEW location, and `repo::resolve` must then be given that path rather than the stale
+        // stored one. Surviving a move is the entire point of a security-scoped bookmark, and an
+        // earlier draft of this design resolved the bookmark and then used `p.path` anyway.
+        //
+        // Pure on purpose. The end-to-end path cannot be tested here at all: a
+        // `WithSecurityScope` bookmark can neither be created nor resolved from a cargo test
+        // binary, because the option needs the sandbox entitlements (see `scoped::create_with`).
+        // So the policy is tested here and the mechanism is covered by the sandbox persistence
+        // test after signing.
+        let mut p = Project {
+            path: PathBuf::from("/a/old-name"),
+            name: "old-name".into(),
+            ..project(None)
+        };
+        assert!(apply_resolved(&mut p, Path::new("/a/new-name")));
+        assert_eq!(p.path, PathBuf::from("/a/new-name"));
+        assert_eq!(p.name, "new-name", "the display name drifted with the path");
+    }
+
+    #[test]
+    fn a_folder_that_did_not_move_is_left_exactly_alone() {
+        let mut p = Project {
+            path: PathBuf::from("/a/b"),
+            name: "renamed by hand".into(),
+            ..project(None)
+        };
+        assert!(!apply_resolved(&mut p, Path::new("/a/b")));
+        assert_eq!(
+            p.name, "renamed by hand",
+            "an unchanged path must not clobber the stored name"
+        );
+    }
+
+    #[test]
+    fn a_project_with_no_bookmark_still_resolves_from_its_stored_path() {
+        let t = std::env::temp_dir().join(format!("mascot-nobm-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&t);
+        std::fs::create_dir_all(t.join(".git")).unwrap();
+        std::fs::write(t.join(".git/HEAD"), "ref: refs/heads/main\n").unwrap();
+
+        let mut m = with(
+            vec![Project {
+                id: "p1".into(),
+                path: t.clone(),
+                bookmark: None,
+                ..project(None)
+            }],
+            None,
+        );
+        m.resolve_paths();
+        assert!(m.git_dirs.contains_key("p1"));
+        assert_eq!(m.state.projects[0].path, t);
 
         let _ = std::fs::remove_dir_all(&t);
     }
