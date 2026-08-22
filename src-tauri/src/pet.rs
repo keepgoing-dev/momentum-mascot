@@ -61,6 +61,11 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
             eprintln!("NSPanel class not found; the pet will not show over fullscreen apps");
         }
         macos::apply(ns, LEVEL, BEHAVIOR);
+
+        // Redundant while `macos-private-api` is on, because tao does it. Load-bearing the day
+        // it is off, and silent if it is missing then: with the feature gone, tao's only
+        // complaint is an eprintln gated on debug_assertions.
+        crate::appkit::make_transparent(win.ns_window()?);
     }
 
     win.show()?;

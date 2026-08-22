@@ -1,5 +1,14 @@
 /* The popover: 352px wide, height sized to its content, anchored under the tray icon. */
 
+/* The window is opaque now: the popover never needed a see-through webview, it needed rounded
+   corners, and those come from the content view's layer (`app::setup_popover`). style.css says
+   `background: transparent` because the pet shares it, so the popover states its own ground here
+   rather than changing that for both. */
+html,
+body {
+  background: var(--panel);
+}
+
 .panel {
   width: 352px;
   padding: 16px;

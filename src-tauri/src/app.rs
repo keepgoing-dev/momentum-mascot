@@ -164,6 +164,28 @@ pub fn sync_watcher(app: &AppHandle) {
     }
 }
 
+/// The popover's window chrome, which the app owns now.
+///
+/// Two calls, both public AppKit, both previously done for us by the private-API feature or not
+/// needed at all. `transparent: true` is gone from the window's config: the room art fills the
+/// whole surface, so the popover never needed a see-through webview. What it needed was rounded
+/// corners, and those come from the layer.
+#[cfg(target_os = "macos")]
+pub fn setup_popover(app: &AppHandle) {
+    let Some(win) = app.get_webview_window(POPOVER) else {
+        return;
+    };
+    if let Ok(ns) = win.ns_window() {
+        crate::appkit::make_transparent(ns);
+        // 12pt, matching `.panel`'s `border-radius: 12px` in popover.css. If these ever disagree,
+        // the border draws a different curve than the mask cuts.
+        crate::appkit::round_corners(ns, 12.0);
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn setup_popover(_app: &AppHandle) {}
+
 /// Show the popover under the tray icon.
 pub fn show_popover(app: &AppHandle) {
     let Some(win) = app.get_webview_window(POPOVER) else {

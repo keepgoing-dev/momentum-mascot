@@ -12,6 +12,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
+mod appkit;
 mod clock;
 mod commands;
 mod copy;
@@ -57,6 +58,7 @@ fn main() {
 
             tray::setup(&handle)?;
             pet::setup(&handle)?;
+            app::setup_popover(&handle);
 
             // Startup reads every tracked project once, so commits made while the app was
             // not running are picked up rather than waiting for the next filesystem event.
