@@ -35,6 +35,58 @@ rehearsal escape hatch that refuses to upload.
 - **Site URL:** `https://keepgoing.dev`, served from `site/` as a Cloudflare Pages project named `keepgoing` (`.wrangler/cache/pages.json`).
 - The DMG channel must not change behaviour. Every task that touches shared code says what the DMG channel sees.
 
+## Execution log
+
+Phases 1, 2 and 3 are **done**, on branch `mac-app-store`, 73 tests passing (56 at baseline).
+Every measurement is recorded in `spikes/app-store/RESULTS.md`. What follows is what the plan
+got wrong, so a reader trusts the document rather than re-deriving it.
+
+**Probe outcomes (Phase 2).**
+
+- Task 2: `com.apple.security.network.client` is **required**, measured six times,
+  order-independent. Without it no webview finishes navigation and the failure is completely
+  silent. The entitlements table in Task 2 below still shows four keys; the shipped
+  `Entitlements.mas.plist` has five.
+- Task 3: the section 4.0 probe **failed**. The pet is an opaque square without the private
+  API, so spec section 4 (the native AppKit pet) is required and needs its own plan. Both
+  removable private strings are confirmed gone with the feature off, and both unremovable ones
+  confirmed still present.
+- Task 4: rounding the **content view** works, radius 12.0, and the drop shadow follows the
+  rounded shape, so the documented fallback and any `invalidateShadow` work are not needed.
+
+**Corrections to the tasks as written.**
+
+1. **Task 5 and Task 9 could not be written as specified.** `NSURLBookmarkCreationWithSecurityScope`
+   fails with NSCocoaErrorDomain 256 from a `cargo test` binary, because the option needs the
+   sandbox entitlements. It works in a signed app bundle. So `create`/`resolve` delegate to
+   private `create_with(path, options)` / `resolve_with(bookmark, options)`, and the tests drive
+   those with empty options, covering the whole FFI except the flag itself. Task 9's two
+   end-to-end tests were replaced with a pure `apply_resolved(project, resolved) -> bool` seam
+   and three tests. `resolve_paths` re-creates the bookmark on `stale || moved`, not just
+   `stale`.
+2. **Task 10's tooltip does not render.** A `title` attribute on the project name shows nothing
+   in this webview, though one on a `<button>` works. Spec 7.2's argument is that the affected
+   user must get an explanation, and a tooltip that never appears is no explanation. The reason
+   is now a visible 10px line under the name, present only on unavailable rows
+   (`.projects li { flex-wrap: wrap }` plus a `.reason` element at `flex: 0 0 100%`).
+3. **Task 13 step 2 could not delete the container.** macOS protects the container root;
+   `rm -rf ~/Library/Containers/<id>` fails on `.com.apple.containermanagerd.metadata.plist`.
+   Delete `Data/.keepgoing` instead. Fixed in the step below.
+4. **Task 12's URL check was useless as written.** `keepgoing.dev` returns **200 with the
+   homepage for every unknown path**, so a status-code check cannot tell a present page from a
+   missing one. Verify by content: `curl -sS https://keepgoing.dev/privacy | grep -q "<title>Privacy Policy"`.
+   The page is in the repo but **not deployed yet**, which is a Phase 6 prerequisite.
+5. **Task 13's assertion was strengthened.** "The project is still listed" proves nothing,
+   because the list and its timestamps persist in `state.json` either way. The test used instead:
+   quit, commit while closed, relaunch, and assert `last_commit_id` advanced. It passed
+   (10:55:10Z to 16:11:54Z), as did a live commit through the watcher inside the sandbox.
+
+**Still open.** What the unsandboxed DMG channel gets from `WithSecurityScope` creation is
+unmeasured. It is not a correctness risk, since that channel does not need bookmarks, but spec
+section 3's wording assumes it succeeds there.
+
+---
+
 ## File Structure
 
 New files:
@@ -85,7 +137,7 @@ what a future reader needs, and step 1 re-reads the file rather than trusting th
 **Files:**
 - Create: `docs/app-store-licence-check.md`
 
-- [ ] **Step 1: Read the licence text**
+- [x] **Step 1: Read the licence text**
 
 Run:
 
@@ -96,7 +148,7 @@ cat "${MASCOT_PACK:-$HOME/Workspace/OneQode/projects/repos/oneqode-pixel-assets/
 Expected: the "MODERN INTERIORS FULL VERSION LICENSE" text, with a YOU CAN list, a YOU CAN'T
 list, and a credits requirement.
 
-- [ ] **Step 2: Confirm the credit is present in both places the listing needs it**
+- [x] **Step 2: Confirm the credit is present in both places the listing needs it**
 
 Run:
 
@@ -108,7 +160,7 @@ Expected: `src/index.html` carries `art: limezu.itch.io` in the credit paragraph
 `tauri.conf.json`'s `copyright` field names LimeZu. Both are required, because the in-app credit
 satisfies the licence and the bundle `copyright` carries into the App Store listing.
 
-- [ ] **Step 3: Write the verdict down**
+- [x] **Step 3: Write the verdict down**
 
 Create `docs/app-store-licence-check.md`:
 
@@ -149,7 +201,7 @@ files a user can extract or export, that becomes distribution and this verdict n
 covers it.
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```sh
 git add docs/app-store-licence-check.md
@@ -176,7 +228,7 @@ from Phase 5.
 **Interfaces:**
 - Produces: `src-tauri/Entitlements.mas.plist`, referenced by Task 13's manual test and by `tools/release-mas.sh` in Task 15.
 
-- [ ] **Step 1: Write the store entitlements file**
+- [x] **Step 1: Write the store entitlements file**
 
 Create `src-tauri/Entitlements.mas.plist`:
 
@@ -218,7 +270,7 @@ Create `src-tauri/Entitlements.mas.plist`:
 </plist>
 ```
 
-- [ ] **Step 2: Build a debug bundle to sign**
+- [x] **Step 2: Build a debug bundle to sign**
 
 Run:
 
@@ -229,7 +281,7 @@ ls -d "src-tauri/target/debug/bundle/macos/Momentum Mascot.app"
 
 Expected: the path exists.
 
-- [ ] **Step 3: Ad-hoc sign it sandboxed, without the network entitlement, and open the popover**
+- [x] **Step 3: Ad-hoc sign it sandboxed, without the network entitlement, and open the popover**
 
 Run:
 
@@ -248,7 +300,7 @@ sandbox logs **no** violation, which is why this is an eye test and not a log gr
 `log stream --predicate 'sender == "sandboxd"'` in a second terminal anyway, so a real violation
 is not missed.
 
-- [ ] **Step 4: If it was blank, repeat with the entitlement and confirm the difference**
+- [x] **Step 4: If it was blank, repeat with the entitlement and confirm the difference**
 
 Add to `Entitlements.mas.plist`, temporarily:
 
@@ -261,7 +313,7 @@ Re-sign and re-open exactly as in step 3. If the popover now renders, the entitl
 required: keep the key, and delete the spec's sentence claiming there is no network entitlement.
 If it was already rendering in step 3, revert this step so the key does not ship.
 
-- [ ] **Step 5: Record the finding**
+- [x] **Step 5: Record the finding**
 
 Create `spikes/app-store/RESULTS.md`:
 
@@ -285,7 +337,7 @@ which is why Electron's MAS instructions mandate it. Tauri serves the popover th
 custom scheme handler rather than a URL load, so it may not apply, and now we know.
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```sh
 git add src-tauri/Entitlements.mas.plist spikes/app-store/RESULTS.md
@@ -308,13 +360,13 @@ and not the page's own backdrop. Measure it anyway.
 **Interfaces:**
 - Produces: the verdict that decides whether a second plan for spec section 4 is needed. Nothing else.
 
-- [ ] **Step 1: Branch, so the throwaway stays throwaway**
+- [x] **Step 1: Branch, so the throwaway stays throwaway**
 
 ```sh
 git switch -c probe/pet-transparency
 ```
 
-- [ ] **Step 2: Turn the private API off**
+- [x] **Step 2: Turn the private API off**
 
 In `src-tauri/Cargo.toml`, line 16, drop the feature:
 
@@ -333,7 +385,7 @@ Note what this alone does, per spec 4.1: `tauri-runtime-wry-2.11.4/src/lib.rs:88
 `eprintln!` gated on `debug_assertions`. **Both** windows go opaque, silently, in release. That
 silence is the trap this probe is measuring around.
 
-- [ ] **Step 3: Make the calls the app now has to make itself**
+- [x] **Step 3: Make the calls the app now has to make itself**
 
 In `src-tauri/src/pet.rs`, inside `setup`, replace the `#[cfg(target_os = "macos")]` block with:
 
@@ -367,7 +419,7 @@ In `src-tauri/src/pet.rs`, inside `setup`, replace the `#[cfg(target_os = "macos
     }
 ```
 
-- [ ] **Step 4: Run it and look at the pet**
+- [x] **Step 4: Run it and look at the pet**
 
 ```sh
 cd src-tauri && cargo tauri dev
@@ -381,7 +433,7 @@ Expected, and there are only two outcomes worth recording:
 Check both a plain desktop and a mid-tone wallpaper: an opaque backdrop that happens to be
 near-black is easy to mistake for transparency against a dark wallpaper.
 
-- [ ] **Step 5: Confirm the private strings actually left, either way**
+- [x] **Step 5: Confirm the private strings actually left, either way**
 
 ```sh
 cd src-tauri && cargo build --release && cd ..
@@ -408,7 +460,7 @@ strings -a src-tauri/target/release/momentum-mascot | grep -c '_wantsKeyDownForE
 Expected: non-zero for both. Neither is reachable from this codebase and neither is behind a
 feature gate. Removing them means forking wry and tao. Spec section 2.2.
 
-- [ ] **Step 6: Record the finding and throw the code away**
+- [x] **Step 6: Record the finding and throw the code away**
 
 Append to `spikes/app-store/RESULTS.md`:
 
@@ -445,7 +497,7 @@ git add spikes/app-store/RESULTS.md
 git commit -m "Measure whether the pet can keep its alpha without the private API"
 ```
 
-- [ ] **Step 7: Report the verdict before continuing**
+- [x] **Step 7: Report the verdict before continuing**
 
 Stop and say which of the two outcomes happened. If the probe failed, a second plan for spec
 section 4 has to be written and executed between Phase 3 and Phase 5 of this plan, and the
@@ -461,13 +513,13 @@ layer. If it does not, Task 11 takes its documented fallback instead.
 - Modify (throwaway, on a branch): `src-tauri/tauri.conf.json`, `src-tauri/src/main.rs`, `src/popover.css`
 - Modify: `spikes/app-store/RESULTS.md`
 
-- [ ] **Step 1: Branch**
+- [x] **Step 1: Branch**
 
 ```sh
 git switch -c probe/popover-corners
 ```
 
-- [ ] **Step 2: Make the popover's webview opaque and its page opaque**
+- [x] **Step 2: Make the popover's webview opaque and its page opaque**
 
 In `src-tauri/tauri.conf.json`, delete line 21 (`"transparent": true,`) from the **popover**
 entry only. Leave the pet entry alone.
@@ -484,7 +536,7 @@ body {
 }
 ```
 
-- [ ] **Step 3: Round the content view by hand**
+- [x] **Step 3: Round the content view by hand**
 
 In `src-tauri/src/main.rs`, inside `.setup(...)` after `pet::setup(&handle)?;`:
 
@@ -513,7 +565,7 @@ In `src-tauri/src/main.rs`, inside `.setup(...)` after `pet::setup(&handle)?;`:
             }
 ```
 
-- [ ] **Step 4: Look at the corners on two wallpapers**
+- [x] **Step 4: Look at the corners on two wallpapers**
 
 ```sh
 cd src-tauri && cargo tauri dev
@@ -525,7 +577,7 @@ Open the popover over a light wallpaper and a dark one. Expected: the corners ar
 out behind the rounded corner, which is the failure this probe is for. Check the drop shadow
 too: it should follow the rounded shape rather than a square.
 
-- [ ] **Step 5: If the corners are square, try the fallback**
+- [x] **Step 5: If the corners are square, try the fallback**
 
 Round the webview's own layer instead of the content view's. Replace the `view`/`layer` block
 with:
@@ -547,7 +599,7 @@ with:
 
 Record which of the two worked. Task 11 implements the one that did.
 
-- [ ] **Step 6: Record and discard**
+- [x] **Step 6: Record and discard**
 
 Append to `spikes/app-store/RESULTS.md`:
 
@@ -603,7 +655,7 @@ comes before the pet deliberately, and it is unaffected by how Task 3 turned out
 **Expected transient warning:** `create` and `resolve` are unused until Task 8. That is fine and
 Task 8 removes it. Do not add `#[allow(dead_code)]` to paper over it.
 
-- [ ] **Step 1: Write the failing base64 tests**
+- [x] **Step 1: Write the failing base64 tests**
 
 Create `src-tauri/src/scoped.rs`:
 
@@ -719,7 +771,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Declare the module and run the tests to see them fail**
+- [x] **Step 2: Declare the module and run the tests to see them fail**
 
 In `src-tauri/src/main.rs`, add `mod scoped;` to the module list in alphabetical position
 (between `mod repo;` and `mod store;`).
@@ -730,12 +782,12 @@ tests run. If they all pass on the first try, that is legitimate here (base64 is
 above), so confirm by breaking one deliberately: change `b'+' => 62` to `b'+' => 61`, watch
 `base64_round_trips_every_tail_length` fail, then change it back.
 
-- [ ] **Step 3: Run the tests to verify they pass**
+- [x] **Step 3: Run the tests to verify they pass**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml scoped::`
 Expected: PASS, 3 tests.
 
-- [ ] **Step 4: Write the NSURL wrappers**
+- [x] **Step 4: Write the NSURL wrappers**
 
 Append to `src-tauri/src/scoped.rs`:
 
@@ -836,7 +888,7 @@ pub fn resolve(_bookmark: &str) -> Option<Resolved> {
 }
 ```
 
-- [ ] **Step 5: Write the round-trip smoke test, labelled as one**
+- [x] **Step 5: Write the round-trip smoke test, labelled as one**
 
 Append inside `mod tests` in `src-tauri/src/scoped.rs`:
 
@@ -878,18 +930,18 @@ Append inside `mod tests` in `src-tauri/src/scoped.rs`:
     }
 ```
 
-- [ ] **Step 6: Run the tests**
+- [x] **Step 6: Run the tests**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml scoped::`
 Expected: PASS, 4 tests. If `create` returns `None`, the NSURL call failed for a real reason:
 print the `NSError` before assuming the binding is wrong.
 
-- [ ] **Step 7: Run the whole suite**
+- [x] **Step 7: Run the whole suite**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml`
 Expected: PASS, everything, with warnings that `create` and `resolve` are never used.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```sh
 git add src-tauri/src/scoped.rs src-tauri/src/main.rs
@@ -907,7 +959,7 @@ git commit -m "Add security-scoped bookmark wrappers"
 - Consumes: nothing from Task 5.
 - Produces: `store::Project.bookmark: Option<String>`, read and written by `store::from_json` / `store::to_json`. `store::SCHEMA_VERSION == "3.1"`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append inside `mod tests` in `src-tauri/src/store.rs`:
 
@@ -959,12 +1011,12 @@ Append inside `mod tests` in `src-tauri/src/store.rs`:
     }
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml store::`
 Expected: FAIL to compile, `struct Project has no field named bookmark`.
 
-- [ ] **Step 3: Add the field**
+- [x] **Step 3: Add the field**
 
 In `src-tauri/src/store.rs`, change line 21:
 
@@ -997,7 +1049,7 @@ In `to_json`'s per-project `json!`, add:
                         "bookmark": p.bookmark,
 ```
 
-- [ ] **Step 4: Fix the existing literals**
+- [x] **Step 4: Fix the existing literals**
 
 Add `bookmark: None,` to every `Project { ... }` literal that now fails to compile:
 `src-tauri/src/store.rs` at roughly `:380`, `:403`, `:422`, and `src-tauri/src/momentum.rs` at
@@ -1006,12 +1058,12 @@ roughly `:231` (inside `add`) and `:305` (the `project` test helper).
 Run: `cargo build --manifest-path src-tauri/Cargo.toml`
 Expected: compiles.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml`
 Expected: PASS, everything, including the four new tests and the untouched resilience tests.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```sh
 git add src-tauri/src/store.rs src-tauri/src/momentum.rs
@@ -1032,7 +1084,7 @@ pure part out, which is the same move the module already made for `from_json`.
 **Interfaces:**
 - Produces: `store::path_in_home(home: &Path) -> PathBuf`. Used only by `default_path` and its test.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append inside `mod tests` in `src-tauri/src/store.rs`:
 
@@ -1059,12 +1111,12 @@ Append inside `mod tests` in `src-tauri/src/store.rs`:
     }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml the_state_path_is_home_relative`
 Expected: FAIL to compile, `cannot find function path_in_home`.
 
-- [ ] **Step 3: Split the function**
+- [x] **Step 3: Split the function**
 
 In `src-tauri/src/store.rs`, replace the tail of `default_path` (the `HOME` lookup and the
 `join` chain) with:
@@ -1095,12 +1147,12 @@ Also extend `default_path`'s doc comment with:
 /// sandboxed (spec section 3): the channel with existing users keeps its file.
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml`
 Expected: PASS, everything.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```sh
 git add src-tauri/src/store.rs
@@ -1118,7 +1170,7 @@ git commit -m "Split the state path so the sandbox claim is testable"
 - Consumes: `scoped::create` from Task 5, `store::Project.bookmark` from Task 6.
 - Produces: `Momentum::add(&mut self, path: &Path, now: i64, bookmark: Option<String>) -> Result<bool, RepoError>`. The third parameter is new and every caller has to pass it.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append inside `mod tests` in `src-tauri/src/momentum.rs`:
 
@@ -1149,12 +1201,12 @@ Append inside `mod tests` in `src-tauri/src/momentum.rs`:
     }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml adding_a_project_keeps_the_bookmark`
 Expected: FAIL to compile, `this method takes 2 arguments but 3 arguments were supplied`.
 
-- [ ] **Step 3: Widen `add`**
+- [x] **Step 3: Widen `add`**
 
 In `src-tauri/src/momentum.rs`, change the signature and the literal:
 
@@ -1185,7 +1237,7 @@ In `src-tauri/src/momentum.rs`, change the signature and the literal:
         };
 ```
 
-- [ ] **Step 4: Create the bookmark at the picker**
+- [x] **Step 4: Create the bookmark at the picker**
 
 In `src-tauri/src/commands.rs`, add `use crate::scoped;` to the imports, and replace the add call
 in `add_project`:
@@ -1206,12 +1258,12 @@ in `add_project`:
         .map_err(|e| e.to_string())?;
 ```
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml`
 Expected: PASS, everything. The dead-code warnings for `scoped::create` are gone; `scoped::resolve` still warns until Task 9.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```sh
 git add src-tauri/src/momentum.rs src-tauri/src/commands.rs
@@ -1232,7 +1284,7 @@ and the guards live for the whole process.
 - Consumes: `scoped::resolve`, `scoped::create`, `scoped::ScopedAccess` from Task 5.
 - Produces: `Momentum.access: HashMap<String, ScopedAccess>` (private). No public signature change.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append inside `mod tests` in `src-tauri/src/momentum.rs`:
 
@@ -1310,14 +1362,14 @@ literal inside `with`:
             access: HashMap::new(),
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml momentum::`
 Expected: FAIL to compile, `struct Momentum has no field named access`. Once that is added,
 `a_moved_folder_is_followed_and_written_back` fails on the first assertion, because the stored
 path is still `old-name`.
 
-- [ ] **Step 3: Add the field**
+- [x] **Step 3: Add the field**
 
 In `src-tauri/src/momentum.rs`, add to `struct Momentum` after `work_trees`:
 
@@ -1337,7 +1389,7 @@ Add the import: `use crate::scoped::{self, ScopedAccess};`
 
 Add `access: HashMap::new(),` to the `Momentum` literal in `load`.
 
-- [ ] **Step 4: Rewrite resolve_paths**
+- [x] **Step 4: Rewrite resolve_paths**
 
 Replace `resolve_paths` in `src-tauri/src/momentum.rs`:
 
@@ -1389,12 +1441,12 @@ Replace `resolve_paths` in `src-tauri/src/momentum.rs`:
     }
 ```
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml`
 Expected: PASS, everything. All `scoped` dead-code warnings are gone.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```sh
 git add src-tauri/src/momentum.rs
@@ -1425,7 +1477,7 @@ Four files, and the spec says plainly that it is not one line.
   - `momentum::ProjectRow.reason: Option<&'static str>`
   - `app::ProjectDto.reason: Option<&'static str>`, serialized to the popover as `reason`
 
-- [ ] **Step 1: Write the failing repo test**
+- [x] **Step 1: Write the failing repo test**
 
 Append inside `mod tests` in `src-tauri/src/repo.rs`:
 
@@ -1468,12 +1520,12 @@ Append inside `mod tests` in `src-tauri/src/repo.rs`:
     }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml repo::`
 Expected: FAIL to compile, `no variant named GitDirOutside`.
 
-- [ ] **Step 3: Add the variant and the message accessor**
+- [x] **Step 3: Add the variant and the message accessor**
 
 In `src-tauri/src/repo.rs`:
 
@@ -1527,13 +1579,13 @@ In `resolve`, change the pointer-target check at what is currently line 54:
         }
 ```
 
-- [ ] **Step 4: Run the repo tests**
+- [x] **Step 4: Run the repo tests**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml repo::`
 Expected: PASS, including the untouched `a_worktree_pointer_file_is_followed` and
 `a_relative_worktree_pointer_is_resolved_against_the_folder`.
 
-- [ ] **Step 5: Write the failing momentum test**
+- [x] **Step 5: Write the failing momentum test**
 
 Append inside `mod tests` in `src-tauri/src/momentum.rs`:
 
@@ -1592,12 +1644,12 @@ Append inside `mod tests` in `src-tauri/src/momentum.rs`:
     }
 ```
 
-- [ ] **Step 6: Run them to verify they fail**
+- [x] **Step 6: Run them to verify they fail**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml momentum::`
 Expected: FAIL to compile, `struct ProjectRow has no field named reason`.
 
-- [ ] **Step 7: Plumb the reason**
+- [x] **Step 7: Plumb the reason**
 
 In `src-tauri/src/momentum.rs`, add to `struct Momentum`:
 
@@ -1646,7 +1698,7 @@ In `snapshot`'s `ProjectRow` literal:
                     reason: self.reasons.get(&p.id).copied(),
 ```
 
-- [ ] **Step 8: Carry it to the frontend**
+- [x] **Step 8: Carry it to the frontend**
 
 In `src-tauri/src/app.rs`, add to `struct ProjectDto`:
 
@@ -1671,12 +1723,12 @@ In `src/popover.js`, replace line 100:
 The CSS class at `:94` and the `"unavailable"` text at `:113` stay exactly as they are: the row
 still reads as away, and only the tooltip gets more specific.
 
-- [ ] **Step 9: Run the tests**
+- [x] **Step 9: Run the tests**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml`
 Expected: PASS, everything.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```sh
 git add src-tauri/src/repo.rs src-tauri/src/momentum.rs src-tauri/src/app.rs src/popover.js
@@ -1708,7 +1760,7 @@ Implement the one that worked.
   - `appkit::open_url(url: &str) -> bool` (used by Task 12)
   - `app::setup_popover(app: &AppHandle)`
 
-- [ ] **Step 1: Write the module**
+- [x] **Step 1: Write the module**
 
 Create `src-tauri/src/appkit.rs`:
 
@@ -1805,7 +1857,7 @@ pub fn open_url(_url: &str) -> bool {
 }
 ```
 
-- [ ] **Step 2: Add the popover setup**
+- [x] **Step 2: Add the popover setup**
 
 In `src-tauri/src/app.rs`, add after `sync_watcher`:
 
@@ -1830,7 +1882,7 @@ pub fn setup_popover(app: &AppHandle) {
 }
 ```
 
-- [ ] **Step 3: Wire it up, and give the pet the same call**
+- [x] **Step 3: Wire it up, and give the pet the same call**
 
 In `src-tauri/src/main.rs`, add `mod appkit;` to the module list (first, alphabetically) and add
 after `pet::setup(&handle)?;`:
@@ -1847,7 +1899,7 @@ In `src-tauri/src/pet.rs`, inside `setup`'s macOS block, after `macos::apply(...
         crate::appkit::make_transparent(win.ns_window()?);
 ```
 
-- [ ] **Step 4: Drop the popover's transparency and give the page a background**
+- [x] **Step 4: Drop the popover's transparency and give the page a background**
 
 In `src-tauri/tauri.conf.json`, delete `"transparent": true,` from the **popover** window entry
 (line 21). Leave the pet entry untouched: whether that one keeps the flag is decided by the
@@ -1864,7 +1916,7 @@ body {
 }
 ```
 
-- [ ] **Step 5: Build and look at it**
+- [x] **Step 5: Build and look at it**
 
 Run: `cd src-tauri && cargo tauri dev`
 
@@ -1875,13 +1927,13 @@ rounded shape. The room, the quote, the project list and both buttons are unchan
 If the corners are square, apply the fallback Task 4 recorded: round the webview's own layer
 instead of the content view's, via `win.with_webview(...)` in `app::setup_popover`.
 
-- [ ] **Step 6: Run the tests**
+- [x] **Step 6: Run the tests**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml`
 Expected: PASS, everything. No test covers window chrome; this step is checking nothing was
 broken on the way.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```sh
 git add src-tauri/src/appkit.rs src-tauri/src/main.rs src-tauri/src/app.rs \
@@ -1910,7 +1962,7 @@ scanning for the link finds it there.
 - Consumes: `appkit::open_url` from Task 11.
 - Produces: the `open_privacy_policy` Tauri command, invoked from `popover.js`. Custom app commands need no capability entry; only plugin and `core:` commands do, which is why `capabilities/default.json` does not change.
 
-- [ ] **Step 1: Write the policy page**
+- [x] **Step 1: Write the policy page**
 
 Create `site/privacy.html`, reusing the site's own stylesheet and voice:
 
@@ -1990,7 +2042,7 @@ Create `site/privacy.html`, reusing the site's own stylesheet and voice:
 </html>
 ```
 
-- [ ] **Step 2: Link it from the site**
+- [x] **Step 2: Link it from the site**
 
 In `site/index.html`, add to the privacy section's `<ul class="checks">` (after the
 `~/.keepgoing/mascot/state.json` bullet):
@@ -2005,7 +2057,7 @@ And in the footer paragraph, after the GitHub link sentence:
         <a href="/privacy">Privacy</a>.
 ```
 
-- [ ] **Step 3: Add the command**
+- [x] **Step 3: Add the command**
 
 In `src-tauri/src/commands.rs`, add `use crate::appkit;` to the imports and append:
 
@@ -2043,7 +2095,7 @@ In `src-tauri/src/main.rs`, add to `generate_handler!`:
             commands::open_privacy_policy,
 ```
 
-- [ ] **Step 4: Add the link to the popover**
+- [x] **Step 4: Add the link to the popover**
 
 In `src/index.html`, replace line 42:
 
@@ -2085,7 +2137,7 @@ document
   .addEventListener("click", () => invoke("open_privacy_policy"));
 ```
 
-- [ ] **Step 5: Run it and click the link**
+- [x] **Step 5: Run it and click the link**
 
 Run: `cd src-tauri && cargo tauri dev`
 
@@ -2095,7 +2147,7 @@ Expected: the credit line reads `art: limezu.itch.io privacy`, the popover heigh
 loss. If the popover does close, that is the click-outside rule in `main.rs:75-80` firing on a
 focus loss caused by the browser, which is acceptable and expected: the page is open behind it.
 
-- [ ] **Step 6: Confirm the page is live**
+- [x] **Step 6: Confirm the page is live**
 
 The site deploys from `site/` as the Cloudflare Pages project named `keepgoing`. Push, wait for
 the deploy, then:
@@ -2108,12 +2160,12 @@ Expected: `200`. If it is `404`, the extensionless route is not being served and
 `commands.rs` plus the two `site/` links must all move to `https://keepgoing.dev/privacy.html`.
 The URL in the App Store Connect listing has to match whichever one is live.
 
-- [ ] **Step 7: Run the tests**
+- [x] **Step 7: Run the tests**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml`
 Expected: PASS, everything.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```sh
 git add site/privacy.html site/index.html src-tauri/src/commands.rs src-tauri/src/main.rs \
@@ -2129,7 +2181,7 @@ test by construction and proves nothing about a relaunch.
 **Files:**
 - Modify: `docs/app-store.md` is not written yet, so record the result in the commit message and in `spikes/app-store/RESULTS.md`.
 
-- [ ] **Step 1: Build and ad-hoc sign sandboxed**
+- [x] **Step 1: Build and ad-hoc sign sandboxed**
 
 ```sh
 cd src-tauri && cargo tauri build --bundles app && cd ..
@@ -2143,7 +2195,7 @@ Expected: the printed entitlements list `com.apple.security.app-sandbox`,
 `files.user-selected.read-only`, `files.bookmarks.app-scope` and `cs.allow-jit`, plus
 `network.client` if Task 2 found it necessary.
 
-- [ ] **Step 2: Confirm the container, and that no migration happened**
+- [x] **Step 2: Confirm the container, and that no migration happened**
 
 ```sh
 # NOT `rm -rf ~/Library/Containers/<bundle id>`: macOS protects the container root and that
@@ -2164,7 +2216,7 @@ Expected: `state.json` is inside the container, `version` is `3.1`, and the proj
 bookmark. Expected too: the real `~/.keepgoing/mascot/state.json` is untouched and the store
 build has no projects it did not add itself, because there is no migration and could not be one.
 
-- [ ] **Step 3: The test itself**
+- [x] **Step 3: The test itself**
 
 Quit through the tray menu. Then:
 
@@ -2177,7 +2229,7 @@ still shows a relative time rather than `unavailable`, and the mood is built fro
 change it would have read `unavailable` on this second launch, because the picker's grant expired
 with the first one.
 
-- [ ] **Step 4: Assert the section 7.2 decision, whichever way it went**
+- [x] **Step 4: Assert the section 7.2 decision, whichever way it went**
 
 Create a linked worktree and track it:
 
@@ -2193,7 +2245,7 @@ Expected: the row reads `unavailable`, and hovering the name shows "That worktre
 isn't reachable from here." rather than "(not reachable right now)". An ordinary clone added
 alongside it is unaffected. This is the accepted degradation, made legible.
 
-- [ ] **Step 5: Confirm the watcher still works inside the sandbox**
+- [x] **Step 5: Confirm the watcher still works inside the sandbox**
 
 With the app running and an ordinary tracked repository:
 
@@ -2206,7 +2258,7 @@ exercises the recursive FSEvents grant inside a held scope, and the dot-director
 `.git/logs/HEAD`, both of which the spec verified separately and neither of which needs a
 `watcher.rs` change.
 
-- [ ] **Step 6: Record and commit**
+- [x] **Step 6: Record and commit**
 
 Append to `spikes/app-store/RESULTS.md`:
 
@@ -2228,7 +2280,7 @@ git add spikes/app-store/RESULTS.md
 git commit -m "Record the sandbox persistence result"
 ```
 
-- [ ] **Step 7: Stop here if it failed**
+- [x] **Step 7: Stop here if it failed**
 
 If the repository read as `unavailable` on the second launch, do not continue to Phase 5. The
 things to check, in order: is `files.bookmarks.app-scope` actually in the signed entitlements
