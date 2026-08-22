@@ -407,9 +407,11 @@ New `src-tauri/Entitlements.mas.plist`:
 | `com.apple.security.app-sandbox` | Mandatory for the store |
 | `com.apple.security.files.user-selected.read-only` | The folder picker is the only way repos enter |
 | `com.apple.security.files.bookmarks.app-scope` | Required for *persistent* access; section 6 exists for this |
+| `com.apple.security.network.client` | **Measured as required**, 2026-08-22. Without it no webview finishes navigation, silently. See below |
 | `com.apple.security.cs.allow-jit` | Carried over from the DMG channel's hardened runtime. **Not required for the store.** |
 
-Three notes on that table, because two of its rows were wrong in the earlier draft.
+Four notes on that table, because two of its rows were wrong in the earlier draft and a
+fifth row was added by measurement.
 
 **`bookmarks.app-scope` was missing.** Apple: "If you want to provide your sandboxed app with
 persistent access to file-system resources, you must enable security-scoped bookmark and URL
@@ -429,15 +431,24 @@ is required only "to upload a macOS app to be notarized." The key is permitted a
 `app-sandbox` and costs nothing, so keep it, but the reason a future reader acts on must be the
 true one.
 
-**No network entitlement, pending one check.** There is no network layer and asserting nothing is
-the honest label. But a sandboxed WKWebView calling `loadHTMLString:` with no network involved
-was observed to never finish navigation without `com.apple.security.network.client` — a silent
-hang with no sandbox violation logged, which is also why Electron's MAS instructions mandate it.
-**This is not verified for Tauri**, which serves the popover through a custom scheme handler
-rather than a URL load, so it may not apply. Phase 1 checks it first (section 10), because the
-failure mode is a blank popover with no error message discovered at the *end* of phase 3. If the
-entitlement turns out to be needed, it is not a privacy claim and section 8.3's answers do not
-change, but this paragraph's last sentence has to go.
+**`network.client` is required. Measured, and the open question is closed.** This paragraph
+previously said there was no network entitlement, on the grounds that Tauri serves the popover
+through a custom scheme handler rather than a `loadHTMLString:` URL load and so might be exempt
+from the failure that makes Electron's MAS instructions mandate the key. **Tauri is not exempt.**
+
+Measured 2026-08-22 on the real app, six runs, order-independent, recorded in
+`spikes/app-store/RESULTS.md`. The instrument is the count of distinct `state.json` inodes in the
+first 15 seconds: `store::save` renames a temporary file, so every publish is a new inode, and
+both windows call `invoke("refresh")` as the last line of their script. Unsandboxed: two saves.
+Sandboxed without the key: **one**, the startup publish alone, so no webview JavaScript ran at
+all. Sandboxed with the key: two.
+
+The failure is completely silent. The process stays alive, stderr prints nothing, and the kernel
+logs no sandbox denial. A blank popover with no error, found at the end of phase 3, is exactly
+what running this probe first was meant to avoid, and it would have happened.
+
+It is not a privacy claim and section 8.3's answers do not change: the app makes no network
+requests, and what the key buys is WebKit being allowed to talk to its own networking process.
 
 ### 5.3 State path
 
