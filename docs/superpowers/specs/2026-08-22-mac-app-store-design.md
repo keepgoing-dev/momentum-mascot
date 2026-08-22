@@ -93,10 +93,24 @@ The same universal binary serves both channels. App Sandbox is applied at **sign
 through a different entitlements file, not at compile time, so no cargo feature split and no
 conditional compilation is needed for the sandbox itself.
 
-Consequence accepted deliberately: the DMG build becomes sandboxed too. That moves the state
-file for existing direct-download users, which section 5.2 handles with a one-time migration.
-The alternative, a `mas` cargo feature producing two binaries, was rejected because it doubles
+**The DMG build stays unsandboxed.** Only the store build gets the sandbox entitlement. This is
+not a compromise, it is the point of applying the sandbox at signing time: the two channels
+differ by one entitlements file and share every line of code.
+
+An earlier draft of this section sandboxed both channels for uniformity and accepted a state
+file migration as the cost. That was wrong, and section 5.2 records the measurement that proves
+it: a sandboxed process cannot read `~/.keepgoing/mascot/state.json` at all, so the migration
+it depended on cannot be written. Leaving the DMG unsandboxed removes the need for one
+entirely. Existing direct-download users keep their state file exactly where it is, the
+cross-tool design intent at `store.rs:62-67` survives in the channel where it matters, and
+store users are new users by definition so they have nothing to migrate.
+
+The alternative, a `mas` cargo feature producing two binaries, is still rejected: it doubles
 what has to be tested for a difference no user perceives.
+
+Bookmarks (section 6) are created and resolved in both channels. Unsandboxed,
+`startAccessingSecurityScopedResource` succeeds and is a no-op, so one code path serves both
+without a `cfg`.
 
 ## 4. The pet becomes native
 
@@ -200,19 +214,38 @@ New `src-tauri/Entitlements.mas.plist`:
 No network entitlement of any kind. There is no network layer, and asserting nothing is the
 honest label.
 
-State path. Under App Sandbox macOS redirects `$HOME` to the container's Data directory, so
-`store::default_path()` at `store.rs:89` resolves to
-`~/Library/Containers/dev.keepgoing.momentum-mascot/Data/.keepgoing/mascot/state.json` with no
-code change. **This must be verified empirically, not assumed.** If `$HOME` is not redirected,
-add an explicit container branch to `default_path()`.
+State path. **Measured, not assumed.** A minimal bundle signed with nothing but
+`com.apple.security.app-sandbox` reports:
 
-Migration. Because section 3 sandboxes the DMG build too, an existing user's
-`~/.keepgoing/mascot/state.json` becomes invisible on upgrade. On first launch, if the
-container state file is absent, copy it in from the real home directory if it is reachable, and
-otherwise start empty. The reader is already tolerant of every failure here by contract
-(`store.rs:8-13`), so a failed migration degrades to an empty project list rather than an
-error. The deliberate design intent at `store.rs:62-67`, that the file sits among sibling
-KeepGoing tooling, is lost under sandbox. That is a real cost of the store, recorded here.
+```
+getenv(HOME)             = /Users/kyle/Library/Containers/dev.keepgoing.homeprobe/Data
+NSHomeDirectory()        = /Users/kyle/Library/Containers/dev.keepgoing.homeprobe/Data
+APP_SANDBOX_CONTAINER_ID = dev.keepgoing.homeprobe
+```
+
+So the redirection applies to the raw environment variable, not only to `NSHomeDirectory()`,
+which means Rust's `std::env::var_os("HOME")` at `store.rs:87` sees it too.
+`store::default_path()` resolves to
+`~/Library/Containers/dev.keepgoing.momentum-mascot/Data/.keepgoing/mascot/state.json` in the
+store build and stays at `~/.keepgoing/mascot/state.json` in the DMG build, with **no code
+change and no `cfg`**. The path simply follows the entitlement.
+
+`APP_SANDBOX_CONTAINER_ID` is also set, which is the cheapest available runtime sandbox
+detection if anything ever needs to branch on it. Nothing in this design does.
+
+No migration, and it could not be written if one were wanted. The same probe, signed the same
+way, cannot reach the old file:
+
+```
+getpwuid->pw_dir     = /Users/kyle          <- real home is still discoverable
+read real state.json -> denied ("you don't have permission to view it")
+list ~/.keepgoing    -> DENIED
+```
+
+The path is discoverable through `getpwuid` but unreadable, so a sandboxed build has no way to
+import an existing user's project list. This is precisely why section 3 leaves the DMG build
+unsandboxed: there is nothing to migrate, because the channel that has existing users is the
+channel that keeps its state file where it always was.
 
 ## 6. Security-scoped bookmarks
 
@@ -333,8 +366,9 @@ New automated coverage:
   resolved path matches and that the guard drops cleanly.
 - `store.rs`: a state file with a `bookmark` field loads, and a state file without one loads
   with `bookmark: None`, both already covered by the module's resilience test style.
-- Migration: a state file present in a fake home and absent in a fake container results in a
-  populated container file, and the reverse leaves the container file untouched.
+- `store::default_path()` returns the `$HOME`-relative path unchanged. There is no migration
+  path to test, and no sandbox-aware branch to test, because section 5.2 measured that the
+  environment does the work.
 
 Manual, and one of these is the test that proves the whole effort:
 
@@ -374,7 +408,7 @@ and click behaviours all match the webview pet.
 |---|---|---|
 | Guideline 4.2, minimum functionality | Real | Developer Tools category, review notes, and a listing that describes an ambient desktop pet rather than a productivity tool. If rejected, the response is an appeal explaining the category, not new features. |
 | `_wantsKeyDownForEvent:` cited as private API | Low | Precedent: Tauri apps ship on the store. If cited, the options are a tao fork or abandoning the store. |
-| `$HOME` is not redirected under sandbox | Low | Explicit container branch in `default_path()`. Cheap either way. |
+| ~~`$HOME` is not redirected under sandbox~~ | **Closed** | Measured in section 5.2. It is redirected, for `getenv` as well as `NSHomeDirectory()`. No code change needed. |
 | Native pet regresses the fullscreen fix | Medium | The panel code is untouched by construction, and the fullscreen behaviour is an explicit manual test. |
 | LimeZu licence forbids store distribution | Low | Checked in phase 2, before any code is written. |
 | Sprite animation reads differently native than in CSS | Medium | Durations and the whole-multiple scaling rule are carried over as explicit constants, and `drive-states.sh` compares the arc visually. |
