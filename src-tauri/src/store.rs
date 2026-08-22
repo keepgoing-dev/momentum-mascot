@@ -18,7 +18,7 @@ use serde_json::{json, Map, Value};
 
 use crate::mood::Rest;
 
-pub const SCHEMA_VERSION: &str = "3.0";
+pub const SCHEMA_VERSION: &str = "3.1";
 pub const CHARACTERS: [&str; 3] = ["07", "12", "20"];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,6 +36,11 @@ pub struct Project {
     /// Display-only tag: the user says this project is being worked on outside of commits.
     /// Operating projects are excluded from mood evaluation entirely.
     pub operating: bool,
+    /// Base64 of an NSURL security-scoped bookmark for `path`, or `None` for a project added
+    /// before bookmarks existed or on a launch where creating one failed. Only the sandboxed
+    /// store build needs it; the DMG build creates and resolves it too, because one code path
+    /// with no `cfg` is worth more than the bytes it costs. See `scoped.rs`.
+    pub bookmark: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -156,6 +161,10 @@ fn project_from_value(v: &Value) -> Option<Project> {
         last_commit_at: v.get("last_commit_at").and_then(parse_time),
         last_active_at: v.get("last_active_at").and_then(parse_time),
         operating: v.get("operating").and_then(Value::as_bool).unwrap_or(false),
+        bookmark: v
+            .get("bookmark")
+            .and_then(Value::as_str)
+            .map(str::to_string),
     })
 }
 
@@ -210,6 +219,7 @@ fn to_json(state: &StateFile) -> Value {
                         "last_commit_at": p.last_commit_at.map(format_time),
                         "last_active_at": p.last_active_at.map(format_time),
                         "operating": p.operating,
+                        "bookmark": p.bookmark,
                     })
                 })
                 .collect(),
@@ -385,6 +395,7 @@ mod tests {
                 last_commit_at: Some(1_755_000_000),
                 last_active_at: Some(1_755_000_100),
                 operating: true,
+                bookmark: None,
             }],
         };
         let back = from_json(&serde_json::to_string(&to_json(&state)).unwrap());
@@ -407,6 +418,7 @@ mod tests {
                 last_commit_at: None,
                 last_active_at: None,
                 operating: false,
+                bookmark: None,
             }],
             ..Default::default()
         };
@@ -426,6 +438,7 @@ mod tests {
                 last_commit_at: Some(1_754_035_200),
                 last_active_at: None,
                 operating: false,
+                bookmark: None,
             }],
             ..Default::default()
         });
@@ -467,5 +480,51 @@ mod tests {
         assert_eq!(load(&path).character_id, "07");
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_bookmark_survives_the_round_trip() {
+        let state = StateFile {
+            projects: vec![Project {
+                id: "x".into(),
+                path: PathBuf::from("/a/b"),
+                name: "b".into(),
+                added_at: 1_754_035_200,
+                last_commit_at: None,
+                last_active_at: None,
+                operating: false,
+                bookmark: Some("Ym9va21hcms=".into()),
+            }],
+            ..Default::default()
+        };
+        let back = from_json(&serde_json::to_string(&to_json(&state)).unwrap());
+        assert_eq!(back.projects[0].bookmark.as_deref(), Some("Ym9va21hcms="));
+    }
+
+    #[test]
+    fn a_file_written_before_bookmarks_existed_still_loads() {
+        // The reader is tolerant of missing optional fields by contract, so a 3.0 file loads
+        // with no bookmark and degrades to today's behaviour: it works this launch and reports
+        // unavailable on the next one under sandbox.
+        let s = from_json(
+            r#"{"version": "3.0", "tracked_projects": [{"path": "/a/b", "name": "b"}]}"#,
+        );
+        assert_eq!(s.projects.len(), 1);
+        assert_eq!(s.projects[0].bookmark, None);
+    }
+
+    #[test]
+    fn a_bookmark_of_the_wrong_type_costs_the_bookmark_and_not_the_project() {
+        let s = from_json(r#"{"tracked_projects": [{"path": "/a/b", "bookmark": 17}]}"#);
+        assert_eq!(s.projects.len(), 1, "the project was dropped");
+        assert_eq!(s.projects[0].bookmark, None);
+    }
+
+    #[test]
+    fn writers_declare_schema_3_1() {
+        // A file written with bookmarks is meaningfully different from one without, and the
+        // reader has to keep accepting both.
+        let text = serde_json::to_string(&to_json(&StateFile::default())).unwrap();
+        assert!(text.contains(r#""version":"3.1""#), "got: {text}");
     }
 }

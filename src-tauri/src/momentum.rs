@@ -236,6 +236,7 @@ impl Momentum {
             last_commit_at: None,
             last_active_at: None,
             operating: false,
+            bookmark: None,
         };
         let reading = read_commit_time(&git_dir, path).map(|ts| self.clock.to_simulated(ts));
         apply_reading(&mut project, reading);
@@ -311,6 +312,7 @@ mod tests {
             last_commit_at: last,
             last_active_at: None,
             operating: false,
+            bookmark: None,
         }
     }
 
