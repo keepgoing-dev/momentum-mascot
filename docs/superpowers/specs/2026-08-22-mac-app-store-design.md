@@ -1,7 +1,7 @@
 # Mac App Store eligibility and first submission
 
 **Date:** 2026-08-22
-**Status:** reworked after adversarial audit. Safe to plan from.
+**Status:** reworked after adversarial audit, verification pass applied, open decisions closed. Ready to plan.
 **Reverses:** `docs/spec-v2.md` section 10.3, which accepted App Store ineligibility as a
 permanent trade. That decision was correct when direct distribution was the only target. The
 goal has changed: the Developer Program membership is already paid for, and the point of this
@@ -587,8 +587,28 @@ the launch where the picker ran. And it is pointed, because `repo.rs:30-31` says
 working in a worktree is exactly the kind of person this product is for." Under sandbox, that
 person's project silently reads as unavailable.
 
-Two options: record it as a second accepted degradation, or bookmark the resolved git dir
-separately, which needs its own picker prompt. Decide before phase 3.
+**Decided: accept the degradation, but say why.** Full support via a second bookmark was
+rejected because it means a second picker prompt for one project, which is real friction in a
+product this minimal. Silent acceptance was rejected because the DMG build handles worktrees
+fine, so the channels would diverge invisibly and the affected user gets no explanation.
+
+What that costs is more than one line, and this document has understated scope twice already, so
+plainly:
+
+- `RepoError` (`repo.rs:7-12`) gains a variant, returned from `:49-54` when the `.git` file held
+  a valid `gitdir:` pointer but the target is unreachable — distinguishable from a plain
+  `NotARepo`, which is what that path returns today. Its `Display` string follows the voice the
+  enum already sets at `repo.rs:17-24`: factual, short, and never implying the user did something
+  wrong. Something like "That worktree's git folder is outside the folder you picked."
+- **The reason has to be plumbed, because right now it is thrown away.** `resolve_paths` discards
+  the error (`if let Ok(git_dir)`), and `available` is derived at `momentum.rs:204` from
+  `git_dirs.contains_key(&p.id)` alone. So: `resolve_paths` records the failure reason per
+  project id, `ProjectRow` gains `reason: Option<&'static str>`, the snapshot builder at
+  `momentum.rs:190-206` fills it, and `popover.js:100` prefers it over the existing generic
+  `"(not reachable right now)"` title. The CSS class at `:94` and the `"unavailable"` text at
+  `:113` stay as they are.
+
+This is a small, contained change, but it touches four files and it is not free.
 
 ## 8. Signing and submission
 
@@ -669,12 +689,14 @@ destabilised.
   is emphatically not collection. One caveat to keep in view: "if you derive anything from that
   data and send it off device, the resulting data should be considered separately." The share card
   puts derived data on the *clipboard*, not off-device, so it stays clear.
-- **Privacy policy, and a decision to make.** Guideline 5.1.1(i) requires a policy link in App
-  Store Connect **and "within the app in an easily accessible manner."** There is nowhere obvious
-  to put the in-app link: `tray.rs:22-23` says "Exactly two items, and adding a third is a spec
-  change", and `site/index.html:135` is a privacy *section* on a one-page site, not a policy.
-  Small work, real 5.1.1 and 2.1 exposure, and it collides with an existing design constraint, so
-  it needs a decision rather than a line item.
+- **Privacy policy: hosted under `site/`, linked from the popover.** Guideline 5.1.1(i) requires
+  a policy link in App Store Connect **and "within the app in an easily accessible manner."**
+  `site/index.html:135` is a privacy *section* on a one-page site, not a policy, so a real policy
+  page is needed. **Decided: the in-app link goes in the popover, not the tray.** The tray's
+  "exactly two items, and adding a third is a spec change" (`tray.rs:22-23`) is a deliberate
+  design position, and the popover is the app's one real surface with interactive chrome already
+  in it, so a reviewer scanning for the link will find it there. Costs a line of markup and a
+  little of the 352x540 budget.
 - Screenshots at 2560x1600: the pet on a desktop, the popover room in each of the four moods, and
   the share card.
 - Review notes: the app shows nothing until a repository is added, so the notes must tell the
@@ -739,6 +761,9 @@ Manual, and the first of these is the test that proves the whole effort:
 - Pixel art stays crisp when the pet is dragged to a display of a different density.
 - The popover works with the narrowed `capabilities/default.json`: add a project, cycle a
   character, toggle operating, untrack, copy the share card, dismiss with Escape.
+- A tracked `git worktree` checkout shows the section 7.2 message rather than the generic
+  "not reachable right now", and an ordinary clone is unaffected.
+- The privacy policy link is present in the popover and opens the hosted page.
 - The popover's rounded corners read correctly on a light and a dark desktop.
 
 ## 10. Order of work
@@ -793,7 +818,7 @@ comes first.
 | Pet stops responding to clicks | Medium | `acceptsFirstMouse` in 4.5. Structurally guaranteed to bite, since the panel is never key. |
 | Crash from touching NSView off-thread | Medium | Main-thread hops in 4.5, at both new entry points. |
 | Popover hangs blank under sandbox | Unknown | Phase 2 probe 1, before any other work. |
-| Worktree and submodule users see projects as unavailable | Confirmed | Section 7.2. Needs a decision before phase 3. |
+| Worktree and submodule users see projects as unavailable | Confirmed | Section 7.2, decided: accepted, with a specific message rather than the generic one. Four files, not one line. |
 | `bookmarks.app-scope` documentation is ancient | Low | The key is added; the caveat is recorded in 5.2. |
 | Build number collision on re-upload | **High** | Section 8.2 step 3. Certain to bite on a first submission otherwise. |
 | LimeZu licence forbids store distribution | Low | Phase 1, before any code. |
