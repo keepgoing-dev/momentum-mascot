@@ -16,7 +16,7 @@ Nothing here replaces the panel or its content view.
 the corrections are kept visible rather than tidied away, because each one is a trap a reader
 would otherwise re-enter. In order of severity: section 4.1's premise, that a window can be
 transparent while only a webview cannot, is **true of AppKit and false of Tauri** (section 4.1);
-the private-API surface is **three strings, not one** (section 2.1 and 2.2); and the state file
+the private-API surface is **three private KVC keys, not one** (section 2.1 and 2.2); and the state file
 migration this spec designed **could not have been written at all** (section 5.2). All three were
 found by measurement, two of them after the design was already approved.
 
@@ -160,7 +160,7 @@ unnecessary** and the store costs nothing but the sandbox work.
 
 The honest expectation is that it fails: wry's own comment at `wkwebview/mod.rs:429-431` implies
 `underPageBackgroundColor` covers only the overscroll region, not the page's own backdrop. But it
-is one hour against a multi-week rewrite, and phase 1's afternoon is already budgeted. It is the
+is one hour against a multi-week rewrite, and phase 2's afternoon is already budgeted. It is the
 highest-leverage hour in this plan.
 
 ### 4.1 Corrected premise: Tauri cannot make any window transparent without the private API
@@ -210,14 +210,37 @@ The design instead:
   and nothing to remove. Tao's view is the content view and stays that way.
 - A new `NSView` subclass is added as a **subview** of tao's content view, sized to fill it.
   Hit-testing prefers subviews, so it receives the mouse events.
-- That subview is **layer-hosting**: we assign its layer and own it. This matters for two
-  reasons. First, writing `transform` on a view's *backing* layer is documented undefined
-  behavior (AppKit Release Notes for macOS 10.13: if an app modifies a backing layer's
-  `bounds`, `position`, `anchorPoint`, `transform`, `frame`, `masksToBounds` or `opaque`, "the
-  behavior of the application is undefined"), and `NSView` exposes no `transform` cover
-  property, so the horizontal flip has nowhere legal to live on a backing layer. Second,
-  `NSView.wantsLayer` says "do not add subviews to a layer-hosting view" — our sprite view adds
-  none, so hosting is available to it while it would not be available to tao's view.
+- That subview is **layer-hosting**: we assign its layer and own it. `NSView.wantsLayer` says
+  "do not add subviews to a layer-hosting view" — our sprite view adds none, so hosting is
+  available to it while it would not be available to tao's view. (That constraint is about a
+  hosting view's *own* subviews; it says nothing about the hosting view being someone else's
+  subview.)
+- **The sprite is a sublayer, not the root layer.** The hosting view's root layer stays a plain
+  container. A sublayer of it carries `contents`, `contentsRect`, `transform`,
+  `magnificationFilter` and `contentsScale`. Layer-hosting buys the right to build the layer
+  *tree*; it does not buy a fight with AppKit over the root layer's geometry, which AppKit must
+  still position to honour the view's frame. The macOS 10.13 AppKit Release Notes clobber list
+  names `transform`, `bounds`, `position` and `frame` on "an NSView's layer" with no carve-out
+  for hosting, and `NSView` exposes no `transform` cover property, so the horizontal flip has
+  nowhere legal to live on a root layer. Whether a transform on a *hosting* root layer actually
+  breaks is genuinely ambiguous — the point is that the sublayer costs nothing and makes the
+  question moot. AppKit never touches sublayers under any reading of any document.
+
+  Three things fall out of that, all of them wins: the centering in 4.4 comes free (root layer
+  fills the view, sprite sublayer is the whole-multiple cell centred inside it); the in-place
+  flip becomes exact, because with the sublayer's default `anchorPoint` of (0.5, 0.5),
+  `CATransform3DMakeScale(-1, 1, 1)` mirrors about the cell's own centre, which is precisely
+  what `pet.html:66-68` describes; and `contentsScale` becomes unambiguously ours to maintain
+  (4.5 obligation 3), rather than an open question about whether AppKit auto-updates an assigned
+  root layer.
+- **Two guards, because losing the hit test fails silently.** If the sprite subview ever fails to
+  win the hit test, the click falls through to tao's view, which returns YES from
+  `tao/view.rs:1148` and routes `mouseDown` into tao's own handler. The pet then appears to
+  accept clicks while the drag never starts, with nothing logged. So: set
+  `autoresizingMask = [.width, .height]`, because `pet::setup` calls
+  `win.set_size(LogicalSize::new(SIZE, SIZE))` at `pet.rs:54` *after* the window exists, and a
+  subview added with a fixed frame before that call is the wrong size and leaves a dead margin
+  owned by tao. And never override `hitTest:` on the sprite view.
 
 ### 4.4 The sprite animation, and the rule that is not guessable
 
@@ -249,13 +272,21 @@ be what you expect."
 Durations carry over from `pet.html:47-77` unchanged: awake 4s, dozing 6s, asleep 6s, comeback
 1.5s, run 0.75s.
 
-Scaling. `pet.js:26-30` floors the cell to a whole multiple of 32 so a 1.5x character is never
-drawn blurry and a mis-sized window shows a small pet rather than a cropped one. That rule
-carries over, computed from the subview's own bounds.
+Scaling and centering, which are one rule and not two. `pet.js:22-26` floors the cell to a whole
+multiple of 32 (the floor itself is `:24`) so a 1.5x character is never drawn blurry and a
+mis-sized window shows a small pet rather than a cropped one. **And `pet.html:10-13` centres the
+cell** with `display: grid; place-items: center`. The earlier draft carried the floor over and
+dropped the centering, which breaks exactly the case the floor exists for: `pet.rs:25-35`'s
+clipped-to-a-hat bug is a 32pt cell inside a 64pt window, and uncentred it sits in a corner.
+Worse, `pet.html:66-68` ties the flip to the centering explicitly — "The strip is centred in its
+cell, so the flip turns the character in place rather than shunting it across the window" — so
+without it, `CATransform3DMakeScale(-1, 1, 1)` shunts the character sideways on every leftward
+run. Section 4.3's sublayer gives both properties for free: the cell is a centred sublayer of a
+root layer that fills the view.
 
 ### 4.5 Interaction: what ports cleanly, what does not
 
-`pet.js:83-125` becomes `mouseDown` / `mouseDragged` / `mouseUp`, keeping the 4pt threshold, the
+`pet.js:86-135` becomes `mouseDown` / `mouseDragged` / `mouseUp`, keeping the 4pt threshold, the
 `cancel_glide` on mouse down, and the `busy` flag that stops a mood tick from walking back the
 run sprite mid-glide.
 
@@ -333,14 +364,18 @@ Six consequences, all of them real work:
    (`glide_to`), and `commands.rs:33`. The two lookups fail *silently* if missed — `pet.rs:50`
    early-returns and `commands.rs:33` is a `?` on an `Option` — so the symptom is a pet that
    never appears with nothing logged.
-3. **`capabilities/default.json`**: `:5` drops `"pet"` from `windows`, and `:9-12`
-   (`allow-set-position`, `allow-outer-position`, `allow-set-size`, `allow-start-dragging`) exist
-   only for the pet and can go. The popover's only direct window call is `setSize`
-   (`popover.js:131`), so verify by removal which of those it still needs.
-4. **The command surface shrinks.** `main.rs:38-40` drops `snap_pet` and `cancel_glide` from
-   `generate_handler!`, and `commands.rs:31-56` deletes both. The earlier draft said they become
-   direct calls but never said the API surface changes, and `commands.rs:1-2` describes itself as
-   "the whole API surface".
+3. **`capabilities/default.json`**: `:5` drops `"pet"` from `windows`. Of `:9-12`,
+   `core:window:allow-set-size` **stays** and the other three go. This is settled, not an
+   experiment: `getCurrentWindow` appears in `popover.js` only at `:128`, feeding the `setSize`
+   at `:131`, so `allow-set-position`, `allow-outer-position` and `allow-start-dragging` existed
+   only for the pet's drag.
+4. **The command surface shrinks by three, not two.** `main.rs:38-40` is `toggle_popover`,
+   `snap_pet` and `cancel_glide`, and all three leave `generate_handler!` along with their
+   definitions in `commands.rs:31-56`. `toggle_popover` is the non-obvious one: the *command*'s
+   only caller is `pet.js:132`, while `tray.rs:50` calls the Rust function `app::toggle_popover`
+   at `app.rs:241` directly. So deleting `pet.js` makes the command callerless too. The earlier
+   draft said these become direct calls but never said the API surface changes, and
+   `commands.rs:1-2` describes itself as "the whole API surface".
 5. **`bundle.resources` does not exist yet.** `grep resources src-tauri/tauri.conf.json` returns
    nothing. The key must be added, and the native view reads through
    `app.path().resource_dir()`.
@@ -400,7 +435,7 @@ was observed to never finish navigation without `com.apple.security.network.clie
 hang with no sandbox violation logged, which is also why Electron's MAS instructions mandate it.
 **This is not verified for Tauri**, which serves the popover through a custom scheme handler
 rather than a URL load, so it may not apply. Phase 1 checks it first (section 10), because the
-failure mode is a blank popover with no error message discovered at the *end* of phase 4. If the
+failure mode is a blank popover with no error message discovered at the *end* of phase 3. If the
 entitlement turns out to be needed, it is not a privacy claim and section 8.3's answers do not
 change, but this paragraph's last sentence has to go.
 
@@ -479,6 +514,18 @@ to today's behavior: it works this launch and reports unavailable on the next.
 `momentum.rs:74 resolve_paths()` starts access for each project before calling `repo::resolve`,
 holding the guards in a `HashMap<String, ScopedAccess>` beside `git_dirs` and `work_trees`.
 
+**It must then use the bookmark-resolved path, not the stored one.** The earlier draft did not
+say this, and without it bookmarks lose their main benefit. `momentum.rs:78` calls
+`repo::resolve(&p.path)` and `:81` inserts `p.path.clone()` into `work_trees`, both the *stored*
+path. So for a folder the user moved, the bookmark resolves correctly, access is granted at the
+new location, and then `repo::resolve` fails on the stale stored path. Surviving a move is the
+entire point of a security-scoped bookmark.
+
+So `resolve_paths` prefers the resolved `PathBuf` over `p.path`, writes it back into
+`state.projects[i].path`, and refreshes `store::display_name` alongside it, which drifts for the
+same reason. That persists for free: `AppState::new` runs `Momentum::load` at `app.rs:62` before
+the first publish, and publish saves at `app.rs:107`.
+
 **The guards must live for the whole process, and the reason must be written down** so nobody
 scopes them to load: `momentum.rs:278 read_commit_time` runs on every tick (`app.rs:274`) and
 every watcher event (`watcher.rs:112`), and `watcher.rs:187` registers watches later still.
@@ -526,7 +573,7 @@ elsewhere, so the right one is recorded here.
 
 ### 7.2 Linked worktrees and submodules break under sandbox, on the first launch
 
-**This needs a decision before phase 4**, because it changes what the sandbox-persistence test
+**This needs a decision before phase 3**, because it changes what the sandbox-persistence test
 asserts.
 
 `repo.rs:35-66 resolve()` follows a `.git` *file*'s `gitdir:` pointer, and `:49-52` accepts an
@@ -541,7 +588,7 @@ working in a worktree is exactly the kind of person this product is for." Under 
 person's project silently reads as unavailable.
 
 Two options: record it as a second accepted degradation, or bookmark the resolved git dir
-separately, which needs its own picker prompt. Decide before phase 4.
+separately, which needs its own picker prompt. Decide before phase 3.
 
 ## 8. Signing and submission
 
@@ -659,7 +706,7 @@ New automated coverage:
   is not an `.app`, is not sandboxed, and cannot be made so: a bare Mach-O signed with
   `app-sandbox` outside a bundle is killed with SIGTRAP, exit 133. Unsandboxed, creation,
   resolution and `startAccessing` all return success trivially, so a green result proves only
-  "doesn't crash, doesn't leak, guard drops". The risk is phase 4 taking false confidence from a
+  "doesn't crash, doesn't leak, guard drops". The risk is phase 3 taking false confidence from a
   vacuous pass.
 - `store::default_path()` returns the `$HOME`-relative path unchanged. There is no migration and
   no sandbox-aware branch to test, because section 5.3 measured that the environment does the
@@ -672,8 +719,18 @@ Manual, and the first of these is the test that proves the whole effort:
   If this passes, section 6 is done. Assert the section 7.2 decision here too, whichever way it
   went.
 - `strings -a <binary> | grep -cE 'drawsBackground|fullScreenEnabled'` returns 0.
-- The **sprite cycle** shows all 12 frames, not 11. `drive-states.sh` compares the four-state
-  arc, not the cycle, so it would not catch a dropped frame; this needs its own look.
+- The **sprite cycle** shows all 12 frames, not 11 — and this is *not* an eye test. Counting 11
+  against 12 in a 0.75s run cycle by eye is exactly the measurement that is easy to get wrong.
+  The bug lives entirely in array construction, so it needs no CoreAnimation, no window and no
+  display: build the two arrays from pure functions and assert Apple's N+1 rule directly in
+  `cargo test` — `key_times.len() == values.len() + 1`, first is 0.0, last is 1.0, and
+  `values[i] == (i / 12.0, 0.0, 1.0 / 12.0, 1.0)`. That fails loudly on the nil-keyTimes mistake
+  by construction. If confirmation that Core Animation honours what it was handed is also wanted,
+  make time deterministic rather than observed: set `layer.speed = 0`, drive `layer.timeOffset`,
+  read `layer.presentation()?.contentsRect.origin.x`, and straddle each of the twelve boundaries
+  against the CSS oracle `floor(t / D * 12) / 12`. Twelve-of-D/12 and eleven-of-D/11 disagree at
+  every boundary except 0 and 1, so that separates them unambiguously. The visual look stays, but
+  demoted to what it actually is: a check that the art reads right, not that the count is right.
 - The pet is still visible and non-hostile over a fullscreen app. This is the regression the
   NSPanel decision was won against.
 - The pet appears at all. Section 4.6 point 2 fails silently if missed, so this is a real test.
@@ -693,8 +750,9 @@ sentence that "this is checked first."
 **Phase 2, throwaway probes, one afternoon.** In this order, because the order is the value:
 
 1. Does the popover need `com.apple.security.network.client` (section 5.2)? Sign a sandboxed
-   build with and without it and open the popover. Decisive, and it changes the entitlements
-   table.
+   build with and without it and open the popover. **Ad-hoc signing is enough** —
+   `codesign -s - --entitlements Entitlements.mas.plist --force <app>` — so this needs nothing
+   from phase 5. Decisive, and it changes the entitlements table.
 2. **The section 4.0 probe.** Can the pet keep its alpha with the private key gone, using manual
    `setOpaque:`/`setBackgroundColor:` plus public `underPageBackgroundColor`? If yes, phase 4
    disappears. One hour against a multi-week rewrite.
@@ -731,7 +789,7 @@ comes first.
 | The two unremovable private strings are cited (section 2.2) | Low | Precedent: Tauri apps ship on the store carrying both. If cited, the options are forking tao and wry, or abandoning the store. This precedent carries more weight than is comfortable. |
 | Phase 4 runs long | **High** | The 4.0 probe may delete it. If not, the traps are enumerated in 4.1, 4.3, 4.4 and 4.5 precisely so they cost hours rather than days. |
 | Native pet regresses the fullscreen fix | Medium | The panel and its content view are untouched by construction (4.3), and fullscreen is an explicit manual test. |
-| Dropped sprite frame reads as a limp | Medium | The N+1 keyTimes rule in 4.4, plus a test that counts frames rather than watching the state arc. |
+| Dropped sprite frame reads as a limp | Medium | The N+1 keyTimes rule in 4.4, asserted as a pure-function unit test on the two arrays (section 9). Not an eye test. |
 | Pet stops responding to clicks | Medium | `acceptsFirstMouse` in 4.5. Structurally guaranteed to bite, since the panel is never key. |
 | Crash from touching NSView off-thread | Medium | Main-thread hops in 4.5, at both new entry points. |
 | Popover hangs blank under sandbox | Unknown | Phase 2 probe 1, before any other work. |
