@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Mandatory for the Mac App Store. This is also the key that redirects $HOME into the
+	     app's container, which is how the store build gets its own state.json with no code
+	     change and no cfg. See spec section 5.3. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+
+	<!-- The folder picker is the only way a repository enters the app. Read-only is
+	     sufficient: nothing is ever written inside a tracked repository. -->
+	<key>com.apple.security.files.user-selected.read-only</key>
+	<true/>
+
+	<!-- Required for PERSISTENT access. Bookmark creation and resolution appear to work
+	     without it, and the only case that proves otherwise is a relaunch, which is the
+	     only case scoped.rs exists for. Apple: "If you want to provide your sandboxed app
+	     with persistent access to file-system resources, you must enable security-scoped
+	     bookmark and URL access." The live documentation for this key is a 10.7.3-era page
+	     filed under Professional Video Applications, which is the weakest documentary
+	     ground in this whole design. It costs a line and review does not object. -->
+	<key>com.apple.security.files.bookmarks.app-scope</key>
+	<true/>
+
+	<!-- REQUIRED, and this is not a guess. Without it a sandboxed webview never finishes
+	     navigation, so no JavaScript in either window ever runs: the popover comes up blank
+	     and the pet never renders.
+	     
+	     Measured on this app, 2026-08-22, six runs, order-independent. The instrument is the
+	     count of distinct state.json inodes in the first 15 seconds: store::save writes a
+	     temporary file and renames, so every publish produces a new inode, and pet.js:149 and
+	     popover.js:191 both call invoke("refresh") on load.
+	     
+	         unsandboxed                    2 saves   webview JS ran
+	         sandboxed without this key     1 save    only the startup publish
+	         sandboxed with this key        2 saves   webview JS ran
+	     
+	     The failure is completely silent: the process stays alive, stderr says nothing, and
+	     the kernel logs no sandbox denial. This is the same failure that makes Electron's Mac
+	     App Store instructions mandate the key. The spec had it as an open question on the
+	     grounds that Tauri serves the popover through a custom scheme handler rather than a
+	     URL load, and so might be exempt. It is not exempt.
+	     
+	     It is not a privacy claim: the app makes no network requests, and the App Store
+	     privacy answers are unaffected. What the key buys is WebKit being allowed to talk to
+	     its own networking process. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+
+	<!-- Carried over from the DMG channel's hardened runtime so the two channels' runtime
+	     behaviour is identical. NOT required for the store, and NOT required by the
+	     popover's JavaScript: WKWebView runs JS out of process in
+	     com.apple.WebKit.WebContent.xpc with its own entitlements. Measured: a sandboxed
+	     hardened-runtime bundle without this key could not mmap(MAP_JIT|PROT_EXEC) itself,
+	     and its WKWebView ran a three-million-iteration JS loop regardless. -->
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+</dict>
+</plist>
