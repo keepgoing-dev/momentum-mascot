@@ -151,3 +151,40 @@ A second plan is required for spec section 4, the native AppKit pet, to be writt
 executed after Phase 3 of
 `docs/superpowers/plans/2026-08-22-mac-app-store-submission.md`. Until it lands, the
 private-API gate in `tools/release-mas.sh` refuses to upload.
+
+## Probe 3: does native corner rounding replace the transparent popover? (spec 5.1)
+
+**Answer: yes, on the content view. The simpler of the two options is the one that works.**
+
+**Measured:** 2026-08-22, macOS 26 (Darwin 25.5.0). Dropped `"transparent": true` from the
+popover window in `tauri.conf.json` (the pet's entry left alone), gave the page an opaque
+`background: var(--panel)` in `popover.css` because `style.css` is shared with the pet and
+says `background: transparent`, then on the popover's NSWindow:
+
+- `setOpaque: NO` and `setBackgroundColor: NSColor.clearColor` on the window,
+- `wantsLayer = YES`, `layer.cornerRadius = 12`, `layer.masksToBounds = YES` on the
+  **content view**.
+
+Read back in the same run:
+
+```
+PROBE popover: cornerRadius=12 masksToBounds=true
+```
+
+**Result: rounded corners with the desktop showing through outside the curve**, on both a
+light and a dark backdrop, matching what `.panel`'s `border-radius: 12px` looks like with
+the transparent webview. The drop shadow followed the rounded shape, so no
+`invalidateShadow` call is needed.
+
+So masking on an ancestor view **does** clip the WKWebView's remote-hosted layer. The
+documented fallback, rounding the webview's own layer via `with_webview`, is not needed.
+
+**Consequence for Task 11:** round the content view, radius 12.0 to match
+`popover.css`'s `.panel { border-radius: 12px }`. No shadow work.
+
+### One incidental finding worth keeping
+
+The popover hides itself on focus loss (`main.rs`'s `WindowEvent::Focused(false)` handler),
+which closed it the instant focus moved and made the observation unreliable. The probe
+disabled that handler to hold the window on screen. Anyone doing visual work on the popover
+should expect to do the same: it is not a bug, it is the click-outside rule doing its job.
