@@ -175,14 +175,61 @@ returning nil. There is no HTML5 drag to suppress.
 
 ### 4.4 What is deleted
 
-`src/pet.html` and `src/pet.js`. The `pet` window entry in `tauri.conf.json` stops being a
-webview window. Pet sprites move from webview-served assets under `src/assets/pet/` to bundle
-`resources`, since nothing serves them over the custom protocol any more.
+`src/pet.html` and `src/pet.js`, and the `pet` entry in `tauri.conf.json` (section 4.6 covers
+what replaces it). Pet sprites move from webview-served assets under `src/assets/pet/` to bundle
+`resources`, since nothing serves them over the custom protocol any more. The popover keeps
+serving its room art the way it does today.
 
 ### 4.5 Mood delivery
 
-`app.rs` currently emits a `mood` event that `src/pet.js:146` listens for. The native pet gets a
-setter called directly instead. The popover keeps the event, unchanged.
+`app.rs:124` emits `MOOD_EVENT` with `app.emit`, which broadcasts to every window. The popover
+keeps receiving it unchanged. The native pet gets a direct setter call instead of a listener.
+
+`pet.rs:242` emits `GLIDE_DONE_EVENT` to the pet window specifically. That becomes a direct call
+into the native view, and the event constant disappears.
+
+### 4.6 The pet window stops being a webview window
+
+An earlier draft said only that the pet "stops being a webview window" without saying what
+replaces it. This is that answer, and it is larger than a config edit.
+
+Tauri 2 separates windows from webviews: `WindowBuilder::build()` returns a plain `Window<R>`
+with no webview at all (`tauri-2.11.5/src/window/mod.rs:352`). That is what the pet becomes.
+Tauri still owns the window's creation, label, and geometry, so everything in `pet.rs` about
+position, `outer_position`, and the glide keeps working, and the NSPanel reclass at
+`pet.rs:254-290` still reaches the same `ns_window()`. Only the content view changes.
+
+Four consequences the spec previously missed:
+
+1. **The window must be built in Rust, not declared in config.** The `app.windows` array in
+   `tauri.conf.json` creates *webview* windows, so the `pet` entry at `tauri.conf.json:28` is
+   deleted and the window is constructed with `WindowBuilder` at startup instead. The popover
+   entry stays as it is.
+
+2. **`get_webview_window` becomes `get_window`** at `pet.rs:50` and `commands.rs:33`. Both
+   currently look the pet up as a webview window and would return `None` forever otherwise,
+   which would fail silently: `pet.rs:50` early-returns and `commands.rs:33` is a `?` on an
+   `Option`. A native pet that simply never appears, with nothing logged, is the likely first
+   symptom of getting this wrong.
+
+3. **`capabilities/default.json:5` drops `"pet"`** from its `windows` list, since capabilities
+   gate webview IPC and there is no longer a webview to gate. Two of its permissions exist only
+   for the pet's drag and become dead: `core:window:allow-set-position` (`pet.js:117`) and
+   `core:window:allow-outer-position` (`pet.js:88`).
+
+4. **Several permissions in that file look already dead today**, and the audit of point 3 is the
+   moment to check. The popover's only direct window API call is `setSize`
+   (`popover.js:131`), so `core:window:allow-set-size` stays. But `core:window:allow-hide` is
+   unused (the popover calls the Rust command `hide_popover`), `core:window:allow-start-dragging`
+   appears in neither JS file, `dialog:allow-open` is unused because the picker is opened from
+   Rust at `commands.rs:76`, and `clipboard-manager:allow-write-image` is unused because the
+   clipboard write happens in Rust in `copy.rs`. Capabilities gate webview IPC and not Rust-side
+   plugin calls, so all four are probably removable. **Verify by removing them and confirming
+   the popover still works**, rather than reasoning about it: the capability file's own
+   description calls itself "deliberately short", and it should be true.
+
+The net effect is that the pet contributes zero IPC surface, and the capability file shrinks to
+what the popover actually uses.
 
 ## 5. Popover, sandbox, and state
 
@@ -380,7 +427,12 @@ Manual, and one of these is the test that proves the whole effort:
   is now native.
 - The pet is still visible and non-hostile over a fullscreen app. This is the regression the
   NSPanel decision was won against, and the native rewrite touches the panel's content.
-- The pet still drags to all four corners and glides, and a click still opens the popover.
+- The pet still drags to all four corners and glides, and a click still opens the popover. The
+  `get_window` change in section 4.6 point 2 fails silently if missed, so "the pet appears at
+  all" is itself a test.
+- The popover still works with the narrowed `capabilities/default.json` from section 4.6 point
+  4: add a project, cycle a character, toggle operating, untrack, copy the share card, and
+  dismiss with Escape.
 - The popover's rounded corners read correctly on a light and a dark desktop.
 
 ## 10. Order of work
