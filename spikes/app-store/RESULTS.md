@@ -81,3 +81,73 @@ that file to write one.
 **One correction for anyone repeating this:** `rm -rf ~/Library/Containers/<bundle id>`
 fails with `Operation not permitted` on `.com.apple.containermanagerd.metadata.plist`. The
 container root is protected. Delete the state file inside `Data/` instead.
+
+## Probe 2: can the pet keep its alpha without the private API? (spec 4.0)
+
+**Answer: no. The native pet in spec section 4 is required.**
+
+**Measured:** 2026-08-22, macOS 26 (Darwin 25.5.0), on a debug bundle built with
+`macos-private-api` dropped from `src-tauri/Cargo.toml` and `macOSPrivateApi` set to false
+in `tauri.conf.json`, plus, by hand and with public API only:
+
+- `setOpaque: NO` and `setBackgroundColor: NSColor.clearColor` on the pet's NSPanel, which
+  is what `tao/window.rs:544-561` does behind the private feature.
+- `underPageBackgroundColor = clearColor` on the WKWebView, public since macOS 12 and
+  already called by wry at `wkwebview/mod.rs:441`.
+
+**Result: a visible opaque square around the character.** The wallpaper did not show
+through. So `underPageBackgroundColor` does not reach the page's own backdrop, which is what
+wry's own comment at `wkwebview/mod.rs:429-431` implies: it covers the overscroll region
+only. `_drawsBackground` is the only thing that makes a WKWebView see-through, and it is
+private.
+
+### Two things this probe proved on the way, both worth keeping
+
+**The window really is transparent by public API. Only the webview is not.** Read back from
+AppKit in the same run:
+
+```
+PROBE window: isOpaque=false backgroundColorAlpha=0
+```
+
+That is the manual `setOpaque:`/`setBackgroundColor:` pair taking effect on the panel. So
+spec 4.2's route is sound: the app makes the window calls itself, and the pet's content
+stops being a webview so nothing private is needed to see through it.
+
+**Tauri's complaint is real and it is debug-only**, exactly as spec 4.1 says. With the
+feature off, launching printed, once per window:
+
+```
+The window is set to be transparent but the `macos-private-api` is not enabled.
+```
+
+This came from a **debug** build. `tauri-runtime-wry/src/lib.rs:884-893` gates that
+`eprintln!` on `debug_assertions`, so a release build says nothing at all. An implementer
+who drops the feature, writes a correct sprite view, and sees a 64x64 opaque square would
+have no message to go on.
+
+### The private strings, confirmed by measurement
+
+Same build, feature off, single-architecture debug binary:
+
+| String | Count | Status |
+|---|---|---|
+| `drawsBackground` | 0 | removable, gone with the feature |
+| `fullScreenEnabled` | 0 | removable, gone with the feature |
+| `allowsPictureInPictureMediaPlayback` | 1 | **not removable**, wry sets it behind no gate |
+| `_wantsKeyDownForEvent` | 1 | **not removable**, tao registers it unconditionally |
+
+Counts are 1 rather than 2 because this is one architecture; the shipped universal binary
+has two slices. On that binary the two removable keys sit inside the **same** string blob,
+so `grep -cE 'drawsBackground|fullScreenEnabled'` reports 2 lines and not 4. The gate in
+`tools/release-mas.sh` asserts 0, which is correct either way.
+
+This is spec sections 2.1 and 2.2 confirmed: the work in section 4 removes the two strings
+that are removable, and ships the two that are not.
+
+### Consequence
+
+A second plan is required for spec section 4, the native AppKit pet, to be written and
+executed after Phase 3 of
+`docs/superpowers/plans/2026-08-22-mac-app-store-submission.md`. Until it lands, the
+private-API gate in `tools/release-mas.sh` refuses to upload.
