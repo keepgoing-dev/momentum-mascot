@@ -74,6 +74,15 @@ impl Default for StateFile {
 /// The `KEEPGOING_MASCOT_STATE` override is debug-only, for the same reason as the clock: the
 /// demo needs a throwaway project list, and pointing it somewhere else beats recording
 /// against the author's real one and editing it back afterwards.
+///
+/// **Under App Sandbox this moves and the code does not.** The sandbox redirects `$HOME` itself,
+/// so the store build resolves to
+/// `~/Library/Containers/dev.keepgoing.momentum-mascot/Data/.keepgoing/mascot/state.json` and the
+/// DMG build stays where it always was. Measured on the real app, not inferred. There is
+/// deliberately no migration between them: a sandboxed process can discover the real home
+/// through `getpwuid` but cannot read it, so a migration could not be written even if one were
+/// wanted. This is why the DMG channel is not sandboxed: the channel with existing users keeps
+/// its file.
 pub fn default_path() -> PathBuf {
     if cfg!(debug_assertions) {
         if let Some(path) = std::env::var_os("KEEPGOING_MASCOT_STATE") {
@@ -93,6 +102,12 @@ pub fn default_path() -> PathBuf {
     let home = std::env::var_os("HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."));
+    path_in_home(&home)
+}
+
+/// Split out from `default_path` so the shape of the path is testable without mutating the
+/// process environment, which a parallel test binary cannot do safely.
+fn path_in_home(home: &Path) -> PathBuf {
     home.join(".keepgoing").join("mascot").join("state.json")
 }
 
@@ -526,5 +541,27 @@ mod tests {
         // reader has to keep accepting both.
         let text = serde_json::to_string(&to_json(&StateFile::default())).unwrap();
         assert!(text.contains(r#""version":"3.1""#), "got: {text}");
+    }
+
+    #[test]
+    fn the_state_path_is_home_relative_and_nothing_else() {
+        // The whole sandbox story for state.json is that this function does not change. In the
+        // DMG build $HOME is /Users/<someone>; in the store build the sandbox redirects it to
+        // ~/Library/Containers/dev.keepgoing.momentum-mascot/Data, for the raw environment
+        // variable and not only for NSHomeDirectory(). Measured on the real app, spec section
+        // 5.3 and spikes/app-store/RESULTS.md. So there is no branch to test, only the shape of
+        // the path.
+        assert_eq!(
+            path_in_home(Path::new("/Users/someone")),
+            PathBuf::from("/Users/someone/.keepgoing/mascot/state.json")
+        );
+        assert_eq!(
+            path_in_home(Path::new(
+                "/Users/someone/Library/Containers/dev.keepgoing.momentum-mascot/Data"
+            )),
+            PathBuf::from(
+                "/Users/someone/Library/Containers/dev.keepgoing.momentum-mascot/Data/.keepgoing/mascot/state.json"
+            )
+        );
     }
 }
