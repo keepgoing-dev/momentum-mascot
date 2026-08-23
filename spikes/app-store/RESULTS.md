@@ -435,3 +435,61 @@ The hand cursor over the pet only appears once the app has been activated by a c
 `NSCursor` state belongs to the *active* application, and the pet's panel is nonactivating inside
 an accessory app. A/B against the previously installed build confirms its `cursor: grab` CSS
 behaved identically. Not reachable from public API.
+
+### The builds were x86_64, and nobody asked for that
+
+Surfaced by macOS itself, mid-acceptance: "Support Ending for Intel-based Apps. This version of
+Momentum Mascot will not open in a future release of macOS."
+
+```
+lipo -archs <my release bundle>     -> x86_64
+lipo -archs /Applications/...       -> arm64      (the previously installed build)
+uname -m                            -> arm64      (Apple M4 Pro)
+rustc -vV | grep host               -> x86_64-apple-darwin
+```
+
+**Cause: two Rust installations, and the wrong one is first on `PATH`.**
+
+```
+which -a cargo
+  /usr/local/bin/cargo        -> ../Cellar/rust/1.94.0/bin/cargo   (Homebrew, x86_64)
+  /Users/kyle/.cargo/bin/cargo                                     (rustup, aarch64)
+
+rustup show   ->  Default host: aarch64-apple-darwin
+```
+
+`/usr/local` is the **Intel** Homebrew prefix; the arm64 one is `/opt/homebrew`. So an x86_64
+Homebrew rustc 1.94.0 shadows rustup's aarch64 rustc 1.92.0, and every `cargo` invocation in that
+shell produced an Intel binary. `cargo tauri build --target aarch64-apple-darwin` fails under it
+with `can't find crate for core`, because that toolchain has no aarch64 std, which reads as a
+missing target rather than the wrong toolchain.
+
+Building with `PATH="$HOME/.cargo/bin:$PATH"` produces arm64 with no other change.
+
+**This is a Phase 5 prerequisite, not a curiosity.** An x86_64-only bundle cannot be what ships.
+`tools/release-mas.sh` should resolve cargo explicitly rather than inheriting `PATH`, and assert
+`lipo -archs` on its output.
+
+**The gate re-run on arm64, which is the architecture that will actually ship:**
+
+```
+lipo -archs                                              -> arm64
+grep -cE 'drawsBackground|fullScreenEnabled'             -> 0
+allowsPictureInPictureMediaPlayback                      -> 1
+_wantsKeyDownForEvent                                    -> 1
+MASCOT_TRACE|MASCOT_PROBE_FRAMES|KEEPGOING_MASCOT_STATE  -> 0
+```
+
+Re-confirmed by eye on the signed arm64 build: still transparent, still visible over a fullscreen
+window. The rest of the acceptance list was run on the x86_64 build; AppKit behaviour does not
+vary by architecture, and the two headline claims were re-checked on arm64 regardless.
+
+### Debug hooks must be `#[cfg]`, not `cfg!`, when the runtime can reach them
+
+`MASCOT_PROBE_FRAMES` and `MASCOT_TRACE` were first gated with `cfg!(debug_assertions) && ...`,
+copying `store::default_path`. That is enough for `trace()`, whose call sites become dead branches,
+and **not** enough for the probe: `define_class!` registers `probeFrames` as an Objective-C
+selector, so the runtime can reach it and the compiler cannot dead-code it. Seven of its format
+strings survived into the stripped release binary, where `KEEPGOING_MASCOT_STATE` leaves none. The
+body now lives in a `#[cfg(debug_assertions)]` inherent method that the ObjC stub calls, and the
+count is 0. The probe still runs in debug: re-verified PASS, twelve frames, zero bad transitions.

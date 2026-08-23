@@ -1583,6 +1583,21 @@ git commit -m "Record the native pet acceptance results"
 
 ---
 
+## Found while executing, and not in the plan
+
+**The build architecture.** Every build made while executing this plan was **x86_64**, on an arm64
+Mac, because an x86_64 Homebrew Rust at `/usr/local/bin` shadows rustup's aarch64 toolchain on
+`PATH`. macOS surfaced it as a "Support Ending for Intel-based Apps" notification during Task 7's
+acceptance run. Building with `PATH="$HOME/.cargo/bin:$PATH"` gives arm64 with no other change, and
+the private API gate was re-run there: still 0. **This is a prerequisite for the parent plan's
+Phase 5**, because an x86_64-only bundle cannot be what ships. `tools/release-mas.sh` should resolve
+cargo explicitly rather than inheriting `PATH`, and assert `lipo -archs` on its own output. The
+user has taken the toolchain itself as theirs to sort out.
+
+**Debug hooks added by this plan needed `#[cfg]`, not `cfg!`.** The Task 3 probe is reachable from
+the Objective-C runtime because `define_class!` registers it as a selector, so `cfg!` left seven of
+its format strings in the stripped release binary. Detail in `spikes/app-store/RESULTS.md`.
+
 # Self-review notes
 
 **Spec coverage.** Section 4.0: done by the parent plan's Task 3, which is why this plan exists.
