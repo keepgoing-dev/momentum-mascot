@@ -107,6 +107,10 @@ on disk.
 MASCOT_PACK=/path/to/moderninteriors-win tools/release.sh patch
 ```
 
+The Mac App Store build is a separate script with separate certificates:
+`tools/release-mas.sh`, set up per [`docs/app-store.md`](docs/app-store.md). Both channels
+ship from this one codebase and differ by a single entitlements file at signing time.
+
 ### CI release (optional)
 
 If you ever want to build entirely in GitHub Actions, `.github/workflows/release.yml` is also

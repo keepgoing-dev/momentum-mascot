@@ -4,6 +4,10 @@ Everything here is a one-time setup, done once when the Apple Developer Program 
 becomes active. After that `tools/release.sh patch` signs, notarizes and staples on its own,
 and this document is only useful when something breaks.
 
+> This document is the **direct download** channel: a Developer ID certificate, notarized,
+> shipped as a `.dmg`. The Mac App Store channel uses different certificates and a
+> different script, and is documented in [`docs/app-store.md`](app-store.md).
+
 ## Why bother
 
 Before notarization, the first launch on any machine that did not build the app hits
