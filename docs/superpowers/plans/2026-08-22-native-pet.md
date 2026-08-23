@@ -1471,7 +1471,7 @@ git commit -m "Make the pet window a plain window with no webview"
 **Files:**
 - Modify: `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`
 
-- [ ] **Step 1: Drop the feature**
+- [x] **Step 1: Drop the feature**
 
 In `src-tauri/Cargo.toml`, remove `"macos-private-api"` and rewrite the stale comment above it,
 which currently says the feature "makes the app ineligible for the Mac App Store":
@@ -1489,7 +1489,7 @@ In `src-tauri/tauri.conf.json`: `"macOSPrivateApi": false`.
 The pet window's `transparent` flag is already gone with its config entry, and the popover's was
 dropped in the parent plan's Task 11.
 
-- [ ] **Step 2: The gate**
+- [x] **Step 2: The gate**
 
 ```sh
 cd src-tauri && cargo tauri build --bundles app && cd ..
@@ -1498,6 +1498,8 @@ strings -a "$B" | grep -cE 'drawsBackground|fullScreenEnabled'
 ```
 
 Expected: **0**. That is the whole point of this plan.
+
+**Measured: 0.** And the two that do not leave measured 1 each, as expected.
 
 And confirm what does not leave, so nobody re-litigates it:
 
@@ -1518,7 +1520,10 @@ MASCOT_MAS_ALLOW_PRIVATE_API= tools/release-mas.sh
 Expected: `private API check: clean`, where before it refused. If `release-mas.sh` does not exist
 yet, this step waits for the parent plan's Task 15.
 
-- [ ] **Step 4: Commit**
+**Waiting.** `tools/release-mas.sh` does not exist yet, so this step is deferred to the parent
+plan's Task 15. The check it wraps has been run by hand above and passes.
+
+- [x] **Step 4: Commit**
 
 ```bash
 git add src-tauri/Cargo.toml src-tauri/tauri.conf.json

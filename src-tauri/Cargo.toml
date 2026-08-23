@@ -9,11 +9,13 @@ description = "A retro pixel mascot that reflects side-project momentum"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-# macos-private-api is required for `transparent: true` on the pet window, and it makes the
-# app ineligible for the Mac App Store. Accounted for in spec-v2.md section 10.3.
+# The pet's window transparency is applied by the app itself in `appkit.rs`, because
+# `WindowBuilder::transparent()` and `window.transparent(...)` are both gated on
+# `macos-private-api` and that feature is what made the app ineligible for the Mac App Store.
+# `unstable` is required for `WindowBuilder`, which is how a window with no webview is made.
 # image-png is what lets the share card cross from the webview's canvas to the clipboard as
 # a real image rather than a data URL.
-tauri = { version = "2", features = ["macos-private-api", "tray-icon", "image-png", "unstable"] }
+tauri = { version = "2", features = ["tray-icon", "image-png", "unstable"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
 serde = { version = "1", features = ["derive"] }
