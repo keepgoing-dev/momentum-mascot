@@ -1537,7 +1537,7 @@ git commit -m "Drop the private API feature the store rejected"
 The list from spec section 9 that this plan is responsible for. Run every one against the signed
 sandboxed build, not a dev build.
 
-- [ ] **Step 1: Sign a sandboxed build**
+- [x] **Step 1: Sign a sandboxed build**
 
 ```sh
 cd src-tauri && cargo tauri build --bundles app && cd ..
@@ -1547,7 +1547,7 @@ codesign --force --sign - --options runtime \
 open "$APP"
 ```
 
-- [ ] **Step 2: The regression the NSPanel decision was won against**
+- [x] **Step 2: The regression the NSPanel decision was won against**
 
 Put a Chrome or Safari window into fullscreen. Expected: the pet is **visible over it**, and
 clicking the pet neither switches Space nor steals focus.
@@ -1557,7 +1557,7 @@ This is the single most valuable test in the plan. `pet.rs`'s module comment rec
 what works is changing the *kind* of window it is. Task 5 rebuilt the window; if the reclass no
 longer reaches it, this is where it shows.
 
-- [ ] **Step 3: Everything else**
+- [x] **Step 3: Everything else**
 
 - The pet appears at all. Task 5 step 3's lookups fail silently, so this is a real test.
 - Drag to all four corners; each glides and lands on the corner.
@@ -1572,7 +1572,7 @@ longer reaches it, this is where it shows.
   the sprites rather than the bundle resource.
 - Sandbox persistence still passes: add a repository, quit, relaunch, still readable.
 
-- [ ] **Step 4: Record and commit**
+- [x] **Step 4: Record and commit**
 
 Append the results to `spikes/app-store/RESULTS.md`, then:
 

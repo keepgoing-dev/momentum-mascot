@@ -382,3 +382,56 @@ probe now records -1 for nil.
 - `contentsScale` is 2 and equals the window's `backingScaleFactor`, so it is not half-resolution.
 - The cell is 64x64 at (0,0) in a 64x64 view, which is `cell_side`/`cell_origin` agreeing with
   the unit tests on the size that actually ships.
+
+## Native pet, Task 7: manual acceptance on the signed sandboxed build
+
+Release build, signed with `Entitlements.mas.plist` (all five entitlements confirmed present with
+`codesign -d --entitlements`), running out of its own container. Character 12 at a seeded position
+so it could not be confused with the previously installed unsandboxed build running alongside it.
+
+**The private API gate, which is what this plan existed for:**
+
+```
+strings -a <release binary> | grep -cE 'drawsBackground|fullScreenEnabled'   -> 0
+allowsPictureInPictureMediaPlayback                                          -> 1
+_wantsKeyDownForEvent                                                        -> 1
+```
+
+Zero for the two that were removable. One each for the two that are not, which live in wry and tao
+and are not reachable from this codebase. Spec section 2.2.
+
+**PASS, and this is the one the NSPanel decision was won against:** the pet is visible over a
+fullscreen browser window, and clicking it neither switches Space nor steals focus. Task 5 rebuilt
+the window from scratch with `WindowBuilder`, so this confirms the reclass still reaches it.
+
+**PASS, the plan's central claim:** with `macos-private-api` dropped, the pet is transparent and
+the desktop shows through. No square, no halo. The parent plan's probe 2 had already established
+that the *window* is transparent by public API and that only the WKWebView's backdrop needed the
+private key; with no webview left there is nothing to be opaque.
+
+**Also PASS:**
+
+- The pet appears at all. Task 5's two window lookups fail silently, so this is a real test.
+- All four corners: each drag runs home and lands clear of the Dock and menu bar.
+- A click opens the popover; a sub-4pt drag counts as a click.
+- The character turns in place when running, not shunted sideways.
+- Pixel art stays crisp across displays of different density.
+- The popover works end to end with the narrowed capabilities: add a project, cycle a character,
+  toggle operating, untrack, copy the share card, dismiss with Escape.
+- The character picker shows three heads, which is the `frontendDist` copy of the sprites rather
+  than the bundle resource, so both copies are still needed and both still work.
+
+**Sandbox persistence, PASS, asserted so it cannot be satisfied by persisted state.** Adding
+`/Users/kyle/Workspace/GameHub` through the picker produced a 944-character security-scoped
+bookmark and read `last_commit_at = 2026-08-14T10:11:25Z`. The app was then quit, the cached
+`last_commit_at` was **deleted** from the container's state file, and the app relaunched. It came
+back as `2026-08-14T10:11:25Z`. A persisted value cannot account for that, because the persisted
+value is exactly what was removed: the folder was genuinely reopened through the bookmark.
+
+### Known limitation, pre-existing, not introduced here
+
+The hand cursor over the pet only appears once the app has been activated by a click. Measured with
+`MASCOT_TRACE=1`: `mouseEntered` fires and the cursor is applied while `app_active=false`, but
+`NSCursor` state belongs to the *active* application, and the pet's panel is nonactivating inside
+an accessory app. A/B against the previously installed build confirms its `cursor: grab` CSS
+behaved identically. Not reachable from public API.
