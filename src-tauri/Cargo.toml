@@ -28,6 +28,29 @@ uuid = { version = "1", features = ["v4"] }
 objc2 = "0.6"
 objc2-app-kit = "0.3"
 objc2-foundation = "0.3"
+# Core Animation, for the pet's sprite layer. Already in Cargo.lock at 0.3.2 as a transitive
+# dependency of objc2-app-kit.
+#
+# `default-features = false` is load-bearing. Every class in this crate is behind its own feature
+# and `default` turns on ALL of them, which drags in objc2-metal, objc2-core-video and
+# objc2-core-graphics: three packages this app has no use for, one of them entirely new to the
+# lock file. With defaults off and only these five named, the lock gains nothing but the
+# dependency edge. `CAKeyframeAnimation` is not its own feature; it lives under `CAAnimation`.
+objc2-quartz-core = { version = "0.3", default-features = false, features = [
+  "std",
+  "CALayer",
+  "CAAnimation",
+  "CAMediaTiming",
+  "CATransform3D",
+  # Only for the frame-count probe in `sprite::view`, which flushes a transaction so the
+  # presentation layer can be read back deterministically.
+  "CATransaction",
+  # Not a class: this one gates every method whose signature mentions a Core Foundation
+  # type, which is `setFrame`, `setContentsScale`, `setTransform`, `setDuration` and the whole
+  # of `CATransform3D`. Without it those methods simply do not exist and the errors read as
+  # missing methods rather than a missing feature. Already in the lock, so it adds nothing.
+  "objc2-core-foundation",
+] }
 
 [profile.release]
 codegen-units = 1

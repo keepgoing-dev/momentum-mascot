@@ -326,3 +326,59 @@ was rejected because "the affected user gets no explanation". An explanation in 
 never appears is the same thing as no explanation. Verified afterwards with a fixture holding
 one healthy repo, one unreachable worktree and one deleted folder: both reasons render, the
 healthy row gets no extra line.
+
+## Native pet, Task 3: does Core Animation honour N+1 discrete keyTimes?
+
+The native pet plan's Task 1 asserts the arrays handed to Core Animation. It cannot assert what
+Core Animation does with them, and that is the plan's central claim, so it was measured on a real
+build. Instrument: `MASCOT_PROBE_FRAMES=1`, which runs `sprite::view`'s `probeFrames`.
+
+**Result: PASS.**
+
+```
+PROBE frames: mood=awake duration=4 animationKeys=1 contents=true cell=64x64 at (0,0)
+PROBE sprite: magnificationFilter=nearest contentsScale=2 backingScale=2 viewBounds=64x64 at (0,0)
+PROBE frames: 125 samples over 5s
+PROBE frames: distinct={0,1,2,3,4,5,6,7,8,9,10,11}
+PROBE frames: out_of_order_transitions=0
+PROBE frames: PASS
+```
+
+**The counter-test is what makes that mean anything.** With `key_times` changed to the
+eleven-plateau mistake, `(0..12).map(|i| i / 11)`, the same probe on the same build reports:
+
+```
+PROBE frames: distinct={0,1,2,3,4,5,6,7,8,9,10}
+PROBE frames: out_of_order_transitions=1
+PROBE frames: FAIL
+```
+
+Frame 11 never reaches the screen and the cycle transitions 10 to 0 instead of 10 to 11. That is
+the limp the N+1 rule exists to prevent, observed rather than argued.
+
+### Two seek-based probe designs that do not work
+
+Worth recording, because both look correct and both produce a **false** reading of "frame 0 for
+every seek", which is indistinguishable from a sprite that never animates at all:
+
+1. `sprite.speed = 0`, then `timeOffset` across the twelve plateaus with `CATransaction::flush()`
+   between reads, all within one run-loop callback. Twelve readings of frame 0.
+2. The same, but one seek per run-loop turn via `performSelector:afterDelay:`, recording the frame
+   the previous seek produced. Also twelve readings of frame 0.
+
+Diagnostics ruled out every obvious cause: `animationKeys=1`, `contents=true`,
+`presentationLayer=true`, cell frame 64x64. The seek itself does not take. Sampling the running
+animation needs none of that machinery and measures the claim more directly, because the
+eleven-plateau scheme holds its twelfth frame for zero time and therefore cannot ever be sampled
+showing twelve distinct frames.
+
+Also note `f64::NAN as i64` is 0 in Rust. The first probe used `unwrap_or(f64::NAN)` for a nil
+presentation layer, so a nil layer would have been reported as a real reading of frame 0. The
+probe now records -1 for nil.
+
+### What this settled without an eye test
+
+- `magnificationFilter` reads back as `nearest`, so the pixel art is not being smoothed.
+- `contentsScale` is 2 and equals the window's `backingScaleFactor`, so it is not half-resolution.
+- The cell is 64x64 at (0,0) in a 64x64 view, which is `cell_side`/`cell_origin` agreeing with
+  the unit tests on the size that actually ships.

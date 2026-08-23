@@ -215,3 +215,443 @@ mod tests {
         assert_eq!(relative_path("20", "run"), PathBuf::from("pet/20/run.png"));
     }
 }
+
+// --------------------------------------------------------------------------------------
+// native
+// --------------------------------------------------------------------------------------
+
+#[cfg(target_os = "macos")]
+mod view {
+    use std::cell::RefCell;
+    use std::ffi::c_void;
+
+    use objc2::rc::Retained;
+    use objc2::runtime::AnyObject;
+    use objc2::{define_class, msg_send, AllocAnyThread, DefinedClass, MainThreadOnly};
+    use objc2_app_kit::{NSAutoresizingMaskOptions, NSCursor, NSImage, NSView};
+    use objc2_foundation::{
+        MainThreadMarker, NSArray, NSNumber, NSPoint, NSRect, NSSize, NSString, NSValue,
+    };
+    use objc2_quartz_core::{
+        kCAAnimationDiscrete, kCAFilterNearest, CAKeyframeAnimation, CALayer, CAMediaTiming,
+        CATransaction, CATransform3D, CATransform3DIdentity,
+    };
+
+    use super::{
+        cell_origin, cell_side, duration, frame_at, frame_rect, key_times, resolve_path, FRAMES,
+    };
+
+    #[derive(Default)]
+    pub struct SpriteState {
+        pub mood: String,
+        pub character_id: String,
+        /// Which way the character faces. Only the run strip is ever flipped.
+        pub facing_left: bool,
+    }
+
+    pub struct Ivars {
+        /// **The sprite is a SUBLAYER, never the root layer.**
+        ///
+        /// The hosting view's root layer stays a plain container, and this carries `contents`,
+        /// `contentsRect`, `transform`, `magnificationFilter` and `contentsScale`. Layer-hosting
+        /// buys the right to build the layer *tree*; it does not buy a fight with AppKit over the
+        /// root layer's geometry, which AppKit must still position to honour the view's frame. The
+        /// 10.13 AppKit Release Notes clobber list names `transform`, `bounds`, `position` and
+        /// `frame` on "an NSView's layer" with no carve-out for hosting, and `NSView` exposes no
+        /// `transform` cover property, so the horizontal flip has nowhere legal to live on a root
+        /// layer. Whether a transform on a hosting root layer actually breaks is genuinely
+        /// ambiguous; the sublayer costs nothing and makes the question moot, because AppKit never
+        /// touches sublayers under any reading of any document.
+        ///
+        /// Three wins fall out of it: the centring is free, the flip is exact because the default
+        /// `anchorPoint` of (0.5, 0.5) mirrors about the cell's own centre, and `contentsScale`
+        /// is unambiguously ours to maintain.
+        sprite: Retained<CALayer>,
+        app: tauri::AppHandle,
+        state: RefCell<SpriteState>,
+        /// Only used by the `MASCOT_PROBE_FRAMES` probe. See `probeFrames`.
+        probe: RefCell<Probe>,
+    }
+
+    /// The frame-count probe's progress.
+    ///
+    /// **Sampling, not seeking.** Two seek-based designs were tried and both failed to move the
+    /// presentation layer at all: `speed = 0` plus `timeOffset` reads the same frame for every
+    /// seek, whether the seek and the read share a run-loop turn or not, and whether
+    /// `CATransaction::flush()` is called or not. Diagnostics ruled out the obvious causes
+    /// (`animationKeys=1`, `contents=true`, `presentationLayer=true`, cell frame 64x64), so the
+    /// seek itself is what does not take. Sampling the animation while it runs needs none of
+    /// that machinery and measures the claim more directly anyway: the eleven-plateau mistake
+    /// holds its twelfth frame for zero time, so it is exactly the scheme under which a sampler
+    /// can never observe twelve distinct frames.
+    #[derive(Default)]
+    pub struct Probe {
+        /// How many samples have been taken.
+        step: usize,
+        /// Which twelfth of the strip each sample found on screen.
+        readings: Vec<i64>,
+    }
+
+    /// Sampling interval and count: 40ms across 5s, comfortably longer than the 4s `awake`
+    /// cycle, so every one of the twelve plateaus is sampled several times over.
+    const PROBE_INTERVAL: f64 = 0.04;
+    const PROBE_SAMPLES: usize = 125;
+
+    define_class!(
+        // SAFETY: NSView has no subclassing requirements beyond the main thread, and this class
+        // implements no Drop.
+        #[unsafe(super(NSView))]
+        #[thread_kind = MainThreadOnly]
+        #[name = "MomentumSpriteView"]
+        #[ivars = Ivars]
+        pub struct SpriteView;
+
+        impl SpriteView {
+            /// **Must return YES or the pet stops responding to clicks entirely.**
+            ///
+            /// `NSView.acceptsFirstMouse(for:)` "ignores event and returns false" by default, and
+            /// a mouse-down in a non-key window "isn't sent to the NSView object over which the
+            /// mouse click occurs". The panel is nonactivating (`pet.rs`'s `make_panel`),
+            /// `becomesKeyOnlyIfNeeded` is YES, and the app is `ActivationPolicy::Accessory`, so
+            /// the panel is **never key** and every click is structurally first-mouse. This works
+            /// today only because tao already handles it (`tao/view.rs:255-257` registers the
+            /// selector, `:1148` returns YES); a fresh subclass inherits `false`.
+            ///
+            /// This is the single most likely way the rewrite presents as "the panel regressed".
+            #[unsafe(method(acceptsFirstMouse:))]
+            fn accepts_first_mouse(&self, _event: *mut AnyObject) -> bool {
+                true
+            }
+
+            /// `NSView` "passes the event up the responder chain" if a context menu is
+            /// unhandled, so returning nil is not full suppression. `menu` is also set to nil at
+            /// install time; this is the belt to that braces.
+            #[unsafe(method(rightMouseDown:))]
+            fn right_mouse_down(&self, _event: *mut AnyObject) {
+                // Deliberately does not call super.
+            }
+
+            /// Moving between displays of different densities. `pet.js:30` had a `resize`
+            /// listener for this. Natively it is this, **plus** re-setting `contentsScale`:
+            /// `CALayer.contentsScale` says "for layers you create and manage yourself, you must
+            /// set the value of this property yourself". Without it the pixel art blurs on a
+            /// second display.
+            #[unsafe(method(viewDidChangeBackingProperties))]
+            fn backing_changed(&self) {
+                self.relayout();
+            }
+
+            /// The cell is sized from the view, so a frame change re-lays it out. The window is
+            /// resized by `pet::setup` *after* the view exists, so this fires at least once.
+            #[unsafe(method(setFrameSize:))]
+            fn set_frame_size(&self, size: NSSize) {
+                let _: () = unsafe { msg_send![super(self), setFrameSize: size] };
+                self.relayout();
+            }
+
+            /// The frame-count probe from the plan's Task 3 step 5, run only when
+            /// `MASCOT_PROBE_FRAMES` is set.
+            ///
+            /// This exists because counting eleven against twelve frames in a 0.75s cycle by eye
+            /// is exactly the measurement that is easy to get wrong. Task 1 asserts the arrays
+            /// this code hands to Core Animation; this asserts what Core Animation does with
+            /// them, which is the part no unit test can reach. Time is made deterministic rather
+            /// than observed: `speed = 0` freezes the animation, `timeOffset` seeks it, and the
+            /// presentation layer reports the frame actually on screen.
+            ///
+            /// **One seek per run-loop turn, and this is the part that has to be right.** Seeking
+            /// and reading in the same turn returns the same stale frame for all twelve seeks,
+            /// even with `CATransaction::flush()`: measured, twelve readings of frame 0, which is
+            /// worse than useless because it is indistinguishable from a sprite that never
+            /// animates. So each turn records the frame the *previous* seek produced and then
+            /// issues the next one.
+            #[unsafe(method(probeFrames))]
+            fn probe_frames(&self) {
+                let sprite = &self.ivars().sprite;
+                let mood = self.ivars().state.borrow().mood.clone();
+                let total = duration(&mood);
+
+                let step = self.ivars().probe.borrow().step;
+                if step == 0 {
+                    let keys = unsafe { sprite.animationKeys() }
+                        .map(|k| k.count())
+                        .unwrap_or(0);
+                    let has_contents = unsafe { sprite.contents() }.is_some();
+                    // `magnificationFilter` and `contentsScale` are the two ways the pixel art
+                    // goes blurry, and both read back, so neither needs an eye test.
+                    let filter = unsafe { sprite.magnificationFilter() }.to_string();
+                    println!(
+                        "PROBE frames: mood={mood} duration={total} animationKeys={keys} \
+                         contents={has_contents} cell={:?}",
+                        sprite.frame()
+                    );
+                    println!(
+                        "PROBE sprite: magnificationFilter={filter} contentsScale={} \
+                         backingScale={} viewBounds={:?}",
+                        sprite.contentsScale(),
+                        self.backing_scale(),
+                        self.bounds()
+                    );
+                }
+
+                if step < PROBE_SAMPLES {
+                    // A nil presentation layer records as -1 rather than 0, because
+                    // `f64::NAN as i64` is 0 in Rust and would masquerade as a real frame.
+                    let frame = match unsafe { sprite.presentationLayer() } {
+                        Some(p) => {
+                            let x = p.contentsRect().origin.x;
+                            (x * FRAMES as f64).round() as i64
+                        }
+                        None => -1,
+                    };
+                    let mut probe = self.ivars().probe.borrow_mut();
+                    probe.readings.push(frame);
+                    probe.step = step + 1;
+                    drop(probe);
+                    self.schedule_probe(PROBE_INTERVAL);
+                    return;
+                }
+
+                let readings = self.ivars().probe.borrow().readings.clone();
+                let distinct: std::collections::BTreeSet<i64> = readings.iter().copied().collect();
+                let expected: std::collections::BTreeSet<i64> = (0..FRAMES as i64).collect();
+
+                // Frames should appear in order and wrap, so count the transitions that are not
+                // "the next frame" or "back to the start". A scheme that skips frames shows up
+                // here even if every frame is eventually seen.
+                let mut out_of_order = 0usize;
+                for pair in readings.windows(2) {
+                    let (a, b) = (pair[0], pair[1]);
+                    if a == b {
+                        continue;
+                    }
+                    let next = (a + 1) % FRAMES as i64;
+                    if b != next {
+                        out_of_order += 1;
+                    }
+                }
+
+                println!("PROBE frames: {} samples over {}s", readings.len(),
+                         PROBE_SAMPLES as f64 * PROBE_INTERVAL);
+                println!("PROBE frames: distinct={:?}", distinct);
+                println!("PROBE frames: out_of_order_transitions={out_of_order}");
+                if distinct == expected && out_of_order == 0 {
+                    println!(
+                        "PROBE frames: PASS, all twelve frames render in order, so Core \
+                         Animation honours the N+1 keyTimes in discrete mode"
+                    );
+                } else if distinct.len() == 1 {
+                    println!(
+                        "PROBE frames: INCONCLUSIVE, only frame {:?} was ever on screen",
+                        distinct.iter().next()
+                    );
+                } else {
+                    println!(
+                        "PROBE frames: FAIL, expected the twelve frames 0..11 in order, got \
+                         {} distinct with {out_of_order} bad transitions",
+                        distinct.len()
+                    );
+                }
+            }
+
+            /// `cursor: grab` from `pet.html:28`. `NSCursor` has no "grab", and the open and
+            /// closed hand cursors are its native equivalents.
+            #[unsafe(method(resetCursorRects))]
+            fn reset_cursor_rects(&self) {
+                let bounds = self.bounds();
+                let cursor = NSCursor::openHandCursor();
+                self.addCursorRect_cursor(bounds, &cursor);
+            }
+        }
+    );
+
+    impl SpriteView {
+        /// Add the sprite view as a **subview** of the window's content view.
+        ///
+        /// **It must not replace the content view.** `tao/window.rs:535-536` calls
+        /// `setContentView` *and* `setInitialFirstResponder`, and `:539` builds the IME input
+        /// context on that view. The class it installs (`tao/view.rs:222-258`) is where
+        /// `mouseDown:`, `mouseDragged:`, `scrollWheel:`, `frameDidChange:`, `cancelOperation:`
+        /// and `acceptsFirstMouse:` all live. `setContentView:` would throw all of that away,
+        /// including the `frameDidChange` plumbing the pet's sizing depends on.
+        ///
+        /// Hit-testing prefers subviews, so this receives the mouse events. **Never override
+        /// `hitTest:` on this class**: if the sprite view ever loses the hit test the click falls
+        /// through to tao's view, which returns YES from `tao/view.rs:1148` and routes `mouseDown`
+        /// into tao's own handler, so the pet appears to accept clicks while the drag never
+        /// starts, with nothing logged.
+        pub fn install(window_ns: *mut c_void, app: &tauri::AppHandle) -> Option<Retained<Self>> {
+            let mtm = MainThreadMarker::new()?;
+            let ns = window_ns as *mut AnyObject;
+            if ns.is_null() {
+                return None;
+            }
+            let content: *mut AnyObject = unsafe { msg_send![ns, contentView] };
+            if content.is_null() {
+                return None;
+            }
+            let bounds: NSRect = unsafe { msg_send![content, bounds] };
+
+            let sprite = CALayer::new();
+            sprite.setMagnificationFilter(unsafe { kCAFilterNearest });
+
+            let this = Self::alloc(mtm).set_ivars(Ivars {
+                sprite: sprite.clone(),
+                app: app.clone(),
+                state: RefCell::new(SpriteState {
+                    mood: "awake".into(),
+                    character_id: "07".into(),
+                    // `..Default::default()` so Task 4 can add `busy` and `drag` without
+                    // coming back to edit this literal.
+                    ..Default::default()
+                }),
+                probe: RefCell::new(Probe::default()),
+            });
+            let this: Retained<Self> = unsafe { msg_send![super(this), initWithFrame: bounds] };
+
+            // Layer-HOSTING, in this order: assign our own layer, then ask for layer backing.
+            // `NSView.wantsLayer` says "do not add subviews to a layer-hosting view"; this view
+            // adds none, so hosting is available to it. That constraint is about a hosting view's
+            // own subviews and says nothing about the hosting view being someone else's subview.
+            let root = CALayer::new();
+            root.addSublayer(&sprite);
+            this.setLayer(Some(&root));
+            this.setWantsLayer(true);
+
+            // `pet::setup` calls `set_size` AFTER the window exists, so a subview added with a
+            // fixed frame would be the wrong size and would leave a dead margin owned by tao,
+            // which is the silent way to lose the hit test.
+            this.setAutoresizingMask(
+                NSAutoresizingMaskOptions::ViewWidthSizable
+                    | NSAutoresizingMaskOptions::ViewHeightSizable,
+            );
+
+            // `title="Momentum Mascot"` from `pet.html:78`. Native tooltips work on an NSView,
+            // unlike the `title` attribute on a span in the popover's webview, which was measured
+            // not to render at all.
+            this.setToolTip(Some(&NSString::from_str("Momentum Mascot")));
+            unsafe { this.setMenu(None) };
+
+            unsafe {
+                let _: () = msg_send![content, addSubview: &*this];
+            }
+
+            this.relayout();
+
+            // The probe needs a committed render tree, which does not exist until the run loop
+            // has turned, and `pet::setup` runs before it does. `performSelector:afterDelay:`
+            // queues it on the main run loop, which is also the only thread it may touch the
+            // view from, so no `Send` wrapper is needed for it.
+            if std::env::var_os("MASCOT_PROBE_FRAMES").is_some() {
+                this.schedule_probe(2.0);
+            }
+
+            Some(this)
+        }
+
+        /// Size and centre the cell, keep `contentsScale` current, and restart the animation.
+        fn relayout(&self) {
+            let bounds = self.bounds();
+            let side = bounds.size.width.min(bounds.size.height);
+            let cell = cell_side(side);
+            let x = cell_origin(bounds.size.width, cell);
+            let y = cell_origin(bounds.size.height, cell);
+
+            let sprite = &self.ivars().sprite;
+            sprite.setFrame(NSRect::new(NSPoint::new(x, y), NSSize::new(cell, cell)));
+
+            // From the WINDOW, not the view: `CALayer.contentsScale` says "for layers you
+            // create and manage yourself, you must set the value of this property yourself".
+            sprite.setContentsScale(self.backing_scale());
+
+            let (mood, character_id, facing_left) = {
+                let s = self.ivars().state.borrow();
+                (s.mood.clone(), s.character_id.clone(), s.facing_left)
+            };
+            self.paint(&mood, &character_id, facing_left);
+        }
+
+        /// Load the strip, apply the flip, and start the discrete keyframe animation.
+        fn paint(&self, mood: &str, character_id: &str, facing_left: bool) {
+            let sprite = &self.ivars().sprite;
+
+            if let Some(path) = resolve_path(&self.ivars().app, character_id, mood) {
+                let s = NSString::from_str(&path.to_string_lossy());
+                if let Some(image) = NSImage::initWithContentsOfFile(NSImage::alloc(), &s) {
+                    unsafe { sprite.setContents(Some(&image)) };
+                }
+            }
+
+            // The strip is centred in its cell, so with the sublayer's default anchorPoint of
+            // (0.5, 0.5) this mirrors about the cell's own centre and turns the character in
+            // place rather than shunting it across the window.
+            // `CATransform3D::new_scale`, not the older `CATransform3DMakeScale`, which this
+            // crate version deprecates in favour of it.
+            sprite.setTransform(if facing_left {
+                CATransform3D::new_scale(-1.0, 1.0, 1.0)
+            } else {
+                unsafe { CATransform3DIdentity }
+            });
+
+            let values: Vec<Retained<AnyObject>> = (0..FRAMES)
+                .map(|i| {
+                    let (x, y, w, h) = frame_rect(i);
+                    let v = unsafe {
+                        NSValue::valueWithRect(NSRect::new(
+                            NSPoint::new(x, y),
+                            NSSize::new(w, h),
+                        ))
+                    };
+                    // `setValues` takes an untyped `NSArray`, so the rects are erased here
+                    // rather than fighting the generic parameter at the call site.
+                    unsafe { Retained::cast_unchecked::<AnyObject>(v) }
+                })
+                .collect();
+            let times: Vec<Retained<NSNumber>> =
+                key_times().into_iter().map(NSNumber::new_f64).collect();
+
+            let anim = CAKeyframeAnimation::animationWithKeyPath(Some(&NSString::from_str(
+                "contentsRect",
+            )));
+            unsafe { anim.setValues(Some(&NSArray::from_retained_slice(&values))) };
+            anim.setKeyTimes(Some(&NSArray::from_retained_slice(&times)));
+            anim.setCalculationMode(unsafe { kCAAnimationDiscrete });
+            anim.setDuration(duration(mood));
+            anim.setRepeatCount(f32::INFINITY);
+            anim.setRemovedOnCompletion(false);
+
+            sprite.addAnimation_forKey(&anim, Some(&NSString::from_str("walk")));
+        }
+
+        /// Queue `probeFrames` on the main run loop. It is the only thread that may touch the
+        /// view, so nothing needs to be `Send` for this.
+        fn schedule_probe(&self, delay: f64) {
+            unsafe {
+                let _: () = msg_send![
+                    self,
+                    performSelector: objc2::sel!(probeFrames),
+                    withObject: std::ptr::null::<AnyObject>(),
+                    afterDelay: delay,
+                ];
+            }
+        }
+
+        fn backing_scale(&self) -> f64 {
+            self.window().map(|w| w.backingScaleFactor()).unwrap_or(1.0)
+        }
+
+        /// Called from `pet.rs` on the main thread only.
+        pub fn set_mood(&self, mood: &str, character_id: &str) {
+            {
+                let mut s = self.ivars().state.borrow_mut();
+                s.mood = mood.to_string();
+                s.character_id = character_id.to_string();
+                s.facing_left = false;
+            }
+            self.paint(mood, character_id, false);
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+pub use view::SpriteView;

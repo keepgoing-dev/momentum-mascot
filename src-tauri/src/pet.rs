@@ -66,6 +66,12 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
         // it is off, and silent if it is missing then: with the feature gone, tao's only
         // complaint is an eprintln gated on debug_assertions.
         crate::appkit::make_transparent(win.ns_window()?);
+
+        // Task 3 only: the sprite view goes on top of the webview so the renderer can be judged
+        // before the window type changes underneath it. Task 5 removes the webview.
+        if crate::sprite::SpriteView::install(win.ns_window()?, app).is_none() {
+            eprintln!("the sprite view could not be installed");
+        }
     }
 
     win.show()?;
