@@ -458,7 +458,7 @@ unverified renderer.
   - `sprite::SpriteView::install(window_ns: *mut c_void, app: &AppHandle) -> Option<Retained<SpriteView>>`
   - `SpriteView::set_mood(&self, mood: &str, character_id: &str)`
 
-- [ ] **Step 1: Add the Core Animation dependency**
+- [x] **Step 1: Add the Core Animation dependency**
 
 In `src-tauri/Cargo.toml`, under the macOS target dependencies:
 
@@ -471,7 +471,7 @@ objc2-quartz-core = "0.3"
 Run: `cargo build --manifest-path src-tauri/Cargo.toml`
 Expected: compiles, and `Cargo.lock` is unchanged apart from the direct-dependency edge.
 
-- [ ] **Step 2: Write the native half**
+- [x] **Step 2: Write the native half**
 
 Append to `src-tauri/src/sprite.rs`:
 
@@ -766,7 +766,42 @@ Verified API surface table above. Expect the first compile of this task to need 
 `define_class!` and `Retained` conversions; that is what step 3 is for, and the table is what to
 work from rather than guessing.
 
-- [ ] **Step 3: Install it from `pet::setup` and build until it compiles**
+**Corrections found while executing this task.** The code committed in `src-tauri/src/sprite.rs`
+is the source of truth; the block above is what was written before compiling it. Every item here
+was a real compile error or a real deprecation, not a style preference.
+
+- **`objc2-quartz-core` needs `default-features = false` and six features, not zero.** Every class
+  is behind its own feature. Worse, `default` turns on *all* of them, which drags in
+  `objc2-metal`, `objc2-core-video` and `objc2-core-graphics`, one of them entirely new to the
+  lock file, contradicting this step's claim that the lock would be unchanged. With defaults off
+  and `std`, `CALayer`, `CAAnimation`, `CAMediaTiming`, `CATransform3D`, `CATransaction` and
+  `objc2-core-foundation` named, the lock gains only the dependency edge, as promised.
+- **There is no `CAKeyframeAnimation` feature.** That class lives under `CAAnimation`. Naming it
+  fails resolution outright.
+- **`objc2-core-foundation` is the non-obvious one.** It is not a class, it gates every method
+  whose signature mentions a Core Foundation type: `setFrame`, `setContentsScale`, `setTransform`,
+  `setDuration` and all of `CATransform3D`. Without it the errors read as missing *methods*, which
+  sends you looking in the wrong place entirely.
+- **`CAMediaTiming` must be imported as a trait** for `setDuration` and `setRepeatCount`, which are
+  protocol methods rather than inherent ones.
+- **Several calls are safe, not `unsafe`.** `CALayer::new`, `setLayer`, `setToolTip`,
+  `addCursorRect_cursor`, `addSublayer`, `setFrame`, `setContentsRect`, `setContentsScale`,
+  `setMagnificationFilter`, `setTransform` and `addAnimation_forKey` are all safe in these crate
+  versions. Wrapping them costs only an `unused_unsafe` warning, but the reverse would not
+  compile, so the list is worth having.
+- **`CATransform3DMakeScale` is deprecated** in favour of `CATransform3D::new_scale`. Same
+  arguments, and it is safe.
+- **`NSImage::initWithContentsOfFile` is an associated function**, not a method: it takes
+  `this: Allocated<Self>`, so the call is
+  `NSImage::initWithContentsOfFile(NSImage::alloc(), &s)`, and `objc2::AllocAnyThread` has to be
+  in scope for `alloc()`.
+- **`setValues` takes an untyped `NSArray`.** `NSArray::from_retained_slice(&values)` on
+  `Vec<Retained<NSValue>>` yields `NSArray<NSValue>`, which does not coerce. The rects are erased
+  with `Retained::cast_unchecked::<AnyObject>` as they are built.
+- **A missing semicolon.** `unsafe { let _: () = msg_send![content, addSubview: &*this] }` does not
+  parse: the `let` needs its terminator inside the block.
+
+- [x] **Step 3: Install it from `pet::setup` and build until it compiles**
 
 In `src-tauri/src/pet.rs`, inside `setup`'s macOS block, after
 `crate::appkit::make_transparent(win.ns_window()?);`:
@@ -795,18 +830,39 @@ If the art is blurry, `magnificationFilter` or `contentsScale` is not being appl
 character sits in a corner, `cell_origin` is not reaching `setFrame`. If nothing appears, the
 layer-hosting order is wrong: the root layer must be assigned **before** `wantsLayer`.
 
-- [ ] **Step 5: Verify the frame count without an eye test**
+- [x] **Step 5: Verify the frame count without an eye test**
 
 Counting 11 against 12 in a 0.75s cycle by eye is exactly the measurement that is easy to get
-wrong, which is why Task 1 asserts the arrays directly. If confirmation that Core Animation
-honours what it was handed is also wanted, make time deterministic rather than observed: set
-`layer.speed = 0`, drive `layer.timeOffset` across each of the twelve boundaries, read
-`layer.presentation()?.contentsRect.origin.x`, and compare against `sprite::frame_at`. Twelve-of-
-D/12 and eleven-of-D/11 disagree at every boundary except 0 and 1.
+wrong, which is why Task 1 asserts the arrays directly. Task 1 cannot assert what Core Animation
+*does* with those arrays, though, and that is this plan's central claim, so it was measured.
 
-Record whichever was done in `spikes/app-store/RESULTS.md`.
+**Done, and the seek-based design this step originally proposed does not work.** Setting
+`layer.speed = 0` and driving `layer.timeOffset` across the twelve boundaries reads frame 0 for
+every seek, whether the seek and the read share a run-loop turn or not, and whether
+`CATransaction::flush()` is called or not. That reading is a **false negative that looks like a
+real one**: it is indistinguishable from a sprite that never animates. Diagnostics ruled out
+every obvious cause (`animationKeys=1`, `contents=true`, `presentationLayer=true`, cell frame
+64x64), so the seek itself is what does not take.
 
-- [ ] **Step 6: Run the tests and commit**
+What works is sampling the running animation, and it measures the claim more directly anyway: the
+eleven-plateau mistake holds its twelfth frame for zero time, so it is precisely the scheme under
+which twelve distinct frames can never be observed. `sprite::view::probeFrames`, run with
+`MASCOT_PROBE_FRAMES=1`, samples the presentation layer 125 times at 40ms and reports the distinct
+frames and any transition that is not "next frame" or "wrap to zero".
+
+Result, on the signed debug bundle: `distinct={0..11}`, `out_of_order_transitions=0`, **PASS**.
+Counter-test with `key_times` set to the eleven-plateau scheme, same build: `distinct={0..10}`,
+`out_of_order_transitions=1`, **FAIL**, frame 11 never reaching the screen and the cycle going
+10 to 0. Both recorded in `spikes/app-store/RESULTS.md`.
+
+Two smaller things the same probe settled without an eye test: `magnificationFilter` reads back as
+`nearest`, and `contentsScale` is 2 and equals the window's `backingScaleFactor`. Those are the
+two ways the pixel art goes blurry, so neither needs looking at.
+
+Note for anyone extending the probe: `f64::NAN as i64` is 0 in Rust, so a nil presentation layer
+must not be folded into the reading with `unwrap_or(f64::NAN)`. It records as -1.
+
+- [x] **Step 6: Run the tests and commit**
 
 ```bash
 cargo test --manifest-path src-tauri/Cargo.toml
