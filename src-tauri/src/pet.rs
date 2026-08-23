@@ -69,8 +69,11 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
 
         // Task 3 only: the sprite view goes on top of the webview so the renderer can be judged
         // before the window type changes underneath it. Task 5 removes the webview.
-        if crate::sprite::SpriteView::install(win.ns_window()?, app).is_none() {
-            eprintln!("the sprite view could not be installed");
+        match crate::sprite::SpriteView::install(win.ns_window()?, app) {
+            Some(view) => {
+                let _ = SPRITE.set(crate::sprite::SpriteHandle::new(view));
+            }
+            None => eprintln!("the sprite view could not be installed"),
         }
 
         // Task 3 only. The webview pet is still present and still drawing, so the window shows
@@ -232,36 +235,83 @@ static GLIDE_GENERATION: AtomicU64 = AtomicU64::new(0);
 /// The event the pet webview listens for to know a glide has landed and it can stop running.
 const GLIDE_DONE_EVENT: &str = "glide-done";
 
-/// Glide the window from `from` to `to`, both physical pixels, easing out over ~250ms.
+/// Glide the window from `from` to `to`, both physical pixels, in **two phases**: a quick move to
+/// the target corner's edge, then a slower horizontal run along that edge into the corner.
 ///
-/// The motion is driven from a thread here rather than from the webview, because the pet's
-/// window is never focused and WebKit throttles the webview's own timers — `requestAnimationFrame`
-/// included — for exactly that window. An animation the frontend runs may silently not run; a
-/// Rust thread is not subject to that throttling. The final step lands exactly on `to`, so the
-/// corner is reached even if an earlier step was coalesced away.
+/// The single ease-out this replaced covered the whole diagonal in ~250ms, which reads as the pet
+/// being flung at the corner rather than travelling there. Splitting it means the run animation
+/// the drag already switched on has something to do: phase two is horizontal, at a walking-ish
+/// speed, along the bottom or top edge, which is what a side-view run sprite is for. Phase one is
+/// mostly vertical and stays fast, so the whole thing still resolves promptly.
 ///
-/// Landing emits `glide-done`, and only landing does: a glide cut short by `cancel_glide` stays
-/// silent, so a re-grab does not get the frontend's run cut short out from under it.
-pub fn glide_to(win: &tauri::WebviewWindow, from: (f64, f64), to: (i32, i32)) {
+/// The motion is driven from a thread here rather than from the webview, because the pet's window
+/// is never focused and WebKit throttles the webview's own timers for exactly that window. That
+/// reason is now historical, since there is no webview, but a thread is still the right shape: the
+/// alternative is blocking the main thread for the length of the glide.
+///
+/// Both phases check the generation, so a new drag cuts the glide short wherever it has got to.
+/// The final step of phase two lands exactly on `to`, so the corner is reached even if an earlier
+/// step was coalesced away.
+///
+/// Landing calls `end_run`, and only landing does: a glide cut short by `cancel_glide` stays
+/// silent, so a re-grab does not get its run cut short out from under it.
+pub fn glide_to(app: &AppHandle, win: &tauri::WebviewWindow, from: (f64, f64), to: (i32, i32)) {
     let generation = GLIDE_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     let win = win.clone();
+    let app = app.clone();
     std::thread::spawn(move || {
-        const STEPS: u32 = 16;
         const STEP: Duration = Duration::from_millis(16);
-        for i in 1..=STEPS {
+
+        // Phase one: to the corner's own edge, keeping the x the drag left it at. Fast, and
+        // ease-out so it settles rather than stopping dead.
+        let waypoint = (from.0, to.1 as f64);
+        const APPROACH_STEPS: u32 = 12;
+        for i in 1..=APPROACH_STEPS {
             if GLIDE_GENERATION.load(Ordering::SeqCst) != generation {
                 return;
             }
-            let t = i as f64 / STEPS as f64;
+            let t = i as f64 / APPROACH_STEPS as f64;
             let eased = 1.0 - (1.0 - t).powi(3);
-            let x = from.0 + (to.0 as f64 - from.0) * eased;
-            let y = from.1 + (to.1 as f64 - from.1) * eased;
+            let x = from.0 + (waypoint.0 - from.0) * eased;
+            let y = from.1 + (waypoint.1 - from.1) * eased;
             if win.set_position(PhysicalPosition::new(x, y)).is_err() {
                 return;
             }
             std::thread::sleep(STEP);
         }
+
+        // Phase two: the run along the edge. Duration comes from the distance rather than being
+        // fixed, so a long way to travel actually takes longer, which is what makes it read as
+        // running rather than sliding. Clamped at both ends: below the floor there is no run to
+        // see, above the ceiling the user is waiting on an animation.
+        const RUN_PX_PER_SEC: f64 = 900.0;
+        const MIN_RUN: Duration = Duration::from_millis(280);
+        const MAX_RUN: Duration = Duration::from_millis(1500);
+        let distance = (to.0 as f64 - waypoint.0).abs();
+        let run = Duration::from_secs_f64(distance / RUN_PX_PER_SEC).clamp(MIN_RUN, MAX_RUN);
+        let steps = ((run.as_secs_f64() / STEP.as_secs_f64()).round() as u32).max(1);
+        for i in 1..=steps {
+            if GLIDE_GENERATION.load(Ordering::SeqCst) != generation {
+                return;
+            }
+            // Linear, unlike phase one. A run at a steady pace is the point; easing it would
+            // make the character appear to slow down without its legs slowing down with it.
+            let t = i as f64 / steps as f64;
+            let x = waypoint.0 + (to.0 as f64 - waypoint.0) * t;
+            if win
+                .set_position(PhysicalPosition::new(x, to.1 as f64))
+                .is_err()
+            {
+                return;
+            }
+            std::thread::sleep(STEP);
+        }
+
         let _ = win.emit(GLIDE_DONE_EVENT, ());
+        // Runs on the glide thread, so it hops. Only a glide that COMPLETES reaches this line:
+        // one cancelled by a newer drag returned above, so a re-grab does not get its run cut
+        // short. That was the contract of the `glide-done` event and it is unchanged.
+        end_run(&app);
     });
 }
 
@@ -269,6 +319,76 @@ pub fn glide_to(win: &tauri::WebviewWindow, from: (f64, f64), to: (i32, i32)) {
 /// chance to be fought by the previous glide's remaining steps.
 pub fn cancel_glide() {
     GLIDE_GENERATION.fetch_add(1, Ordering::SeqCst);
+}
+
+/// The pet's sprite view, which is main-thread-only. Held here rather than in `AppState` so the
+/// main-thread rule lives next to the code that has to honour it.
+#[cfg(target_os = "macos")]
+static SPRITE: std::sync::OnceLock<crate::sprite::SpriteHandle> = std::sync::OnceLock::new();
+
+/// Tell the pet what mood to show. Safe to call from any thread.
+pub fn set_mood(app: &AppHandle, mood: &str, character_id: &str) {
+    #[cfg(target_os = "macos")]
+    {
+        let mood = mood.to_string();
+        let character_id = character_id.to_string();
+        let _ = app.run_on_main_thread(move || {
+            if let Some(handle) = SPRITE.get() {
+                handle.set_mood(&mood, &character_id);
+            }
+        });
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app, mood, character_id);
+    }
+}
+
+/// The glide landed, so the pet stops running. Safe to call from any thread.
+pub fn end_run(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = app.run_on_main_thread(|| {
+            if let Some(handle) = SPRITE.get() {
+                handle.end_run();
+            }
+        });
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+    }
+}
+
+/// The pet was clicked rather than dragged.
+pub fn on_click(app: &AppHandle) {
+    crate::app::toggle_popover(app);
+}
+
+/// Follow the cursor during a drag. Physical pixels.
+pub fn move_to(app: &AppHandle, to: (f64, f64)) {
+    if let Some(win) = app.get_webview_window(PET) {
+        let _ = win.set_position(PhysicalPosition::new(to.0, to.1));
+    }
+}
+
+/// The drag ended: resolve the nearest corner, glide there, remember it, and report the corner so
+/// the view can face the run that way. This is `commands::snap_pet` minus the command wrapper.
+pub fn on_drag_end(app: &AppHandle, at: (f64, f64)) -> Option<(i32, i32)> {
+    let win = app.get_webview_window(PET)?;
+    let target = nearest_corner(&win, at)?;
+    glide_to(app, &win, at, target);
+
+    let state = app.state::<AppState>();
+    let to_save = {
+        let mut momentum = state.momentum.lock().unwrap();
+        momentum.state.pet_position = Some(target);
+        momentum.state.clone()
+    };
+    if let Err(e) = crate::store::save(&state.store_path, &to_save) {
+        eprintln!("could not write state: {e}");
+    }
+    Some(target)
 }
 
 #[cfg(target_os = "macos")]

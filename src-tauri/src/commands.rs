@@ -35,7 +35,7 @@ pub fn snap_pet(app: AppHandle, x: f64, y: f64) -> Option<(i32, i32)> {
     let win = app.get_webview_window(app::PET)?;
     let target = pet::nearest_corner(&win, (x, y))?;
 
-    pet::glide_to(&win, (x, y), target);
+    pet::glide_to(&app, &win, (x, y), target);
 
     let state = app.state::<AppState>();
     let to_save = {

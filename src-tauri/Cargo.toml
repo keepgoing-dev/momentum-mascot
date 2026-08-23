@@ -42,9 +42,6 @@ objc2-quartz-core = { version = "0.3", default-features = false, features = [
   "CAAnimation",
   "CAMediaTiming",
   "CATransform3D",
-  # Only for the frame-count probe in `sprite::view`, which flushes a transaction so the
-  # presentation layer can be read back deterministically.
-  "CATransaction",
   # Not a class: this one gates every method whose signature mentions a Core Foundation
   # type, which is `setFrame`, `setContentsScale`, `setTransform`, `setDuration` and the whole
   # of `CATransform3D`. Without it those methods simply do not exist and the errors read as

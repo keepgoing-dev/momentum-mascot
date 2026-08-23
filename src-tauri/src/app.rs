@@ -125,7 +125,16 @@ pub fn publish(app: &AppHandle) {
         }
     }
 
+    // `MOOD_EVENT` stays: `src/popover.js` is still a listener for it.
+    let mood = payload.mood.as_str();
+    let character_id = payload.character_id.clone();
     let _ = app.emit(MOOD_EVENT, payload);
+
+    // The pet has no webview to listen any more, so it is told directly. Both direct callers
+    // arrive off the main thread: the tick runs on `start_tick`'s thread and the watcher on its
+    // own, and touching an NSView off the main thread crashes. `app.emit` marshalled for free;
+    // a direct setter does not, which is why `pet::set_mood` hops.
+    crate::pet::set_mood(app, mood, &character_id);
 }
 
 /// How long since the newest commit anywhere, in simulated hours. The only number worth

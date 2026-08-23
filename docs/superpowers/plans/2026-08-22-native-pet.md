@@ -911,7 +911,7 @@ sprite mid-glide.
 **Interfaces:**
 - Produces: `pet::on_drag_end(app: &AppHandle, at: (f64, f64)) -> Option<(i32, i32)>`, `pet::on_click(app: &AppHandle)`, both callable from the view.
 
-- [ ] **Step 1: What ports and what does not**
+- [x] **Step 1: What ports and what does not**
 
 Two of the three "it gets simpler" claims in the spec hold, and one does not. Read this before
 writing the handlers.
@@ -941,7 +941,7 @@ window from a view and it participates in space switching, but Apple notes "a mo
 not get sent", and both the 4pt click/drag discrimination and the corner snap need `mouseUp`.
 Recorded so a reader does not wonder why the harder path was taken.
 
-- [ ] **Step 2: Add the handlers**
+- [x] **Step 2: Add the handlers**
 
 In `src-tauri/src/sprite.rs`, add to `SpriteState`:
 
@@ -1103,7 +1103,7 @@ And make `set_mood` respect `busy`:
         }
 ```
 
-- [ ] **Step 3: Add the entry points in `pet.rs`**
+- [x] **Step 3: Add the entry points in `pet.rs`**
 
 ```rust
 /// The pet was clicked rather than dragged.
@@ -1139,7 +1139,48 @@ pub fn on_drag_end(app: &AppHandle, at: (f64, f64)) -> Option<(i32, i32)> {
 }
 ```
 
-- [ ] **Step 4: Build, run, and check every interaction**
+**Corrections found while executing this task.** The committed code in `src-tauri/src/sprite.rs`
+is the source of truth.
+
+- **The sprite strip is authored facing LEFT, and `pet.html:66-68` says the opposite.** Its comment
+  claims the run strip is "composed once facing right and flipped here for leftward travel", and
+  `pet.js:113` mirrors on `movementX < 0` accordingly. Built that way, the character faces *away*
+  from its direction of travel. `contentsRect` selects a sub-rect and cannot mirror anything, so
+  the native render of the unmirrored case is pixel-identical to the webview's, which means **the
+  old build faced the wrong way too** and this is not a regression this plan introduced. The field
+  is now called `flipped` rather than `facing_left`, because "flipped" is what the transform does
+  and the facing it produces depends on how the art was drawn. Mirror for **rightward** travel.
+- **Repaint on a direction change, not only when the 4pt threshold is crossed.** The handler as
+  first written painted once, at the crossing, which fixed the facing for the whole drag: reported
+  as "runs, but doesn't turn". Repainting on *every* drag event is the other wrong answer, because
+  each `paint` restarts the walk cycle at frame 0 and the run visibly stutters.
+- **`addCursorRect:cursor:` does nothing here.** `resetCursorRects` is driven by the active
+  window, and the pet's panel is nonactivating with `becomesKeyOnlyIfNeeded` inside an accessory
+  app, so it is never key and the override never runs. Replaced with an `NSTrackingArea` using
+  `MouseEnteredAndExited | CursorUpdate | ActiveAlways | InVisibleRect`. `ActiveAlways` is the part
+  that matters, and `InVisibleRect` means the area follows the view through `pet::setup`'s later
+  `set_size`.
+- **The drag cursor is pushed, not set.** The pet is 64x64 and the pointer leaves it within a few
+  pixels of a drag starting, at which point a merely `set` cursor reverts to the arrow. `push` in
+  `mouseDown` and `pop_class` in `mouseUp`, taken before the early return so the stack cannot be
+  left unbalanced.
+- **Known limitation, and not a regression: the cursor only changes once the app has been
+  activated.** Measured with `MASCOT_TRACE=1`: `mouseEntered` fires and `apply_cursor` runs while
+  `app_active=false`, but `NSCursor` state belongs to the *active* application, so nothing visible
+  happens until the user has clicked the pet or the popover once. The old build's `cursor: grab`
+  CSS sat behind the same constraint, in the same nonactivating panel in the same accessory app.
+  Fixing it properly is not reachable from public API.
+
+**Beyond the plan, at the user's request: the glide is now two phases.** The plan's premise was
+that "the glide stays exactly as it is", and the single ~250ms ease-out over the whole diagonal was
+described on sight as the pet being "flung" at the corner. `glide_to` now moves quickly to the
+target corner's edge, then runs **horizontally** along it into the corner, linearly at 900 physical
+px/s clamped to 280ms..1500ms. Two reasons for that shape: a side-view run sprite is for
+horizontal travel, and a distance-derived duration means a long drag takes longer to run home,
+which is what makes it read as running rather than sliding. Linear on purpose: easing phase two
+would show the character slowing down without its legs slowing with it.
+
+- [x] **Step 4: Build, run, and check every interaction**
 
 Run: `cd src-tauri && cargo tauri build --debug --bundles app`, then run the bundle.
 
@@ -1151,7 +1192,7 @@ Expected, and check each one:
 - The cursor is an open hand over the pet and a closed hand while dragging.
 - A drag of less than 4pt is treated as a click.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src-tauri/src/sprite.rs src-tauri/src/pet.rs

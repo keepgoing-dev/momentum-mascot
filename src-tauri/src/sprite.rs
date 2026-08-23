@@ -228,13 +228,16 @@ mod view {
     use objc2::rc::Retained;
     use objc2::runtime::AnyObject;
     use objc2::{define_class, msg_send, AllocAnyThread, DefinedClass, MainThreadOnly};
-    use objc2_app_kit::{NSAutoresizingMaskOptions, NSCursor, NSImage, NSView};
+    use objc2_app_kit::{
+        NSAutoresizingMaskOptions, NSCursor, NSImage, NSScreen, NSTrackingArea,
+        NSTrackingAreaOptions, NSView,
+    };
     use objc2_foundation::{
         MainThreadMarker, NSArray, NSNumber, NSPoint, NSRect, NSSize, NSString, NSValue,
     };
     use objc2_quartz_core::{
         kCAAnimationDiscrete, kCAFilterNearest, CAKeyframeAnimation, CALayer, CAMediaTiming,
-        CATransaction, CATransform3D, CATransform3DIdentity,
+        CATransform3D, CATransform3DIdentity,
     };
 
     use super::{
@@ -245,8 +248,41 @@ mod view {
     pub struct SpriteState {
         pub mood: String,
         pub character_id: String,
-        /// Which way the character faces. Only the run strip is ever flipped.
-        pub facing_left: bool,
+        /// Whether the sprite is mirrored horizontally. Only the run strip is ever mirrored.
+        ///
+        /// **The strip is authored facing LEFT, not right.** `pet.html:66-68` claims "composed
+        /// once facing right and flipped here for leftward travel" and that comment is wrong: with
+        /// it, the character faced away from its direction of travel. `contentsRect` selects a
+        /// sub-rect and cannot mirror anything, so the native render is pixel-identical to the
+        /// webview's for the unmirrored case, which means the old build faced the wrong way too.
+        /// Confirmed by observation on the native build and corrected here rather than carried
+        /// over. So: mirror for RIGHTWARD travel.
+        pub flipped: bool,
+        /// Set from the moment a drag is recognised to the moment its glide lands. While it is
+        /// set, a mood publish updates the stored mood but leaves the running sprite alone, so a
+        /// tick cannot walk the idle back mid-glide.
+        pub busy: bool,
+        pub drag: Option<Drag>,
+    }
+
+    #[derive(Clone, Copy)]
+    pub struct Drag {
+        /// The window's top-left in Tauri physical pixels, accumulated from event deltas.
+        x: f64,
+        y: f64,
+        origin_x: f64,
+        origin_y: f64,
+        moved: bool,
+    }
+
+    /// Points of movement below which a drag is a click. From `pet.js:82`.
+    const DRAG_THRESHOLD: f64 = 4.0;
+
+    /// `MASCOT_TRACE=1`. Diagnostics for the two things about this view that cannot be reasoned
+    /// out from the source: which way a drag delta actually points, and whether AppKit delivers
+    /// mouse-tracking events to a window that is never key in an app that is never active.
+    fn trace() -> bool {
+        std::env::var_os("MASCOT_TRACE").is_some()
     }
 
     pub struct Ivars {
@@ -373,13 +409,13 @@ mod view {
 
                 let step = self.ivars().probe.borrow().step;
                 if step == 0 {
-                    let keys = unsafe { sprite.animationKeys() }
+                    let keys = sprite.animationKeys()
                         .map(|k| k.count())
                         .unwrap_or(0);
                     let has_contents = unsafe { sprite.contents() }.is_some();
                     // `magnificationFilter` and `contentsScale` are the two ways the pixel art
                     // goes blurry, and both read back, so neither needs an eye test.
-                    let filter = unsafe { sprite.magnificationFilter() }.to_string();
+                    let filter = sprite.magnificationFilter().to_string();
                     println!(
                         "PROBE frames: mood={mood} duration={total} animationKeys={keys} \
                          contents={has_contents} cell={:?}",
@@ -414,7 +450,11 @@ mod view {
 
                 let readings = self.ivars().probe.borrow().readings.clone();
                 let distinct: std::collections::BTreeSet<i64> = readings.iter().copied().collect();
-                let expected: std::collections::BTreeSet<i64> = (0..FRAMES as i64).collect();
+                // From the oracle rather than from 0..11 literally, so the probe is checking
+                // Core Animation against the same `steps(12)` rule the unit tests check.
+                let expected: std::collections::BTreeSet<i64> = (0..FRAMES)
+                    .map(|i| frame_at((i as f64 + 0.5) / FRAMES as f64) as i64)
+                    .collect();
 
                 // Frames should appear in order and wrap, so count the transitions that are not
                 // "the next frame" or "back to the start". A scheme that skips frames shows up
@@ -454,13 +494,157 @@ mod view {
                 }
             }
 
+            #[unsafe(method(mouseDown:))]
+            fn mouse_down(&self, _event: *mut AnyObject) {
+                // A drag that starts while the last glide is still landing would have its own
+                // movement fought by the glide's remaining steps.
+                crate::pet::cancel_glide();
+
+                let Some(origin) = self.window_origin() else {
+                    return;
+                };
+                self.ivars().state.borrow_mut().drag = Some(Drag {
+                    x: origin.0,
+                    y: origin.1,
+                    origin_x: origin.0,
+                    origin_y: origin.1,
+                    moved: false,
+                });
+                // **Pushed, not set.** The pet is 64x64 and the pointer leaves it within a few
+                // pixels of the drag starting, at which point a merely `set` cursor reverts to
+                // the arrow. A pushed cursor holds until it is popped, wherever the pointer goes.
+                NSCursor::closedHandCursor().push();
+            }
+
+            #[unsafe(method(mouseDragged:))]
+            fn mouse_dragged(&self, event: *mut AnyObject) {
+                let scale = self.backing_scale();
+                // `NSEvent.deltaX`/`deltaY` are documented valid for mouse-drag events, so
+                // `pet.js:106-107`'s accumulation carries over unchanged. The sign is settled by
+                // Handling Mouse Events, Listing 4-4, which subtracts `deltaY` from a y-up
+                // window origin: a drag's `deltaY` is already y-down, so it feeds Tauri's y-down
+                // `PhysicalPosition` unnegated.
+                let dx: f64 = unsafe { msg_send![event, deltaX] };
+                let dy: f64 = unsafe { msg_send![event, deltaY] };
+
+                let (drag, needs_paint, flipped) = {
+                    let mut s = self.ivars().state.borrow_mut();
+                    let Some(d) = s.drag.as_mut() else {
+                        return;
+                    };
+                    // An NSView's bounds is in points and everything downstream is in Tauri
+                    // physical pixels, so the scale does not disappear here, it changes source.
+                    d.x += dx * scale;
+                    d.y += dy * scale;
+                    let crossed = !d.moved
+                        && ((d.x - d.origin_x).powi(2) + (d.y - d.origin_y).powi(2)).sqrt()
+                            >= DRAG_THRESHOLD * scale;
+                    if crossed {
+                        d.moved = true;
+                    }
+                    let moved = d.moved;
+                    let snapshot = *d;
+                    if crossed {
+                        s.busy = true;
+                    }
+                    let was_flipped = s.flipped;
+                    if moved && dx != 0.0 {
+                        // Mirror for rightward travel. See `SpriteState::flipped`.
+                        s.flipped = dx > 0.0;
+                    }
+                    // **Repaint on a direction change, not only on the first crossing.** Painting
+                    // only when the threshold is crossed fixes the facing for the whole drag, so
+                    // the character never turns after it starts running: reported as "runs, but
+                    // doesn't turn". Repainting on *every* drag event is the other wrong answer,
+                    // because each paint restarts the walk cycle at frame 0 and the run stutters.
+                    let turned = s.flipped != was_flipped;
+                    (snapshot, crossed || turned, s.flipped)
+                };
+
+                if needs_paint {
+                    let character_id = self.ivars().state.borrow().character_id.clone();
+                    self.paint("run", &character_id, flipped);
+                    if trace() {
+                        println!(
+                            "TRACE drag: dx={dx} dy={dy} flipped={flipped} window_x={} \
+                             scale={scale}",
+                            drag.x
+                        );
+                    }
+                }
+                crate::pet::move_to(&self.ivars().app, (drag.x, drag.y));
+            }
+
+            #[unsafe(method(mouseUp:))]
+            fn mouse_up(&self, _event: *mut AnyObject) {
+                // Balances the push in `mouseDown`. Taken before the early return below, so the
+                // stack cannot be left unbalanced by a mouse-up with no drag recorded.
+                NSCursor::pop_class();
+                let taken = self.ivars().state.borrow_mut().drag.take();
+                self.apply_cursor();
+                let Some(drag) = taken else {
+                    return;
+                };
+
+                if !drag.moved {
+                    self.end_run();
+                    crate::pet::on_click(&self.ivars().app);
+                    return;
+                }
+
+                // Keep running: the backend glides the window, and the facing comes from the
+                // corner it reports. `busy` clears when the glide lands.
+                match crate::pet::on_drag_end(&self.ivars().app, (drag.x, drag.y)) {
+                    Some(target) => {
+                        // Mirror for rightward travel, matching the drag. The glide's second
+                        // phase is the horizontal run to the corner, so this is its direction.
+                        let flipped = (target.0 as f64) > drag.x;
+                        let character_id = {
+                            let mut s = self.ivars().state.borrow_mut();
+                            s.flipped = flipped;
+                            s.character_id.clone()
+                        };
+                        self.paint("run", &character_id, flipped);
+                    }
+                    None => self.end_run(),
+                }
+            }
+
             /// `cursor: grab` from `pet.html:28`. `NSCursor` has no "grab", and the open and
             /// closed hand cursors are its native equivalents.
-            #[unsafe(method(resetCursorRects))]
-            fn reset_cursor_rects(&self) {
-                let bounds = self.bounds();
-                let cursor = NSCursor::openHandCursor();
-                self.addCursorRect_cursor(bounds, &cursor);
+            ///
+            /// **This is a tracking area, not `addCursorRect:cursor:`, and that is load-bearing.**
+            /// The obvious implementation is `resetCursorRects` plus `addCursorRect:cursor:`, and
+            /// it produces no cursor change whatsoever on this window: measured. AppKit's cursor
+            /// rect machinery is driven by the active window, and the pet's panel is nonactivating
+            /// with `becomesKeyOnlyIfNeeded` set, inside an accessory app, so it is **never key**
+            /// and `resetCursorRects` never runs. A tracking area with `ActiveAlways` does not
+            /// care whether the window is key.
+            #[unsafe(method(mouseEntered:))]
+            fn mouse_entered(&self, _event: *mut AnyObject) {
+                if trace() {
+                    println!("TRACE cursor: mouseEntered");
+                }
+                self.apply_cursor();
+            }
+
+            /// Sent when the pointer enters the tracking area, which is also what re-asserts the
+            /// cursor after something else has changed it.
+            #[unsafe(method(cursorUpdate:))]
+            fn cursor_update(&self, _event: *mut AnyObject) {
+                if trace() {
+                    println!("TRACE cursor: cursorUpdate");
+                }
+                self.apply_cursor();
+            }
+
+            #[unsafe(method(mouseExited:))]
+            fn mouse_exited(&self, _event: *mut AnyObject) {
+                // A drag holds a pushed cursor, and the pet is 64x64, so the pointer leaves it
+                // immediately on almost every drag. Restoring the arrow here would fight that.
+                if self.ivars().state.borrow().drag.is_none() {
+                    NSCursor::arrowCursor().set();
+                }
             }
         }
     );
@@ -532,6 +716,23 @@ mod view {
             this.setToolTip(Some(&NSString::from_str("Momentum Mascot")));
             unsafe { this.setMenu(None) };
 
+            // `InVisibleRect` means the rect argument is ignored and the area tracks the view's
+            // visible bounds as it resizes, so this survives `pet::setup`'s later `set_size`.
+            // `ActiveAlways` is what makes it work on a window that is never key.
+            let tracking = unsafe {
+                NSTrackingArea::initWithRect_options_owner_userInfo(
+                    NSTrackingArea::alloc(),
+                    bounds,
+                    NSTrackingAreaOptions::MouseEnteredAndExited
+                        | NSTrackingAreaOptions::CursorUpdate
+                        | NSTrackingAreaOptions::ActiveAlways
+                        | NSTrackingAreaOptions::InVisibleRect,
+                    Some(&this),
+                    None,
+                )
+            };
+            this.addTrackingArea(&tracking);
+
             unsafe {
                 let _: () = msg_send![content, addSubview: &*this];
             }
@@ -564,15 +765,15 @@ mod view {
             // create and manage yourself, you must set the value of this property yourself".
             sprite.setContentsScale(self.backing_scale());
 
-            let (mood, character_id, facing_left) = {
+            let (mood, character_id, flipped) = {
                 let s = self.ivars().state.borrow();
-                (s.mood.clone(), s.character_id.clone(), s.facing_left)
+                (s.mood.clone(), s.character_id.clone(), s.flipped)
             };
-            self.paint(&mood, &character_id, facing_left);
+            self.paint(&mood, &character_id, flipped);
         }
 
         /// Load the strip, apply the flip, and start the discrete keyframe animation.
-        fn paint(&self, mood: &str, character_id: &str, facing_left: bool) {
+        fn paint(&self, mood: &str, character_id: &str, flipped: bool) {
             let sprite = &self.ivars().sprite;
 
             if let Some(path) = resolve_path(&self.ivars().app, character_id, mood) {
@@ -587,7 +788,7 @@ mod view {
             // place rather than shunting it across the window.
             // `CATransform3D::new_scale`, not the older `CATransform3DMakeScale`, which this
             // crate version deprecates in favour of it.
-            sprite.setTransform(if facing_left {
+            sprite.setTransform(if flipped {
                 CATransform3D::new_scale(-1.0, 1.0, 1.0)
             } else {
                 unsafe { CATransform3DIdentity }
@@ -636,22 +837,101 @@ mod view {
             }
         }
 
+        /// An open hand hovering, a closed one while a drag is in progress.
+        fn apply_cursor(&self) {
+            if trace() {
+                println!(
+                    "TRACE cursor: apply, app_active={}",
+                    objc2_app_kit::NSApplication::sharedApplication(
+                        MainThreadMarker::new().unwrap()
+                    )
+                    .isActive()
+                );
+            }
+            let dragging = self.ivars().state.borrow().drag.is_some();
+            if dragging {
+                NSCursor::closedHandCursor().set();
+            } else {
+                NSCursor::openHandCursor().set();
+            }
+        }
+
         fn backing_scale(&self) -> f64 {
             self.window().map(|w| w.backingScaleFactor()).unwrap_or(1.0)
         }
 
+        /// The window's top-left in Tauri physical pixels. AppKit measures from the bottom-left
+        /// of the primary screen with y increasing upwards; Tauri measures from the top-left with
+        /// y increasing downwards, so the flip needs the primary screen's height. This is the
+        /// same conversion `pet::macos::visible_bottom_right` already does.
+        fn window_origin(&self) -> Option<(f64, f64)> {
+            let window = self.window()?;
+            let frame = window.frame();
+            let mtm = MainThreadMarker::new()?;
+            let screens = NSScreen::screens(mtm);
+            let primary_height = screens.iter().next()?.frame().size.height;
+            let scale = window.backingScaleFactor();
+            let top_from_top = primary_height - (frame.origin.y + frame.size.height);
+            Some((frame.origin.x * scale, top_from_top * scale))
+        }
+
+        /// The glide landed, or a click happened: stop running and show the idle mood again.
+        pub fn end_run(&self) {
+            let (mood, character_id) = {
+                let mut s = self.ivars().state.borrow_mut();
+                s.busy = false;
+                s.flipped = false;
+                (s.mood.clone(), s.character_id.clone())
+            };
+            self.paint(&mood, &character_id, false);
+        }
+
         /// Called from `pet.rs` on the main thread only.
         pub fn set_mood(&self, mood: &str, character_id: &str) {
-            {
+            let busy = {
                 let mut s = self.ivars().state.borrow_mut();
                 s.mood = mood.to_string();
                 s.character_id = character_id.to_string();
-                s.facing_left = false;
+                s.busy
+            };
+            // While a drag or glide is in flight the run sprite owns the screen. The mood is
+            // stored and painted when the glide lands.
+            if !busy {
+                self.paint(mood, character_id, false);
             }
-            self.paint(mood, character_id, false);
+        }
+    }
+
+    /// A main-thread-only view, storable in a `static`.
+    ///
+    /// **The safety of this type rests entirely on one rule: every method may only be called from
+    /// the main thread.** `pet::set_mood` and `pet::end_run` are the only callers and both go
+    /// through `AppHandle::run_on_main_thread`. Touching an `NSView` off the main thread crashes,
+    /// and the two direct callers this design introduces both arrive off it: the glide runs on its
+    /// own `std::thread::spawn` and calls back from there, and the mood publish runs on the tick
+    /// thread and the watcher thread.
+    pub struct SpriteHandle(Retained<SpriteView>);
+
+    // SAFETY: see the type's own comment. The inner view is only ever touched on the main thread.
+    unsafe impl Send for SpriteHandle {}
+    unsafe impl Sync for SpriteHandle {}
+
+    impl SpriteHandle {
+        pub fn new(view: Retained<SpriteView>) -> Self {
+            Self(view)
+        }
+
+        pub fn set_mood(&self, mood: &str, character_id: &str) {
+            debug_assert!(MainThreadMarker::new().is_some(), "off the main thread");
+            self.0.set_mood(mood, character_id);
+        }
+
+        pub fn end_run(&self) {
+            debug_assert!(MainThreadMarker::new().is_some(), "off the main thread");
+            self.0.end_run();
         }
     }
 }
 
 #[cfg(target_os = "macos")]
-pub use view::SpriteView;
+pub use view::{SpriteHandle, SpriteView};
