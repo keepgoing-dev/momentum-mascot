@@ -22,6 +22,7 @@ mod pet;
 mod reflog;
 mod repo;
 mod scoped;
+mod sprite;
 mod store;
 mod tray;
 mod watcher;

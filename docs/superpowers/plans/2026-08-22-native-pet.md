@@ -104,7 +104,7 @@ and both are pure functions, so both get real tests.
   - `sprite::duration(mood: &str) -> f64`
   - `sprite::relative_path(character_id: &str, mood: &str) -> PathBuf`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `src-tauri/src/sprite.rs`:
 
@@ -226,28 +226,53 @@ mod tests {
         assert!((x + w - 1.0).abs() < 1e-12);
     }
 
+    /// Which value a discrete keyframe animation displays at normalised progress `p`, given its
+    /// keyTimes. Discrete mode holds `values[i]` from `keyTimes[i]` until `keyTimes[i + 1]`.
+    fn displayed(times: &[f64], p: f64) -> usize {
+        let mut i = 0;
+        while i + 1 < times.len() && times[i + 1] <= p {
+            i += 1;
+        }
+        i.min(FRAMES - 1)
+    }
+
     #[test]
     fn twelve_plateaus_agree_with_the_css_oracle_and_eleven_do_not() {
-        // Twelve-of-D/12 and eleven-of-D/11 disagree at every boundary except 0 and 1, so this
-        // separates them unambiguously. `frame_at` is the CSS `steps(12)` rule.
-        let times = key_times();
-        for i in 0..FRAMES {
-            // Just inside plateau i.
-            let p = times[i] + 1e-9;
-            assert_eq!(frame_at(p), i, "plateau {i} shows the wrong frame");
-        }
-
-        // The wrong scheme: eleven plateaus of 1/11.
+        // The N+1 keyTimes must reproduce CSS `steps(12)` exactly, and the eleven-plateau
+        // mistake must not.
+        //
+        // Comparing the two schemes at their own boundaries proves nothing: `floor(12i/11) == i`
+        // for every `i` below 11, because `12i/11 = i + i/11` and `i/11 < 1` there, so both
+        // schemes name the right frame at every boundary. The difference is what is on screen
+        // BETWEEN the boundaries, so sample the timeline rather than the boundaries.
+        let right = key_times();
+        // The mistake: 12 values with 12 keyTimes, giving eleven plateaus of D/11 and a twelfth
+        // frame that holds for no time at all.
         let wrong: Vec<f64> = (0..FRAMES).map(|i| i as f64 / (FRAMES - 1) as f64).collect();
-        let mut disagreements = 0;
-        for i in 1..FRAMES {
-            if frame_at(wrong[i] + 1e-9) != i {
-                disagreements += 1;
+
+        let samples = 1200;
+        let mut wrong_disagreements = 0;
+        for n in 0..samples {
+            let p = n as f64 / samples as f64;
+            assert_eq!(displayed(&right, p), frame_at(p), "N+1 keyTimes at p={p}");
+            if displayed(&wrong, p) != frame_at(p) {
+                wrong_disagreements += 1;
             }
         }
+
+        // The two schemes are on the same frame for exactly half the cycle and disagree for the
+        // other half: agreement on frame k is the overlap of [k/12, (k+1)/12) with
+        // [k/11, (k+1)/11), which is (11-k)/132, and those sum to 66/132.
+        let fraction = wrong_disagreements as f64 / samples as f64;
         assert!(
-            disagreements >= FRAMES - 2,
-            "the two schemes should disagree nearly everywhere, got {disagreements}"
+            (fraction - 0.5).abs() < 0.02,
+            "eleven plateaus should be wrong half the time, got {fraction}"
+        );
+
+        // And the frame the mistake never shows for any measurable time is the twelfth.
+        assert!(
+            (0..samples).all(|n| displayed(&wrong, n as f64 / samples as f64) != FRAMES - 1),
+            "the eleven-plateau mistake should drop the twelfth frame entirely"
         );
     }
 
@@ -293,23 +318,31 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Declare the module and run the tests to see them fail**
+- [x] **Step 2: Declare the module and run the tests to see them fail**
 
 In `src-tauri/src/main.rs`, add `mod sprite;` to the module list, between `mod scoped;` and
 `mod store;`.
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml sprite::`
 Expected: the seven tests run. Because the implementation is given in full above, they should
-pass. Confirm they bite by breaking the rule this task exists for: change `key_times` to
+pass.
+
+**Correction, found by running this step.** As first written, this task's
+`twelve_plateaus_agree_with_the_css_oracle_and_eleven_do_not` failed on correct code with "got 0".
+Its premise was arithmetically false: it compared the two schemes at the eleven-plateau scheme's
+own boundaries, and `floor(12i/11) == i` for every `i` below 11, so the schemes agree at every
+one of them. The version above is the corrected test, which samples the timeline instead and
+measures the half of the cycle where the two schemes are on different frames. Confirmed to bite:
+with `key_times` set to the eleven-plateau scheme it fails at p=1/12, the first boundary. Confirm they bite by breaking the rule this task exists for: change `key_times` to
 `(0..FRAMES)` instead of `(0..=FRAMES)`, watch `there_is_one_more_key_time_than_there_are_frames`
 fail with "N+1 rule broken", then change it back.
 
-- [ ] **Step 3: Run the tests to verify they pass**
+- [x] **Step 3: Run the tests to verify they pass**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml`
 Expected: PASS, 80 tests (73 from the parent plan plus 7).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src-tauri/src/sprite.rs src-tauri/src/main.rs
