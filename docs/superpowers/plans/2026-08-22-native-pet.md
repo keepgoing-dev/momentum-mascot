@@ -1511,7 +1511,7 @@ strings -a "$B" | grep -c '_wantsKeyDownForEvent'
 Expected: non-zero for both. Neither is reachable from this codebase and neither is behind a
 feature gate; removing them means forking wry and tao. Spec section 2.2.
 
-- [ ] **Step 3: Confirm the parent plan's release gate now passes**
+- [x] **Step 3: Confirm the parent plan's release gate now passes**
 
 ```sh
 MASCOT_MAS_ALLOW_PRIVATE_API= tools/release-mas.sh
@@ -1520,8 +1520,10 @@ MASCOT_MAS_ALLOW_PRIVATE_API= tools/release-mas.sh
 Expected: `private API check: clean`, where before it refused. If `release-mas.sh` does not exist
 yet, this step waits for the parent plan's Task 15.
 
-**Waiting.** `tools/release-mas.sh` does not exist yet, so this step is deferred to the parent
-plan's Task 15. The check it wraps has been run by hand above and passes.
+**Done**, once the parent plan's Task 15 created the script. `tools/release-mas.sh` reports
+`private API check: clean` on the universal build, so this step is closed and nothing in either
+plan is now deferred. `MASCOT_MAS_ALLOW_PRIVATE_API=` turned out to be unnecessary: the flag only
+downgrades the gate to a warning, and the gate no longer fires.
 
 - [x] **Step 4: Commit**
 

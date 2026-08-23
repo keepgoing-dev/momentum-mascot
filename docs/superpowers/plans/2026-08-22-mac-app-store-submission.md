@@ -85,6 +85,56 @@ got wrong, so a reader trusts the document rather than re-deriving it.
 unmeasured. It is not a correctness risk, since that channel does not need bookmarks, but spec
 section 3's wording assumes it succeeds there.
 
+### Phase 4 and Phase 5
+
+Phase 4 (spec section 4, the native AppKit pet) got its own plan,
+`docs/superpowers/plans/2026-08-22-native-pet.md`, and is **done and merged to `master`**. The
+gate it existed to pass reports 0 on a signed sandboxed arm64 build.
+
+Phase 5 is **done except the Apple-account work**: Task 14 and Task 15 in full, Task 16's
+documents written, and Task 16 steps 4 to 6 waiting on certificates that only the account holder
+can create. 80 tests passing.
+
+**Corrections to the tasks as written.**
+
+6. **Task 14's line reference had drifted.** `category` is at `src-tauri/tauri.conf.json:43`, not
+   `:51`. The value and the verification were right: `LSApplicationCategoryType` now reads
+   `public.app-category.developer-tools`.
+7. **Task 15's `lipo -archs` was a print, and is now an assertion.** This is the departure the
+   native pet plan asked for. Printing it is what let every build during that plan come out
+   x86_64 on an arm64 Mac without anyone noticing, so a wrong architecture now fails the build.
+   Both slices are required, since the build asks for `--target universal-apple-darwin` and
+   anything else means it did not do what was asked. Counter-tested against seven `lipo` outputs:
+   `arm64e` does not satisfy `arm64` and `x86_64h` does not satisfy `x86_64`, which is what the
+   space-padded `case` globs are for. The `PATH` line also now honours `$CARGO_HOME`, and the
+   script prints which `cargo` it resolved, so a log says what built the binary.
+8. **Task 15 step 4's expected output is unreachable in the state it is written for.** It lists a
+   universal build, `lipo`, the private-API gate, stamping, signing and a `.pkg`, and then says
+   the script correctly exits at the signing preflight when the certificates are missing. Both
+   are true but not at once: the preflight runs first, on purpose, so none of that output can
+   appear. What was actually verified, by handing the preflight placeholder identities:
+
+   ```
+   architectures: x86_64 arm64
+   private API check: clean
+   CFBundleShortVersionString: 0.3.1
+   CFBundleVersion:            1
+   ```
+
+   then `no identity found` at `codesign`, as designed. The real preflight run burned no build
+   number, which is the ordering working. `codesign`, `productbuild` and `altool --validate-app`
+   are the only steps left unrehearsed.
+9. **Task 16 step 6 no longer needs `MASCOT_MAS_ALLOW_PRIVATE_API=1`.** That flag exists to
+   rehearse before the pet work lands, and the pet work has landed: the gate reports
+   `private API check: clean` on its own. Setting the flag now would only refuse the upload.
+10. **`private API check: clean` through this script closes the native pet plan's Task 6 step 3**,
+    which was the one step deferred there because `release-mas.sh` did not exist yet.
+
+**Also noticed, not acted on.** The release build emits six dead-code warnings from
+`src-tauri/src/sprite.rs`, all of them the debug probe's fields and constants, which is the
+`#[cfg(debug_assertions)]` restructure at the end of the pet work leaving its `Probe` struct
+compiled but unused. Cosmetic, and no change to what ships.
+
 ---
 
 ## File Structure
@@ -2308,7 +2358,7 @@ bundle have to agree.
 **Files:**
 - Modify: `src-tauri/tauri.conf.json:51`
 
-- [ ] **Step 1: Change the category**
+- [x] **Step 1: Change the category**
 
 In `src-tauri/tauri.conf.json`, in the `bundle` object:
 
@@ -2316,7 +2366,7 @@ In `src-tauri/tauri.conf.json`, in the `bundle` object:
     "category": "DeveloperTool",
 ```
 
-- [ ] **Step 2: Verify what lands in the built Info.plist**
+- [x] **Step 2: Verify what lands in the built Info.plist**
 
 ```sh
 cd src-tauri && cargo tauri build --bundles app && cd ..
@@ -2326,7 +2376,7 @@ cd src-tauri && cargo tauri build --bundles app && cd ..
 
 Expected: `public.app-category.developer-tools`. It read `public.app-category.utilities` before.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```sh
 git add src-tauri/tauri.conf.json
@@ -2348,7 +2398,7 @@ distribute through the Mac App Store".
 - Consumes: `src-tauri/Entitlements.mas.plist` from Task 2.
 - Produces: `tools/.mas-build` (a gitignored monotonic build counter), and a signed `.pkg` under `src-tauri/target/universal-apple-darwin/release/bundle/`.
 
-- [ ] **Step 1: Write the script**
+- [x] **Step 1: Write the script**
 
 Create `tools/release-mas.sh`:
 
@@ -2652,7 +2702,7 @@ else
 fi
 ```
 
-- [ ] **Step 2: Make it executable and gitignore its state**
+- [x] **Step 2: Make it executable and gitignore its state**
 
 ```sh
 chmod +x tools/release-mas.sh
@@ -2670,7 +2720,7 @@ tools/.mas-build
 tools/embedded.provisionprofile
 ```
 
-- [ ] **Step 3: Document the new credentials**
+- [x] **Step 3: Document the new credentials**
 
 Append to `tools/.release-env.example`:
 
@@ -2697,7 +2747,7 @@ ASC_API_KEY_ID="ABC123DEF4"
 ASC_API_ISSUER_ID="00000000-0000-0000-0000-000000000000"
 ```
 
-- [ ] **Step 4: Rehearse the script without uploading**
+- [x] **Step 4: Rehearse the script without uploading**
 
 ```sh
 MASCOT_MAS_ALLOW_PRIVATE_API=1 tools/release-mas.sh
@@ -2713,7 +2763,7 @@ a `.pkg` produced.
 If the certificates are not installed yet, the script exits at the preflight with the message
 that names which one is missing. That is the script working. Come back after Task 16.
 
-- [ ] **Step 5: Confirm the DMG path is untouched**
+- [x] **Step 5: Confirm the DMG path is untouched**
 
 ```sh
 git diff --stat HEAD -- tools/release.sh
@@ -2721,7 +2771,7 @@ git diff --stat HEAD -- tools/release.sh
 
 Expected: no output. `release.sh` was not modified.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```sh
 git add tools/release-mas.sh tools/.release-env.example .gitignore
@@ -2739,7 +2789,7 @@ Store Connect error 90034.
 - Modify: `docs/notarization.md` (a pointer at the top)
 - Modify: `README.md` (the release section)
 
-- [ ] **Step 1: Write the document**
+- [x] **Step 1: Write the document**
 
 Create `docs/app-store.md`:
 
@@ -2861,7 +2911,7 @@ disagree about what a version is; the build number is `release-mas.sh`'s own cou
 `tools/.mas-build`, because App Store Connect rejects a re-upload that reuses one.
 ````
 
-- [ ] **Step 2: Cross-reference from the DMG doc**
+- [x] **Step 2: Cross-reference from the DMG doc**
 
 Add near the top of `docs/notarization.md`, after its first paragraph:
 
@@ -2871,7 +2921,7 @@ Add near the top of `docs/notarization.md`, after its first paragraph:
 > different script, and is documented in `docs/app-store.md`.
 ```
 
-- [ ] **Step 3: Mention it in the README**
+- [x] **Step 3: Mention it in the README**
 
 In `README.md`, in the release section around line 80, add:
 
@@ -2907,7 +2957,7 @@ Expected: all the way through to a signed `.pkg` and a clean `altool --validate-
 validation failure here is worth more than anything else in this phase: it names exactly what App
 Review's automated checks will object to, for free, before a build number is spent on it.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```sh
 git add docs/app-store.md docs/notarization.md README.md
