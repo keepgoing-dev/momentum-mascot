@@ -226,18 +226,19 @@ mod view {
     use std::ffi::c_void;
 
     use objc2::rc::Retained;
-    use objc2::runtime::AnyObject;
+    use objc2::runtime::{AnyObject, ProtocolObject};
     use objc2::{define_class, msg_send, AllocAnyThread, DefinedClass, MainThreadOnly};
     use objc2_app_kit::{
         NSAutoresizingMaskOptions, NSCursor, NSImage, NSScreen, NSTrackingArea,
         NSTrackingAreaOptions, NSView,
     };
     use objc2_foundation::{
-        MainThreadMarker, NSArray, NSNumber, NSPoint, NSRect, NSSize, NSString, NSValue,
+        MainThreadMarker, NSArray, NSDictionary, NSNull, NSNumber, NSPoint, NSRect, NSSize,
+        NSString, NSValue,
     };
     use objc2_quartz_core::{
         kCAAnimationDiscrete, kCAFilterNearest, CAKeyframeAnimation, CALayer, CAMediaTiming,
-        CATransform3D, CATransform3DIdentity,
+        CAAction, CATransform3D, CATransform3DIdentity,
     };
 
     use super::{
@@ -263,6 +264,14 @@ mod view {
         /// tick cannot walk the idle back mid-glide.
         pub busy: bool,
         pub drag: Option<Drag>,
+        /// What `paint` last actually applied, so an identical request can be skipped.
+        ///
+        /// Startup asks for the same thing four times over: `install`, then
+        /// `viewDidChangeBackingProperties`, then two mood publishes. Each `paint` reloads the PNG
+        /// from disk and re-adds the keyframe animation, which restarts the walk cycle at frame 0,
+        /// so the redundant ones are visible as a stutter in the first second and were measurable
+        /// as out-of-order frames in the Task 3 probe.
+        pub painted: Option<(String, String, bool)>,
     }
 
     #[derive(Clone, Copy)]
@@ -374,6 +383,9 @@ mod view {
             /// second display.
             #[unsafe(method(viewDidChangeBackingProperties))]
             fn backing_changed(&self) {
+                if trace() {
+                    println!("TRACE relayout: viewDidChangeBackingProperties");
+                }
                 self.relayout();
             }
 
@@ -382,6 +394,9 @@ mod view {
             #[unsafe(method(setFrameSize:))]
             fn set_frame_size(&self, size: NSSize) {
                 let _: () = unsafe { msg_send![super(self), setFrameSize: size] };
+                if trace() {
+                    println!("TRACE relayout: setFrameSize {size:?}");
+                }
                 self.relayout();
             }
 
@@ -679,6 +694,33 @@ mod view {
             let sprite = CALayer::new();
             sprite.setMagnificationFilter(unsafe { kCAFilterNearest });
 
+            // **Turn off implicit animations on this layer.** A CALayer that is not a view's
+            // backing layer animates its own property changes by default over 0.25s, so
+            // `setFrame`, `setTransform` and `setContentsScale` each attach an animation of their
+            // own. Measured: `animationKeys` reached 3. Two consequences, both wrong for pixel
+            // art. The horizontal flip would interpolate through a 0.25s squash instead of
+            // snapping, and a `contentsRect` set outside the keyframe animation would crossfade.
+            // An `NSNull` action per key is the documented way to say "no implicit animation".
+            let null = NSNull::null();
+            // `setActions` is typed as taking `CAAction` values. `NSNull` does not declare
+            // conformance to it, and does not need to: Apple documents `NSNull` as the value that
+            // means "do nothing" for an action key, which the runtime special-cases before it
+            // would ever message it. So the cast is to satisfy the Rust signature, not to claim
+            // NSNull implements the protocol.
+            let nothing: &ProtocolObject<dyn CAAction> =
+                unsafe { &*(&*null as *const NSNull).cast::<ProtocolObject<dyn CAAction>>() };
+            let keys = [
+                NSString::from_str("bounds"),
+                NSString::from_str("position"),
+                NSString::from_str("transform"),
+                NSString::from_str("contents"),
+                NSString::from_str("contentsRect"),
+                NSString::from_str("contentsScale"),
+            ];
+            let key_refs: Vec<&NSString> = keys.iter().map(|k| &**k).collect();
+            let disabled = NSDictionary::from_slices(&key_refs, &[nothing; 6]);
+            sprite.setActions(Some(&disabled));
+
             let this = Self::alloc(mtm).set_ivars(Ivars {
                 sprite: sprite.clone(),
                 app: app.clone(),
@@ -774,6 +816,17 @@ mod view {
 
         /// Load the strip, apply the flip, and start the discrete keyframe animation.
         fn paint(&self, mood: &str, character_id: &str, flipped: bool) {
+            let wanted = (mood.to_string(), character_id.to_string(), flipped);
+            if self.ivars().state.borrow().painted.as_ref() == Some(&wanted) {
+                if trace() {
+                    println!("TRACE paint: skipped, already showing {wanted:?}");
+                }
+                return;
+            }
+            if trace() {
+                println!("TRACE paint: mood={mood} character={character_id} flipped={flipped}");
+            }
+            self.ivars().state.borrow_mut().painted = Some(wanted);
             let sprite = &self.ivars().sprite;
 
             if let Some(path) = resolve_path(&self.ivars().app, character_id, mood) {

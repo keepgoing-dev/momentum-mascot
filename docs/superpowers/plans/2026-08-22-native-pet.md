@@ -1210,7 +1210,7 @@ The blast radius is bounded but wider than two lines, and two of the changes fai
 - Modify: `src-tauri/src/pet.rs`, `src-tauri/src/app.rs`, `src-tauri/src/commands.rs`, `src-tauri/src/main.rs`
 - Delete: `src/pet.html`, `src/pet.js`
 
-- [ ] **Step 1: Enable the `unstable` feature**
+- [x] **Step 1: Enable the `unstable` feature**
 
 In `src-tauri/Cargo.toml`:
 
@@ -1221,7 +1221,7 @@ tauri = { version = "2", features = ["macos-private-api", "tray-icon", "image-pn
 Measured: without it, `tauri::window::WindowBuilder` is private and `Manager::get_window` does not
 exist. With it, both work.
 
-- [ ] **Step 2: Build the window in Rust**
+- [x] **Step 2: Build the window in Rust**
 
 `app.windows` has no webview-less form, so **the `pet` entry in `tauri.conf.json` is deleted, not
 converted.** Delete the whole object with `"label": "pet"`.
@@ -1249,7 +1249,7 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     place(&win, app)?;
 ```
 
-- [ ] **Step 3: Change the six signatures**
+- [x] **Step 3: Change the six signatures**
 
 **Six, not two**, and the two lookups fail *silently* if missed: the old `pet.rs:50` early-returns
 and `commands.rs:33` is a `?` on an `Option`, so the symptom is a pet that never appears with
@@ -1260,7 +1260,7 @@ Change `&tauri::WebviewWindow` to `&tauri::window::Window` in: `usable_bounds`, 
 `pet::on_drag_end` and `pet::move_to`. The `ns_window()` call is identical on both types, so the
 NSPanel reclass reaches the same window.
 
-- [ ] **Step 4: Delete the frontend and the three commands**
+- [x] **Step 4: Delete the frontend and the three commands**
 
 ```sh
 git rm src/pet.html src/pet.js
@@ -1273,7 +1273,7 @@ function `app::toggle_popover` directly, so deleting `pet.js` makes the command 
 
 Update `commands.rs`'s module doc, which currently says "Eleven commands": it becomes **eight**.
 
-- [ ] **Step 5: Replace the two events with direct calls**
+- [x] **Step 5: Replace the two events with direct calls**
 
 `app.rs:19 MOOD_EVENT` **stays**: `src/popover.js:185` is still a listener. What changes is that
 the pet no longer listens, so it must be told directly.
@@ -1400,7 +1400,7 @@ and call it from the glide thread's tail, where the emit used to be:
 signature to `glide_to(app: &AppHandle, win: &Window, from: (f64, f64), to: (i32, i32))` and pass
 `app` from `on_drag_end`. That is a seventh signature change on top of Task 5 step 3's six.
 
-- [ ] **Step 6: Narrow the capabilities**
+- [x] **Step 6: Narrow the capabilities**
 
 In `src-tauri/capabilities/default.json`:
 
@@ -1411,7 +1411,44 @@ In `src-tauri/capabilities/default.json`:
   appears in `popover.js` only at `:128`, feeding that `setSize`, so those three existed only for
   the pet's drag.
 
-- [ ] **Step 7: Build and verify nothing regressed**
+**Corrections found while executing this task.**
+
+- **The command surface goes from twelve to nine, not eleven to eight.** `commands.rs`'s module doc
+  said "Eleven commands" and was already off by one: `grep -c '#\[tauri::command\]'` returned twelve
+  before this task. Count it rather than trusting the doc. Removing `toggle_popover`, `snap_pet`
+  and `cancel_glide` leaves **nine**, and the doc now says so.
+- **`paint` needs to dedupe, and this is a real visible bug, not tidiness.** Startup asks for the
+  same sprite four times: `install`, then `viewDidChangeBackingProperties`, then two mood publishes.
+  Every `paint` reloaded the PNG and re-added the keyframe animation, which restarts the walk cycle
+  at frame 0, so the pet visibly stuttered through its first second. It was also measurable: the
+  Task 3 probe went from `out_of_order_transitions=0` to `4` on this task's build, purely from
+  startup paints landing inside its sampling window. `SpriteState::painted` records the last
+  applied `(mood, character, flipped)` and an identical request now returns early. Two of the four
+  startup paints are skipped, and the probe is back to `0`.
+- **Implicit animations have to be turned off on the sprite layer.** A `CALayer` that is not a
+  view's backing layer animates its own property changes over 0.25s by default, so `setFrame`,
+  `setTransform` and `setContentsScale` each attached an animation of their own: `animationKeys`
+  measured **3**, where Task 3's build measured 1. Both consequences are wrong for pixel art. The
+  horizontal flip would interpolate through a squash rather than snapping, and any `contentsRect`
+  set outside the keyframe animation would crossfade. Fixed with an `NSNull` action per key for
+  `bounds`, `position`, `transform`, `contents`, `contentsRect` and `contentsScale`;
+  `animationKeys` is back to 1. Note `setActions` is typed as taking `CAAction` values, so the
+  `NSNull` needs a cast to `ProtocolObject<dyn CAAction>`. That cast satisfies the Rust signature
+  and claims nothing: Apple documents `NSNull` as the value meaning "no action", which the runtime
+  special-cases before it would ever message it.
+- **The `MASCOT_HIDE_WEBVIEW` escape hatch added in Task 3 is deleted here**, along with the
+  webview it existed to hide.
+
+**Verified on the webview-less build:** the pet appears, animates, drags, runs home and opens the
+popover; the popover works end to end with the narrowed capabilities (add a project, cycle a
+character, toggle operating, untrack, copy the share card, dismiss with Escape).
+
+**The cursor limitation is confirmed pre-existing.** A/B against the previously installed build:
+hovering its pet without clicking first does not change the cursor either. So the click-to-activate
+requirement recorded in Task 4 is a property of a nonactivating panel in an accessory app, not
+something this rewrite introduced.
+
+- [x] **Step 7: Build and verify nothing regressed**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml` then build and run the bundle.
 
@@ -1420,7 +1457,7 @@ end to end (add a project, cycle a character, toggle operating, untrack, copy th
 dismiss with Escape). **The pet appearing at all is a real test**, because step 3's two lookups
 fail silently.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add -A

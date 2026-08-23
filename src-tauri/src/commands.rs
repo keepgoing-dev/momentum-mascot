@@ -1,5 +1,10 @@
-//! Everything the webview is allowed to ask for. Eleven commands, and no twelfth without a
+//! Everything the popover is allowed to ask for. Nine commands, and no tenth without a
 //! reason: this list is the whole API surface between the art and the machinery.
+//!
+//! Three left when the pet stopped being a webview: `snap_pet` and `cancel_glide`, whose only
+//! caller was `pet.js`'s drag, and `toggle_popover`. That third one is the non-obvious one, since
+//! `tray.rs:50` still opens the popover: it calls the Rust function `app::toggle_popover`
+//! directly, so deleting `pet.js` left the *command* wrapper callerless.
 
 use tauri::{AppHandle, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
@@ -7,7 +12,6 @@ use tauri_plugin_dialog::DialogExt;
 
 use crate::app::{self, AppState};
 use crate::appkit;
-use crate::pet;
 use crate::scoped;
 use crate::store;
 
@@ -16,45 +20,6 @@ use crate::store;
 #[tauri::command]
 pub fn refresh(app: AppHandle) {
     app::publish(&app);
-}
-
-/// Clicking the pet. The pet is the primary way in; the tray icon is secondary.
-#[tauri::command]
-pub fn toggle_popover(app: AppHandle) {
-    app::toggle_popover(&app);
-}
-
-/// The pet finished being dragged. The webview reports where it let go (its top-left in
-/// physical pixels, which is the only coordinate the webview knows its own position in); the
-/// backend resolves the nearest corner, glides the window there rather than teleporting it, and
-/// remembers that corner, so the drag survives a restart. It returns the corner so the webview
-/// can face the run that way. No seventh parameter, no free placement: this is the whole drag
-/// API.
-#[tauri::command]
-pub fn snap_pet(app: AppHandle, x: f64, y: f64) -> Option<(i32, i32)> {
-    let win = app.get_webview_window(app::PET)?;
-    let target = pet::nearest_corner(&win, (x, y))?;
-
-    pet::glide_to(&app, &win, (x, y), target);
-
-    let state = app.state::<AppState>();
-    let to_save = {
-        let mut momentum = state.momentum.lock().unwrap();
-        momentum.state.pet_position = Some(target);
-        momentum.state.clone()
-    };
-    if let Err(e) = crate::store::save(&state.store_path, &to_save) {
-        eprintln!("could not write state: {e}");
-    }
-
-    Some(target)
-}
-
-/// A new drag is starting, so any glide still in flight must stop or its remaining steps will
-/// fight the cursor. Called on pointer-down, before the drag's own movement begins.
-#[tauri::command]
-pub fn cancel_glide() {
-    pet::cancel_glide();
 }
 
 #[tauri::command]

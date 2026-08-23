@@ -38,9 +38,6 @@ fn main() {
         .manage(AppState::new(store::default_path()))
         .invoke_handler(tauri::generate_handler![
             commands::refresh,
-            commands::toggle_popover,
-            commands::snap_pet,
-            commands::cancel_glide,
             commands::hide_popover,
             commands::add_project,
             commands::untrack,

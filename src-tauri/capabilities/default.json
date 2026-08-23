@@ -1,15 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Everything the popover and the pet are allowed to do. Deliberately short: there is no network layer, no filesystem plugin, and no shell.",
-  "windows": ["popover", "pet"],
+  "description": "Everything the popover is allowed to do. Deliberately short: there is no network layer, no filesystem plugin, and no shell. The pet is not listed because it has no webview to make a request from.",
+  "windows": [
+    "popover"
+  ],
   "permissions": [
     "core:default",
     "core:window:allow-set-size",
-    "core:window:allow-set-position",
-    "core:window:allow-outer-position",
     "core:window:allow-hide",
-    "core:window:allow-start-dragging",
     "dialog:allow-open",
     "clipboard-manager:allow-write-image"
   ]

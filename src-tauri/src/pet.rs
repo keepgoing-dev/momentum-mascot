@@ -18,7 +18,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition};
+use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition};
 
 use crate::app::{AppState, PET};
 
@@ -47,9 +47,23 @@ const LEVEL: isize = 25;
 const BEHAVIOR: usize = 273;
 
 pub fn setup(app: &AppHandle) -> tauri::Result<()> {
-    let Some(win) = app.get_webview_window(PET) else {
-        return Ok(());
-    };
+    // Built here rather than in tauri.conf.json because `app.windows` has no webview-less form,
+    // so the config entry was deleted rather than converted. `WindowBuilder` itself is only
+    // public under tauri's `unstable` feature.
+    //
+    // Per spec 4.1, `WindowBuilder::transparent()` is gated on `macos-private-api`, so the
+    // window is opaque until `appkit::make_transparent` runs below.
+    let win = tauri::window::WindowBuilder::new(app, PET)
+        .inner_size(SIZE, SIZE)
+        .resizable(false)
+        .decorations(false)
+        .shadow(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .focused(false)
+        .visible(false)
+        .title("Momentum Mascot")
+        .build()?;
 
     win.set_size(LogicalSize::new(SIZE, SIZE))?;
     place(&win, app)?;
@@ -76,16 +90,6 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
             None => eprintln!("the sprite view could not be installed"),
         }
 
-        // Task 3 only. The webview pet is still present and still drawing, so the window shows
-        // two characters at once: the native sprite and the old one. This hides the webview's
-        // content so the native renderer can be judged on its own. Task 5 deletes the webview
-        // outright and this goes with it.
-        if std::env::var_os("MASCOT_HIDE_WEBVIEW").is_some() {
-            let _ = win.eval(
-                "document.documentElement.style.background='transparent';\
-                 document.body.style.visibility='hidden'",
-            );
-        }
     }
 
     win.show()?;
@@ -117,7 +121,7 @@ struct Bounds {
     margin: f64,
 }
 
-fn usable_bounds(win: &tauri::WebviewWindow) -> Option<Bounds> {
+fn usable_bounds(win: &tauri::window::Window) -> Option<Bounds> {
     let Some(mon) = win.current_monitor().ok().flatten() else {
         return None;
     };
@@ -191,7 +195,7 @@ fn nearest(current: (f64, f64), corners: &[(i32, i32); 4]) -> (i32, i32) {
 /// `RunEvent::Ready`, and a fix for a bug that did not exist: placement worked correctly the
 /// whole time and the measurement was lying. **Read the position from a delayed thread, or do
 /// not read it.**
-fn place(win: &tauri::WebviewWindow, app: &AppHandle) -> tauri::Result<()> {
+fn place(win: &tauri::window::Window, app: &AppHandle) -> tauri::Result<()> {
     let Some(b) = usable_bounds(win) else {
         return Ok(());
     };
@@ -220,7 +224,7 @@ fn place(win: &tauri::WebviewWindow, app: &AppHandle) -> tauri::Result<()> {
 /// the geometry (the display, the Dock-aware bounds, the anchors) and the motion; the frontend
 /// owns the pointer. Called once on drag end.
 pub fn nearest_corner(
-    win: &tauri::WebviewWindow,
+    win: &tauri::window::Window,
     current: (f64, f64),
 ) -> Option<(i32, i32)> {
     let b = usable_bounds(win)?;
@@ -231,9 +235,6 @@ pub fn nearest_corner(
 /// it started under and stops the moment it is no longer the latest, so the tail of an old
 /// glide can never fight a newer drag.
 static GLIDE_GENERATION: AtomicU64 = AtomicU64::new(0);
-
-/// The event the pet webview listens for to know a glide has landed and it can stop running.
-const GLIDE_DONE_EVENT: &str = "glide-done";
 
 /// Glide the window from `from` to `to`, both physical pixels, in **two phases**: a quick move to
 /// the target corner's edge, then a slower horizontal run along that edge into the corner.
@@ -254,8 +255,9 @@ const GLIDE_DONE_EVENT: &str = "glide-done";
 /// step was coalesced away.
 ///
 /// Landing calls `end_run`, and only landing does: a glide cut short by `cancel_glide` stays
-/// silent, so a re-grab does not get its run cut short out from under it.
-pub fn glide_to(app: &AppHandle, win: &tauri::WebviewWindow, from: (f64, f64), to: (i32, i32)) {
+/// silent, so a re-grab does not get its run cut short out from under it. That replaces the
+/// `glide-done` event, whose only listener was `pet.js`.
+pub fn glide_to(app: &AppHandle, win: &tauri::window::Window, from: (f64, f64), to: (i32, i32)) {
     let generation = GLIDE_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     let win = win.clone();
     let app = app.clone();
@@ -307,7 +309,6 @@ pub fn glide_to(app: &AppHandle, win: &tauri::WebviewWindow, from: (f64, f64), t
             std::thread::sleep(STEP);
         }
 
-        let _ = win.emit(GLIDE_DONE_EVENT, ());
         // Runs on the glide thread, so it hops. Only a glide that COMPLETES reaches this line:
         // one cancelled by a newer drag returned above, so a re-grab does not get its run cut
         // short. That was the contract of the `glide-done` event and it is unchanged.
@@ -367,7 +368,7 @@ pub fn on_click(app: &AppHandle) {
 
 /// Follow the cursor during a drag. Physical pixels.
 pub fn move_to(app: &AppHandle, to: (f64, f64)) {
-    if let Some(win) = app.get_webview_window(PET) {
+    if let Some(win) = app.get_window(PET) {
         let _ = win.set_position(PhysicalPosition::new(to.0, to.1));
     }
 }
@@ -375,7 +376,7 @@ pub fn move_to(app: &AppHandle, to: (f64, f64)) {
 /// The drag ended: resolve the nearest corner, glide there, remember it, and report the corner so
 /// the view can face the run that way. This is `commands::snap_pet` minus the command wrapper.
 pub fn on_drag_end(app: &AppHandle, at: (f64, f64)) -> Option<(i32, i32)> {
-    let win = app.get_webview_window(PET)?;
+    let win = app.get_window(PET)?;
     let target = nearest_corner(&win, at)?;
     glide_to(app, &win, at, target);
 

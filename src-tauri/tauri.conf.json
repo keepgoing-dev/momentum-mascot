@@ -22,21 +22,6 @@
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "visible": false
-      },
-      {
-        "label": "pet",
-        "url": "pet.html",
-        "title": "Momentum Mascot",
-        "width": 64,
-        "height": 64,
-        "resizable": false,
-        "decorations": false,
-        "transparent": true,
-        "shadow": false,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
-        "focus": false,
-        "visible": false
       }
     ],
     "security": {
@@ -45,8 +30,13 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg"],
-    "icon": ["icons/bundle/icon.icns"],
+    "targets": [
+      "app",
+      "dmg"
+    ],
+    "icon": [
+      "icons/bundle/icon.icns"
+    ],
     "resources": {
       "../src/assets/pet": "pet"
     },

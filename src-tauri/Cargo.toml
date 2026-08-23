@@ -13,7 +13,7 @@ tauri-build = { version = "2", features = [] }
 # app ineligible for the Mac App Store. Accounted for in spec-v2.md section 10.3.
 # image-png is what lets the share card cross from the webview's canvas to the clipboard as
 # a real image rather than a data URL.
-tauri = { version = "2", features = ["macos-private-api", "tray-icon", "image-png"] }
+tauri = { version = "2", features = ["macos-private-api", "tray-icon", "image-png", "unstable"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
 serde = { version = "1", features = ["derive"] }
