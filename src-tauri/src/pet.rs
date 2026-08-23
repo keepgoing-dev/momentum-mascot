@@ -72,6 +72,17 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
         if crate::sprite::SpriteView::install(win.ns_window()?, app).is_none() {
             eprintln!("the sprite view could not be installed");
         }
+
+        // Task 3 only. The webview pet is still present and still drawing, so the window shows
+        // two characters at once: the native sprite and the old one. This hides the webview's
+        // content so the native renderer can be judged on its own. Task 5 deletes the webview
+        // outright and this goes with it.
+        if std::env::var_os("MASCOT_HIDE_WEBVIEW").is_some() {
+            let _ = win.eval(
+                "document.documentElement.style.background='transparent';\
+                 document.body.style.visibility='hidden'",
+            );
+        }
     }
 
     win.show()?;

@@ -817,18 +817,44 @@ In `src-tauri/src/pet.rs`, inside `setup`'s macOS block, after
 Run: `cd src-tauri && cargo tauri build --debug --bundles app`
 Expected: compiles. Fix compile errors against the Verified API surface table.
 
-- [ ] **Step 4: Look at it**
+- [x] **Step 4: Look at it**
 
-Run the bundle. The sprite view is in front of the webview, so what is on screen is the native
-renderer.
+**Done, and this step's premise was wrong in a way worth recording.** It says "The old webview pet
+is behind it and invisible." It is not invisible. It draws, so the window shows **two characters at
+once**, the native sprite and the old one, offset from each other. That alone is confusing enough
+to read as a rendering bug.
 
-Expected: the character animates, all twelve frames, crisp at the window's 2x, centred in the
-64pt window, and the tooltip "Momentum Mascot" appears on hover after a moment. The old webview
-pet is behind it and invisible.
+It is worse than cosmetic, because of the responder chain. The sprite view wins hit-testing, being
+the frontmost subview, but at this point in the plan it implements no `mouseDown`, so the event
+propagates to its **superview, which is tao's content view**, and `pet.js` handles the drag as
+before. The window therefore still moves while the native sprite ignores the drag entirely: no run
+sprite, no flip. The honest description of this intermediate state is "the pet is duplicated and
+dragging half-works", and that is what it was reported as on first look.
 
-If the art is blurry, `magnificationFilter` or `contentsScale` is not being applied. If the
-character sits in a corner, `cell_origin` is not reaching `setFrame`. If nothing appears, the
-layer-hosting order is wrong: the root layer must be assigned **before** `wantsLayer`.
+None of it is a defect in the renderer, and Task 4 resolves it by handling the mouse natively,
+which also stops the propagation. To judge the native renderer alone before then, hide the
+webview's content rather than reasoning about the composite:
+
+```rust
+        if std::env::var_os("MASCOT_HIDE_WEBVIEW").is_some() {
+            let _ = win.eval(
+                "document.documentElement.style.background='transparent';\
+                 document.body.style.visibility='hidden'",
+            );
+        }
+```
+
+With that set, the verdict was that the pet looks the way it did before the rewrite, in its normal
+working state. Combined with step 5's instrument this is what the task needed.
+
+**Also expected at this step, and not a defect:** changing the character in the popover does not
+change the sprite. Nothing wires a publish to the native view until Task 5 step 5, and `pet.js`
+was the only listener.
+
+**A trap for anyone hand-writing a state file to place the pet for a probe.** `pet_position`
+serialises as an object, `{"x": 80, "y": 120}`, not as an array. An array parses as absent, the
+field falls back to `None`, and `place` uses its bottom-right default, so the window looks like it
+ignored the position when in fact the file did.
 
 - [x] **Step 5: Verify the frame count without an eye test**
 
