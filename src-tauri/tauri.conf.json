@@ -47,6 +47,9 @@
     "active": true,
     "targets": ["app", "dmg"],
     "icon": ["icons/bundle/icon.icns"],
+    "resources": {
+      "../src/assets/pet": "pet"
+    },
     "category": "Utility",
     "copyright": "Art: LimeZu Modern Interiors, limezu.itch.io. Type: Departure Mono, OFL 1.1.",
     "shortDescription": "A pixel character who reflects how your side projects are going.",

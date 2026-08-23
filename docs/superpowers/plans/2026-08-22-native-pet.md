@@ -365,7 +365,7 @@ The native view reads PNGs off disk, so they have to be in the bundle. They also
 - Consumes: `sprite::relative_path` from Task 1.
 - Produces: `sprite::resolve_path(app: &AppHandle, character_id: &str, mood: &str) -> Option<PathBuf>`
 
-- [ ] **Step 1: Add the resources key**
+- [x] **Step 1: Add the resources key**
 
 `grep resources src-tauri/tauri.conf.json` returns nothing today: the key does not exist and must
 be added. In `src-tauri/tauri.conf.json`, inside `bundle`, after `"icon"`:
@@ -380,7 +380,7 @@ The **map form** is deliberate. The array form would land the files at
 `Contents/Resources/_up_/src/assets/pet/...`, because Tauri encodes the `../` in the path. The map
 form puts them at `Contents/Resources/pet/...`, which is what `sprite::relative_path` expects.
 
-- [ ] **Step 2: Write the loader**
+- [x] **Step 2: Write the loader**
 
 Append to the pure half of `src-tauri/src/sprite.rs`, above the tests:
 
@@ -396,7 +396,7 @@ pub fn resolve_path(app: &tauri::AppHandle, character_id: &str, mood: &str) -> O
 }
 ```
 
-- [ ] **Step 3: Build and confirm the sprites actually land where the code looks**
+- [x] **Step 3: Build and confirm the sprites actually land where the code looks**
 
 Run:
 
@@ -408,22 +408,28 @@ find "src-tauri/target/debug/bundle/macos/Momentum Mascot.app/Contents/Resources
 Expected: fifteen files, `pet/07/{asleep,awake,comeback,dozing,run}.png` and the same for `12`
 and `20`. If they are under `Resources/_up_/` instead, the map form of the key was not applied.
 
-Also confirm the popover's copies are still served:
+Also confirm the popover's copies are still served. **Corrected while running this step:** the
+`ls` originally written here pointed at `Contents/Resources/pet/07/dozing.png`, which is the new
+bundle resource, not the popover's copy, so it could not have detected the failure it was for.
+`frontendDist` assets are embedded in the binary and served over the custom protocol, so that is
+where to look:
 
 ```sh
-ls "src-tauri/target/debug/bundle/macos/Momentum Mascot.app/Contents/Resources/pet/07/dozing.png"
+B="src-tauri/target/debug/bundle/macos/Momentum Mascot.app/Contents/MacOS/momentum-mascot"
+strings -a "$B" | grep -E '^/assets/pet/[0-9]+/dozing\.png$' | sort
 grep -n 'assets/pet' src/popover.js
 ```
 
-Expected: the resource exists, and `popover.js:49` still references `assets/pet/${id}/dozing.png`,
-which is served from `frontendDist` and is a different copy. Both are needed.
+Expected: three embedded paths, `/assets/pet/{07,12,20}/dozing.png`, and `popover.js:49` still
+referencing `assets/pet/${id}/dozing.png`. That is a different copy from the bundle resource and
+both are needed.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml`
 Expected: PASS, 80 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src-tauri/tauri.conf.json src-tauri/src/sprite.rs

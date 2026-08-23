@@ -84,6 +84,16 @@ pub fn relative_path(character_id: &str, mood: &str) -> PathBuf {
     PathBuf::from("pet").join(character_id).join(format!("{mood}.png"))
 }
 
+/// The absolute path of a sprite inside the running bundle, or `None` if the resource directory
+/// cannot be resolved.
+///
+/// Separate from `relative_path` so the layout is testable without an `AppHandle`.
+pub fn resolve_path(app: &tauri::AppHandle, character_id: &str, mood: &str) -> Option<PathBuf> {
+    use tauri::Manager;
+    let dir = app.path().resource_dir().ok()?;
+    Some(dir.join(relative_path(character_id, mood)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
