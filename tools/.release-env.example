@@ -25,3 +25,24 @@ APPLE_PASSWORD="xxxx-xxxx-xxxx-xxxx"
 
 # The 10-character Team ID, from https://developer.apple.com/account under Membership details.
 APPLE_TEAM_ID="TEAMID1234"
+
+# ---------------------------------------------------------------- Mac App Store only
+#
+# tools/release-mas.sh reads these. The DMG path does not use them.
+#
+# Both certificates are found automatically in the keychain by their common names, so these two
+# are only needed to disambiguate when more than one is installed. Note the second one's name:
+# the developer portal calls it "Mac Installer Distribution", and no certificate's common name
+# reads that.
+# MAS_APP_IDENTITY="Apple Distribution: Your Name (TEAMID1234)"
+# MAS_INSTALLER_IDENTITY="3rd Party Mac Developer Installer: TEAMID1234"
+
+# App Store Connect API key, from Users and Access > Integrations > App Store Connect API.
+# An API key is better auth for uploads than the app-specific password above, and it is what
+# altool's --api-key / --api-issuer want.
+#
+# The private key file must be named AuthKey_<key id>.p8 and live in one of the directories
+# altool searches:  ./private_keys  ~/private_keys  ~/.private_keys
+#                   ~/.appstoreconnect/private_keys  $API_PRIVATE_KEYS_DIR
+ASC_API_KEY_ID="ABC123DEF4"
+ASC_API_ISSUER_ID="00000000-0000-0000-0000-000000000000"

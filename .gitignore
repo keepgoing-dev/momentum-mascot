@@ -26,3 +26,11 @@ src-tauri/icons/bundle/
 # Apple signing and notarization credentials. Real secrets, never committed.
 # Copy tools/.release-env.example to create it. See docs/notarization.md.
 tools/.release-env
+
+# The Mac App Store build counter. App Store Connect rejects a reused build number, so this only
+# ever goes up. Local because the store build is local, same as tools/.release-env.
+tools/.mas-build
+
+# A Mac App Store provisioning profile, if one is ever embedded. Not required (TN3125), and it
+# carries the team's identifiers, so it is not committed.
+tools/embedded.provisionprofile
