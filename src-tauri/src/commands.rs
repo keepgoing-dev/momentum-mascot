@@ -26,6 +26,11 @@ pub fn refresh(app: AppHandle) {
 pub fn hide_popover(app: AppHandle) {
     if let Some(win) = app.get_webview_window(app::POPOVER) {
         let _ = win.hide();
+        // Escape is a close like any other, so it resolves the comeback like any other. Hiding
+        // a focused window does raise `Focused(false)`, which would reach the same place, but a
+        // celebration that survives on the strength of an event ordering nobody measured is not
+        // worth the two lines saved.
+        app::note_popover_hidden(&app);
     }
 }
 

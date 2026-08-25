@@ -554,15 +554,23 @@ mod tests {
         );
     }
 
+    /// Section 4.5's two halves, in the order `app.rs` performs them. The middle assertion is
+    /// the one with history: `show_popover` used to resolve before it published, so the room
+    /// evaluated as `awake` in the very call that was meant to show the celebration, and the
+    /// popover could never display a comeback at all.
     #[test]
-    fn opening_the_popover_resolves_it_early() {
+    fn closing_the_popover_resolves_it_early() {
         let mut m = with(vec![project(Some(T - 100 * 3600))], None);
         m.evaluate(T, T);
         m.state.projects[0].last_commit_at = Some(T);
         assert_eq!(m.evaluate(T, T), Mood::Comeback);
 
+        // Open: the room is published again and is still the celebration.
+        assert_eq!(m.evaluate(T + 1, T + 1), Mood::Comeback);
+
+        // Closed.
         m.resolve_comeback();
-        assert_eq!(m.evaluate(T + 1, T + 1), Mood::Rest(Rest::Awake));
+        assert_eq!(m.evaluate(T + 2, T + 2), Mood::Rest(Rest::Awake));
     }
 
     #[test]

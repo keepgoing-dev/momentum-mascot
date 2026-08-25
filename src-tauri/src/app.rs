@@ -202,11 +202,12 @@ pub fn show_popover(app: &AppHandle) {
     };
     let state = app.state::<AppState>();
 
-    // Opening the popover is what resolves the comeback (section 4.5), and it is also when
-    // the quote rotates, so two consecutive looks are not the same line.
+    // The quote rotates on open, so two consecutive looks are not the same line. The comeback
+    // is deliberately NOT resolved here: section 4.5 puts the resolution on close, because this
+    // function ends in `publish`, and resolving first would evaluate the room as `awake` and
+    // render the celebration away in the same call that was supposed to show it.
     {
         let mut momentum = state.momentum.lock().unwrap();
-        momentum.resolve_comeback();
         momentum.next_quote();
     }
 
@@ -225,14 +226,21 @@ pub fn show_popover(app: &AppHandle) {
     publish(app);
 }
 
-/// Remember that the popover just closed itself.
+/// The popover just closed. Remember when, and settle the comeback.
 ///
 /// Clicking the tray icon while the popover is open produces two events in this order: the
 /// window loses focus and hides itself, then the click arrives and asks to toggle. Without a
 /// memory of the first, the second reopens what the user was closing, and the popover appears
 /// to be un-closable. A short window is enough, because the two events are consecutive.
+///
+/// Closing is also where the comeback resolves (section 4.5: "the user sees the full-room
+/// celebration, and on close it settles into `awake`"). Every way the popover goes away comes
+/// through here, which is the reason the resolution lives in this function rather than at the
+/// three call sites.
 pub fn note_popover_hidden(app: &AppHandle) {
-    *app.state::<AppState>().popover_hidden_at.lock().unwrap() = Some(std::time::Instant::now());
+    let state = app.state::<AppState>();
+    *state.popover_hidden_at.lock().unwrap() = Some(std::time::Instant::now());
+    state.momentum.lock().unwrap().resolve_comeback();
 }
 
 /// Whether the app's own folder picker is on screen, in which case a focus loss on the popover
