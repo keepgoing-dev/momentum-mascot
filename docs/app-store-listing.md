@@ -201,7 +201,24 @@ It goes up by exactly 2 with a point filter and is matted on the card's own back
 colour. Measured rather than asserted: the source card has 147 distinct colours and the 2x
 result has 147, so no pixel was blended.
 
+### The popover had to be pinned to be photographed at all
+
+The popover closes when it loses focus, which is right, and every way of triggering a screen
+capture takes the focus first: the shift-cmd-5 panel is an app, and a capture invoked from a
+terminal makes the terminal frontmost. So shots 2, 3 and 4 were not awkward to take, they were
+unobtainable, and 4 doubly so because closing the popover is also what resolves the
+celebration.
+
+`KEEPGOING_PIN_POPOVER` skips the hide-on-focus-loss, and `hold-state.sh` sets it. Escape and
+the tray icon still close the popover, so there is always a way out. Debug builds only, for
+the same reason as the clock and the state path, and measured rather than asserted: the release
+binary contains the string zero times, exactly like `KEEPGOING_CLOCK_SCALE` and
+`KEEPGOING_MASCOT_STATE`.
+
 ### The five commands
+
+Shoot against a plain desktop. A full-screen browser or editor behind the popover makes a busy
+screenshot and puts someone else's interface in the listing.
 
 ```sh
 tools/hold-state.sh awake                              # then drag the pet to the corner

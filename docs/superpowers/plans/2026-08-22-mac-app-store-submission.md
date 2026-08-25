@@ -231,6 +231,15 @@ Sections 4 to 6 (API key, app record) are still open, so Task 16 steps 4 and 5 s
     route round it: shift-cmd-5 captures the whole display at native resolution with no
     permission change, and cropping that file gives the same guarantee as capturing it directly.
 
+23. **Three of the five shots could not be taken at all, for a reason outside the app's own
+    behaviour.** The popover closes on focus loss, and every way of triggering a screen capture
+    takes the focus first: the shift-cmd-5 panel is an app, and a capture invoked from a
+    terminal makes the terminal frontmost. Shot 4 was worse still, because closing the popover
+    is also what resolves the celebration. `KEEPGOING_PIN_POPOVER` skips the hide, debug builds
+    only, set by `hold-state.sh`; Escape and the tray icon still close it. The release binary
+    contains the string zero times, measured alongside `KEEPGOING_CLOCK_SCALE` and
+    `KEEPGOING_MASCOT_STATE`, which are also zero, and the private-API gate is still clean.
+
 **Also noticed, and since fixed.** The release build emitted six dead-code warnings from
 `src-tauri/src/sprite.rs`: the debug probe's `Probe` struct, its ivar, its two constants and
 `frame_at`. The `#[cfg(debug_assertions)]` restructure at the end of the pet work gated the

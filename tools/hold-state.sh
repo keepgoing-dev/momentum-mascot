@@ -113,8 +113,11 @@ if [ "$STATE_NAME" = comeback ]; then
   resolves it (spec 4.5), so open the popover, shoot it, and rerun this for another attempt.
 INFO
 fi
-printf '\n  ctrl-c when the shots are taken.\n\n'
+printf '\n  the popover is PINNED: it will not close when the screenshot tool takes the focus.\n'
+printf '  escape or the tray icon still close it. ctrl-c here when the shots are taken.\n\n'
 
-KEEPGOING_MASCOT_STATE="$STATE" "$BIN" &
+# Pinned, because the popover closes on focus loss and every way of triggering a screen capture
+# takes the focus first. Escape and the tray icon still close it. Debug builds only.
+KEEPGOING_PIN_POPOVER=1 KEEPGOING_MASCOT_STATE="$STATE" "$BIN" &
 APP_PID=$!
 wait "$APP_PID"

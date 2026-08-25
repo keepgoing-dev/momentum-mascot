@@ -243,6 +243,24 @@ pub fn note_popover_hidden(app: &AppHandle) {
     state.momentum.lock().unwrap().resolve_comeback();
 }
 
+/// Whether the popover has been pinned open for a screenshot.
+///
+/// Reads `KEEPGOING_PIN_POPOVER`, and **only in a debug build**, for the same reason as the
+/// clock and the state path: a release binary ignores it, so a popover that will not dismiss
+/// cannot ship.
+///
+/// The problem it solves has no solution from outside the app. The popover closes when it
+/// loses focus, which is correct, and every way of triggering a screen capture takes the focus
+/// first: the shift-cmd-5 panel is an app, and a capture invoked from a terminal means the
+/// terminal is frontmost. So the App Store shots of the popover were not merely awkward to
+/// take, they were unobtainable, and the comeback one doubly so because closing the popover
+/// also resolves the celebration.
+///
+/// Escape and the tray icon still close it, so there is always a way out.
+pub fn popover_is_pinned() -> bool {
+    cfg!(debug_assertions) && std::env::var_os("KEEPGOING_PIN_POPOVER").is_some()
+}
+
 /// Whether the app's own folder picker is on screen, in which case a focus loss on the popover
 /// is not a click outside and must not close it.
 ///
