@@ -107,6 +107,9 @@ code:
 curl -sS https://keepgoing.dev/privacy | grep -q "<title>Privacy Policy" && echo live
 ```
 
+Verified live on 25 August 2026: HTTP 200 and the right title. `/privacy.html` returns a
+308 to the clean path, which is Cloudflare Pages normalising and not a problem.
+
 ## Review notes
 
 Paste verbatim into App Review Notes. Without it the app looks broken to a reviewer who
