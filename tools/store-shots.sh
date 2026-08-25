@@ -19,7 +19,10 @@
 #   tools/store-shots.sh card  <file>|--clip <n> <name>        frame a 1200x630 share card
 #   tools/store-shots.sh check                                 verify every shot's size
 #
-#   corner:  tr (default) | br | tl | bl | c
+#   corner:  tr (default) | br | tl | bl | c | +X+Y | popover
+#
+# `popover` finds the dark panel and centres the window on it, which is what a display wide
+# enough to leave the popover outside a top-right crop needs.
 #
 # `grab` needs Screen & System Audio Recording permission for the terminal, in System Settings
 # > Privacy & Security. Without it `screencapture` fails with "could not create image from
@@ -61,8 +64,50 @@ offset_for() {  # offset_for <corner> <srcW> <srcH> -> "+X+Y"
     tl) echo "+0+0" ;;
     bl) echo "+0+$bottom" ;;
     c)  echo "+$((right / 2))+$((bottom / 2))" ;;
-    *)  echo "unknown corner: $corner (tr, br, tl, bl, c)" >&2; return 1 ;;
+    # An explicit offset, because the presets stop being enough on a very wide display: the
+    # popover is anchored under the tray icon, and on a 6718px capture that leaves it 165px
+    # outside a top-right window, so `tr` would slice the thing being photographed.
+    +*+*) echo "$corner" ;;
+    *)  echo "unknown corner: $corner (tr, br, tl, bl, c, or +X+Y)" >&2; return 1 ;;
   esac
+}
+
+# The panel's own background, from src/style.css `--panel`, and its size in physical pixels on
+# a 2x display: the window is 352x540 logical.
+PANEL='#14141c'
+PANEL_W=704
+
+# Where the popover is, so the offset is measured instead of guessed.
+#
+# Two decisions make this work, and both were arrived at by watching the naive version fail on
+# a photograph of a beach. Keying on the panel's exact colour rather than on "the darkest thing
+# in the top strip" is the first: a luminance threshold matched the sea. Connected components
+# rather than a bounding box is the second: even keyed on colour, a bounding box is the union of
+# every match, so dark foliage on the far side of a 6718px screen dragged the box across most of
+# the display. The panel is then identified by its width, which is the one number known exactly.
+find_popover() {  # find_popover <src> -> "+X+Y" centring the window on the popover
+  local src=$1 dims sw at
+  dims=$(size_of "$src"); sw=${dims%x*}
+  at=$(magick "$src" -fuzz 2% -fill white -opaque "$PANEL" -fill black +opaque white \
+    -colorspace gray -threshold 50% \
+    -define connected-components:verbose=true \
+    -define connected-components:area-threshold=20000 \
+    -connected-components 8 null: 2>/dev/null \
+    | awk -v want="$PANEL_W" -v win="$W" -v sw="$sw" '
+        NR > 1 {
+          split($2, g, /[x+]/)
+          d = g[1] - want; if (d < 0) d = -d
+          if (best == "" || d < best) { best = d; centre = g[3] + g[1] / 2 }
+        }
+        END {
+          if (best == "" || best > 96) exit 1
+          x = int(centre - win / 2)
+          if (x < 0) x = 0
+          if (x > sw - win) x = sw - win
+          printf "+%d+0", x
+        }')
+  [ -n "$at" ] || { echo "could not find the popover panel in $src" >&2; return 1; }
+  echo "$at"
 }
 
 # The clipboard, because ctrl-shift-cmd-3 and the "Copy to Clipboard" option in the shift-cmd-5
@@ -88,7 +133,15 @@ crop_to() {  # crop_to <src> <dest> <corner>
   local src=$1 dest=$2 corner=$3
   local dims sw sh at
   dims=$(size_of "$src"); sw=${dims%x*}; sh=${dims#*x}
-  at=$(offset_for "$corner" "$sw" "$sh")
+  if [ "$sw" -lt "$W" ] || [ "$sh" -lt "$H" ]; then
+    echo "source is ${sw}x${sh}, smaller than ${W}x${H}: capture the whole display, not a region" >&2
+    return 1
+  fi
+  if [ "$corner" = popover ]; then
+    at=$(find_popover "$src") || return 1
+  else
+    at=$(offset_for "$corner" "$sw" "$sh")
+  fi
   mkdir -p "$(dirname "$dest")"
   magick "$src" -crop "${W}x${H}${at}" +repage "$dest"
   printf '  %s  %s  cropped %s from %s at %s\n' "$(size_of "$dest")" "$dest" "$corner" "$dims" "$at"

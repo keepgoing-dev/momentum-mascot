@@ -233,6 +233,16 @@ KEEPGOING_MASCOT_STATE   0
 
 ### The five commands
 
+**Use `popover`, not `tr`, for the popover shots.** The popover is anchored under the tray
+icon, which on a 6718px capture leaves its left edge 161px outside a top-right window, so `tr`
+slices the thing being photographed. `popover` measures instead: it masks the panel's own colour
+from `src/style.css` and takes the connected component whose width matches the window's known
+704 physical pixels, then centres the crop on it. Both halves of that were arrived at by
+watching the naive version fail on a photographic wallpaper, and both are worth keeping. A
+luminance threshold matched the sea, and a bounding box, even keyed on the right colour, is the
+union of every match, so dark foliage on the far side of the screen dragged it across most of
+the display.
+
 Screenshots land wherever `defaults read com.apple.screencapture location` says, which is not
 always the Desktop.
 
@@ -241,16 +251,16 @@ screenshot and puts someone else's interface in the listing.
 
 ```sh
 tools/hold-state.sh awake                              # then drag the pet to the corner
-tools/store-shots.sh grab 1 pet br
+tools/store-shots.sh clip 1 pet br
 
 tools/hold-state.sh awake                              # open the popover from the menu bar
-tools/store-shots.sh grab 2 awake tr
+tools/store-shots.sh clip 2 awake popover
 
 tools/hold-state.sh dozing
-tools/store-shots.sh grab 3 dozing tr
+tools/store-shots.sh clip 3 dozing popover
 
-tools/hold-state.sh comeback                           # 30 real minutes, see below
-tools/store-shots.sh grab 4 comeback tr
+tools/hold-state.sh comeback
+tools/store-shots.sh clip 4 comeback popover
 
 # Click Share Status, which puts the card on the clipboard, then:
 tools/store-shots.sh card --clip 5 card
