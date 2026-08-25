@@ -252,6 +252,24 @@ Sections 4 to 6 (API key, app record) are still open, so Task 16 steps 4 and 5 s
     failure was loud, and the same mistake with a `2>/dev/null` on it would have launched the
     app without the hold and looked like the hold not working.
 
+26. **The pet shot cost the listing its running order.** Task 17 called it "the product's
+    face" and put it first. Shot at 2560x1600 it is a 128 pixel sprite in five per cent of the
+    frame, invisible in a gallery thumbnail, and on the first attempt it sat in dense foliage at
+    exactly its own scale and did not separate from the wallpaper at all. Moved to fourth, and
+    the room leads. Moving the pet to flat water fixed the legibility; nothing fixes the fact
+    that the frame is mostly wallpaper, and the note in `docs/app-store-listing.md` says so
+    rather than pretending otherwise.
+27. **All five taken, `check` reports every one at 2560x1600.** Shots 1 to 3 share a frame on
+    purpose, and shot 1 was reshot for that: the first version was captured without the menu bar
+    while 2 and 3 had it, which read as three screenshots rather than three states of one thing.
+28. **Screen Recording permission changed the workflow rather than the tooling.** Once iTerm had
+    it, `screencapture -x -D 1` replaced every clipboard round trip, and the remaining human
+    steps were reduced to opening the popover and dragging the pet. Two full-display captures
+    taken while locating the pet contained a work chat and this session's own transcript; both
+    were deleted immediately and nothing was captured again until the desktop was clear. Worth
+    recording as a hazard of the `grab` path that the `clip` path does not have: `grab` captures
+    whatever is on screen, and the operator is not looking at the screen.
+
 **Also noticed, and since fixed.** The release build emitted six dead-code warnings from
 `src-tauri/src/sprite.rs`: the debug probe's `Probe` struct, its ivar, its two constants and
 `frame_at`. The `#[cfg(debug_assertions)]` restructure at the end of the pet work gated the
@@ -3250,7 +3268,7 @@ an ambient status indicator for developers is the whole product and that its res
 deliberate. Do not add scope to satisfy a guess about App Review's appetite.
 ````
 
-- [ ] **Step 2: Take the screenshots**
+- [x] **Step 2: Take the screenshots**
 
 Not with `tools/drive-states.sh`, which is what this step said and which is the wrong tool: it
 runs the arc on a 3600x clock, so the state is on screen for seconds and keeps moving while the

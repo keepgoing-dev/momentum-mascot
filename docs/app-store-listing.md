@@ -313,6 +313,34 @@ Worth noting how it stayed hidden: the unit test at the momentum layer passed be
 after, because the defect was the ordering of two calls in `app.rs` and not the behaviour of
 either one. It took needing the screenshot to find it.
 
+### Taken
+
+All five, on 25 August 2026, and `store-shots.sh check` reports every one at exactly 2560x1600.
+
+| # | File | What is in it |
+|---|---|---|
+| 1 | `1-comeback.png` | popover, comeback, "I KNEW IT.", rows at 3 minutes / 6 days / 14 days |
+| 2 | `2-awake.png` | popover, awake, "Something moved today. That counts." |
+| 3 | `3-dozing.png` | popover, dozing, "Taking five. Same here." |
+| 4 | `4-pet.png` | the pet alone, bottom-left corner, over water |
+| 5 | `5-card.png` | the comeback share card, BACK!!!, at 2x on its mat |
+
+Shots 1 to 3 share a frame deliberately: same wallpaper, same popover position, same menu bar in
+view, so the three states read as three states of one thing rather than three screenshots. The
+first attempt at shot 1 was taken without the menu bar and had to be redone for that reason
+alone.
+
+### The pet shot is thin, and that is a judgement call rather than a defect
+
+Shot 4 is 95 per cent flat water with a 128 pixel sprite in the corner. Two readings of it are
+both true: the emptiness is the product's actual pitch, since the pet sits in a corner and does
+not ask for anything, and a screenshot that is mostly wallpaper is a weak screenshot. It is
+fourth rather than first for that reason.
+
+The stronger version, if this is ever reshot: the pet over a fullscreen window. The description
+claims "visible over fullscreen apps" and no other shot supports that claim. It needs a window
+with nothing private in it, which is the only reason it was not done this time.
+
 ### Check each shot at 100%
 
 The scripts guarantee the pixel dimensions and that nothing was resampled by them. They cannot
