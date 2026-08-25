@@ -198,6 +198,39 @@ Sections 4 to 6 (API key, app record) are still open, so Task 16 steps 4 and 5 s
     to* preserve, whereas moving the project to 1.0 means `tools/release.sh 1.0`, which also tags,
     dates the changelog, notarizes a DMG and publishes a GitHub release.
 
+### Task 17, the screenshots
+
+19. **The version question resolved itself downward.** The App Store Connect record was edited
+    from 1.0 to 0.3.1, which is the option that leaves the single version line alone. Nothing was
+    tagged, no changelog was dated and no DMG was published to make the store record agree with
+    the build.
+20. **Task 17 step 2 names the wrong script.** It says to run `tools/drive-states.sh`, which
+    drives the four-state arc on a 3600x clock. That is the right tool for watching a transition
+    and the wrong one for photographing a state: the state is on screen for seconds, and the
+    clock keeps moving while the shot is framed. Two scripts replace it. `tools/hold-state.sh`
+    holds one state by leaving the clock at 1x and backdating the commits through
+    `GIT_COMMITTER_DATE`, which is the timestamp the app reads. `tools/store-shots.sh` takes the
+    shots, and never resizes one: a 2x display's native capture is already twice the logical
+    size, 2560x1600 is exactly 1280x800 of logical space, and a crop is not a resize.
+21. **The comeback could never be photographed, because the popover could never show it.**
+    `app.rs::show_popover` resolved the comeback and then called `publish`, so the room
+    evaluated as `awake` in the same call that was meant to show the celebration. Spec section
+    4.5 puts the resolution on close ("the user sees the full-room celebration, and on close it
+    settles into `awake`"), so the resolution moved to `note_popover_hidden`, which every close
+    path already goes through, and `commands::hide_popover` now calls it so that Escape does not
+    depend on an event ordering nobody measured. The pet was always correct; the surface section
+    4.5 calls "the screenshottable version" was not.
+
+    Worth recording how it survived: the momentum-layer unit test passed before and after,
+    because the defect was the *ordering of two calls* in `app.rs` and not the behaviour of
+    either one. `opening_the_popover_resolves_it_early` asserted the old order in its name and
+    is now `closing_the_popover_resolves_it_early`, with the added assertion that the room is
+    still a comeback when it is published while open. Needing the screenshot is what found it.
+22. **`screencapture` is gated by Screen Recording permission**, and it reports the denial as
+    "could not create image from display", which reads like a bug. `store-shots.sh crop` is the
+    route round it: shift-cmd-5 captures the whole display at native resolution with no
+    permission change, and cropping that file gives the same guarantee as capturing it directly.
+
 **Also noticed, and since fixed.** The release build emitted six dead-code warnings from
 `src-tauri/src/sprite.rs`: the debug probe's `Probe` struct, its ivar, its two constants and
 `frame_at`. The `#[cfg(debug_assertions)]` restructure at the end of the pet work gated the
@@ -3198,18 +3231,29 @@ deliberate. Do not add scope to satisfy a guess about App Review's appetite.
 
 - [ ] **Step 2: Take the screenshots**
 
+Not with `tools/drive-states.sh`, which is what this step said and which is the wrong tool: it
+runs the arc on a 3600x clock, so the state is on screen for seconds and keeps moving while the
+shot is framed. Use the two scripts written for this instead, both documented in
+`docs/app-store-listing.md`:
+
 ```sh
-tools/drive-states.sh
+tools/hold-state.sh awake|dozing|asleep|comeback   # holds one state at 1x, for hours
+tools/store-shots.sh grab <n> <name> [corner]      # full-display capture, cropped to 2560x1600
+tools/store-shots.sh card --clip 5 card            # the share card at 2x on its own mat
+tools/store-shots.sh check                         # every file exactly 2560x1600
 ```
 
-Capture the five shots listed above at 2560x1600. Check each one at 100%: pixel art that has been
-resampled by a screenshot tool reads as blurry and undermines the one thing the listing is
-selling.
+The scripts guarantee the dimensions and that they resampled nothing. Still look at all five at
+100%, because they cannot tell you the popover is fully inside the crop or that the wallpaper
+behind shot 1 is not distracting.
 
 - [ ] **Step 3: Fill in App Store Connect**
 
 Type every field from the document into the listing. Upload the screenshots. Answer the privacy
 questionnaire as "Data Not Collected" in every category.
+
+The privacy half is **done**, on 25 August 2026: App Privacy reads "Data Not Collected", Data
+Types reads "Data is not collected from this app", and the Privacy Policy URL is set.
 
 - [ ] **Step 4: Commit**
 
@@ -3217,6 +3261,9 @@ questionnaire as "Data Not Collected" in every category.
 git add docs/app-store-listing.md
 git commit -m "Write the App Store listing metadata down"
 ```
+
+The screenshot scripts and the comeback fix are their own commits, because one of them changes
+shipped behaviour and does not belong buried in a metadata commit.
 
 ## Task 18: Submit
 
@@ -3241,6 +3288,7 @@ From spec section 9, against the signed sandboxed build:
 - The pet is visible and non-hostile over a fullscreen app. This is the regression the NSPanel decision was won against, and it is the one this whole project could most easily have broken.
 - The pet appears at all, drags to all four corners, glides, and a click opens the popover.
 - The popover works: add a project, cycle a character, toggle operating, untrack, copy the share card, dismiss with Escape.
+- The popover shows the **comeback** room while a celebration is live, and settles to awake only after it is closed. `tools/hold-state.sh comeback` stages it. This item was absent from the list until now, which is exactly how the ordering defect in correction 21 reached a submission-ready build: every other state was covered, and the one the product exists for was not.
 - A tracked `git worktree` checkout shows the specific message, and an ordinary clone is unaffected.
 - The privacy link is present in the popover and opens the hosted page.
 - The popover's rounded corners read correctly on a light and a dark desktop.

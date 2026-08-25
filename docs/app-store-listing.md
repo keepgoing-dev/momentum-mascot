@@ -99,6 +99,10 @@ device, the resulting data should be considered separately." The share card puts
 data on the **clipboard**, not off device, so it stays clear. If a future release ever
 posts a card anywhere, this answer changes.
 
+**Answered in App Store Connect on 25 August 2026.** The App Privacy section reads "Data Not
+Collected", Data Types reads "Data is not collected from this app", and the Privacy Policy URL
+is set to `https://keepgoing.dev/privacy`.
+
 The Privacy Policy URL must resolve before the version can be submitted. Note that
 keepgoing.dev serves a page for unknown paths, so check it by content and not by status
 code:
@@ -164,12 +168,93 @@ explain it, not to remove it and not to leave it unmentioned.
 4. The popover in **comeback**, which is the moment the whole product exists for.
 5. The share card at full size.
 
-`KEEPGOING_CLOCK_SCALE` and `KEEPGOING_MASCOT_STATE` (debug builds only) drive the states
-for shots 2 to 4 without waiting three days. `tools/drive-states.sh` already exists for
-this.
+### The two scripts, and why not `drive-states.sh`
 
-Check each shot at 100%: pixel art resampled by a screenshot tool reads as blurry, and
-undermines the one thing the listing is selling.
+An earlier draft of this section pointed at `tools/drive-states.sh`. That is the wrong tool.
+It runs the whole arc past you on a 3600x clock, which is exactly right for watching the
+transitions and exactly wrong for a photograph: the state you want is on screen for seconds,
+and the clock keeps moving while you frame the shot.
+
+**`tools/hold-state.sh awake|dozing|asleep|comeback`** holds one state still instead. It
+leaves the clock at 1x and backdates the commits, so `dozing` staged at 30 hours has 42 hours
+of headroom before it falls asleep and `awake` staged at 12 minutes has most of a day. The
+timestamp it writes is the **reflog entry's**, through `GIT_COMMITTER_DATE`, because that is
+the one the app reads; `--date` would change the author date and nothing else. It builds
+throwaway repositories with no working-tree files at all, which matters more than it looks:
+the mood is the max of `last_commit_at` and `last_active_at`, and a file modified five minutes
+ago would pin every state to awake.
+
+The comeback cannot be staged by a timestamp, because it is a transition rather than a
+resting state. `hold-state.sh` seeds `last_displayed_state: "asleep"` in the throwaway state
+file and lets a fresh commit complete the pair, which is the same path as the restart case in
+spec section 4.5.
+
+**`tools/store-shots.sh`** produces the files, and it exists for one reason: a screenshot of
+pixel art that has been through a resize is not a smaller problem than a wrong screenshot.
+Soft edges are the most visible way for this listing to look amateur. So nothing in it ever
+resizes a screenshot. A 2x display's native capture is already twice the logical size,
+2560x1600 is exactly 1280x800 of logical space, and a **crop is not a resize**, so every shot
+is a full-display capture cropped at an integer offset.
+
+The one thing it does scale is the share card, which is 1200x630 and has to reach 2560x1600.
+It goes up by exactly 2 with a point filter and is matted on the card's own background
+colour. Measured rather than asserted: the source card has 147 distinct colours and the 2x
+result has 147, so no pixel was blended.
+
+### The five commands
+
+```sh
+tools/hold-state.sh awake                              # then drag the pet to the corner
+tools/store-shots.sh grab 1 pet br
+
+tools/hold-state.sh awake                              # open the popover from the menu bar
+tools/store-shots.sh grab 2 awake tr
+
+tools/hold-state.sh dozing
+tools/store-shots.sh grab 3 dozing tr
+
+tools/hold-state.sh comeback                           # 30 real minutes, see below
+tools/store-shots.sh grab 4 comeback tr
+
+# Click Share Status, which puts the card on the clipboard, then:
+tools/store-shots.sh card --clip 5 card
+
+tools/store-shots.sh check                             # every file exactly 2560x1600
+```
+
+`grab` needs Screen & System Audio Recording permission for the terminal. Without it
+`screencapture` fails with "could not create image from display", which reads like a bug and
+is a permission. The way round it needs no permission change: take the shot with shift-cmd-5,
+choosing the whole display rather than a region, and hand the file over.
+
+```sh
+tools/store-shots.sh crop ~/Desktop/'Screenshot ....png' 3 dozing tr
+```
+
+Output lands in `docs/store-shots/`, gitignored for the same reason `docs/mockups/` is.
+
+### The comeback shot needed a fix to the app
+
+Shot 4 was not obtainable when this was first attempted, and the reason was a real defect
+rather than a tooling problem. `app.rs::show_popover` resolved the comeback and *then* called
+`publish`, so the room evaluated as `awake` in the very call that was meant to show the
+celebration. The pet celebrated correctly; the popover, which spec section 4.5 calls "the
+screenshottable version", could never display a comeback at all.
+
+Section 4.5 puts the resolution on close: "the user sees the full-room celebration, and on
+close it settles into `awake`." The resolution moved to `note_popover_hidden`, which every
+close path already goes through, and the regression test is
+`momentum::tests::closing_the_popover_resolves_it_early`.
+
+Worth noting how it stayed hidden: the unit test at the momentum layer passed before and
+after, because the defect was the ordering of two calls in `app.rs` and not the behaviour of
+either one. It took needing the screenshot to find it.
+
+### Check each shot at 100%
+
+The scripts guarantee the pixel dimensions and that nothing was resampled by them. They cannot
+tell you that the popover is fully inside the crop, that the pet landed in the corner, or that
+the wallpaper behind shot 1 is not distracting. Look at all five.
 
 Screenshots are derived LimeZu art, so they are covered by the licence check in
 `docs/app-store-licence-check.md`: uploading them to the listing is presentation of the

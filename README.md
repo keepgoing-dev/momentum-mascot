@@ -62,6 +62,11 @@ accelerated clock, instead of the three days the real 24 and 72 hour thresholds 
 uses a throwaway repository and a throwaway state file, and the clock it needs is read in debug
 builds only.
 
+`tools/hold-state.sh <state>` is the opposite tool for the opposite job. It leaves the clock at
+1x and backdates the commits instead, so one state stays put for hours. That is what a
+screenshot needs, and `tools/store-shots.sh` is the other half of it: full-display captures
+cropped to the App Store's 2560x1600 without ever resizing a pixel of art.
+
 ## Packaging it
 
 ### Manual build

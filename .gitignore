@@ -9,6 +9,11 @@
 # See docs/spec-v2.md section 4.2.
 docs/mockups/
 
+# App Store screenshots, from tools/store-shots.sh. Same rule as docs/mockups: they are the
+# composed rooms and the pet, so they are derived LimeZu art. Uploading them to the listing is
+# presentation of the app; committing them here would be redistribution of the pack.
+docs/store-shots/
+
 # App assets are composited at build time from a local licensed copy of the pack.
 # Same rule as docs/mockups: coordinates are committed, art is not.
 # Regenerate with tools/build-app-assets.sh.
