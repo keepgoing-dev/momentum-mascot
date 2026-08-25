@@ -35,7 +35,7 @@ APPLE_TEAM_ID="TEAMID1234"
 # the developer portal calls it "Mac Installer Distribution", and no certificate's common name
 # reads that.
 # MAS_APP_IDENTITY="Apple Distribution: Your Name (TEAMID1234)"
-# MAS_INSTALLER_IDENTITY="3rd Party Mac Developer Installer: TEAMID1234"
+# MAS_INSTALLER_IDENTITY="3rd Party Mac Developer Installer: Your Name (TEAMID1234)"
 
 # App Store Connect API key, from Users and Access > Integrations > App Store Connect API.
 # An API key is better auth for uploads than the app-specific password above, and it is what

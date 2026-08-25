@@ -1,15 +1,13 @@
 # Mac App Store: the one-time setup
 
 `docs/notarization.md` covers the DMG channel. This covers the store, and the two use
-**different certificates**. The machine currently holds exactly one identity:
+**different certificates**. The Developer ID Application certificate that signs the DMG
+cannot sign a store submission: doing so yields App Store Connect error 90034, "not signed
+using an Apple submission certificate".
 
-```sh
-security find-identity -v
-#  1) ... "Developer ID Application: Hoa Trinh (3LM6674AC2)"
-```
-
-That one signs the DMG and cannot sign a store submission. Submitting with it yields App
-Store Connect error 90034, "not signed using an Apple submission certificate".
+Sections 1 to 3 were completed on 25 August 2026, so `security find-identity -v` now
+reports three identities. The steps are kept because they are the record of how, and
+section 3a is the hour this cost.
 
 Design and rationale: `docs/superpowers/specs/2026-08-22-mac-app-store-design.md`.
 Implementation plan: `docs/superpowers/plans/2026-08-22-mac-app-store-submission.md`.
@@ -25,10 +23,15 @@ registering, and this app uses no restricted entitlements.
 
 This signs the `.app`.
 
-<https://developer.apple.com/account/resources/certificates> > Certificates > + >
-**Apple Distribution**. Generate a CSR from Keychain Access
-(Certificate Assistant > Request a Certificate From a Certificate Authority, saved to
-disk, 2048-bit RSA), upload it, download the `.cer`, double-click to install.
+**With Xcode installed, skip the portal and the CSR entirely.** Xcode > Settings >
+Accounts > select the team > Manage Certificates > **+** offers both this certificate and
+the one in section 3, generates the key pair, files the request and installs the result.
+This is what was actually done, and it takes about ten seconds each.
+
+Otherwise: <https://developer.apple.com/account/resources/certificates> > Certificates >
++ > **Apple Distribution**. Generate a CSR from Keychain Access (Certificate Assistant >
+Request a Certificate From a Certificate Authority, saved to disk, 2048-bit RSA), upload
+it, download the `.cer`, double-click to install.
 
 Its common name reads `Apple Distribution: Hoa Trinh (3LM6674AC2)`.
 
@@ -36,11 +39,12 @@ Its common name reads `Apple Distribution: Hoa Trinh (3LM6674AC2)`.
 
 This signs the `.pkg`, and this is the step with the trap in it.
 
-Same page, + > **Mac Installer Distribution**. Same CSR flow.
+Same **+** menu in Xcode, or the same portal page and CSR flow.
 
-**The portal label is not the certificate's common name.** The installed certificate reads
-`3rd Party Mac Developer Installer: 3LM6674AC2`. No certificate's common name reads "Mac
-Installer Distribution". `tools/release-mas.sh` looks for the real name.
+**The portal label is not the certificate's common name.** Measured, the installed
+certificate reads `3rd Party Mac Developer Installer: Hoa Trinh (3LM6674AC2)`. No
+certificate's common name reads "Mac Installer Distribution". `tools/release-mas.sh`
+matches on the prefix and takes whatever follows, so either form works.
 
 Verify both, and note the flag:
 
@@ -55,7 +59,49 @@ Installer-signing identities are different from code-signing identities, so the
 makes it fail on a correctly configured machine.
 
 Expected after this step: three identities, the Developer ID Application one plus these
-two.
+two. If you get one, read the next section before doing anything else.
+
+## 3a. When the new certificates are "not trusted"
+
+Both certificates can install correctly, with their private keys, and still not appear:
+
+```
+$ security find-identity -v
+  1) ... "Developer ID Application: Hoa Trinh (3LM6674AC2)"
+     1 valid identities found
+```
+
+Drop the `-v` to see what is actually wrong. That flag filters to *valid* identities, so a
+chain that does not evaluate looks like a certificate that does not exist:
+
+```
+$ security find-identity
+  2) ... "Apple Distribution: ..." (CSSMERR_TP_NOT_TRUSTED)
+  3) ... "3rd Party Mac Developer Installer: ..." (CSSMERR_TP_NOT_TRUSTED)
+```
+
+The cause is a missing intermediate. These two are issued by **WWDR G3**, and this machine
+had only the **G1**, which expired on 7 February 2023. The Developer ID certificate chains
+through a different CA, which is why it kept working and made the problem look like it was
+about the new certificates rather than about the CA under them.
+
+Check the issuer against what is installed:
+
+```sh
+security find-certificate -c "Apple Distribution" -p | openssl x509 -noout -issuer
+security find-certificate -a -c "Apple Worldwide Developer Relations" -p \
+  | openssl x509 -noout -subject -dates
+```
+
+Fix it by installing the generation the issuer line names:
+
+```sh
+curl -fsSLO https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer
+security add-certificates -k ~/Library/Keychains/login.keychain-db AppleWWDRCAG3.cer
+```
+
+`security find-identity -v` reports three immediately afterwards, with no restart, no
+re-issued certificates, and nothing to redo in the portal.
 
 ## 4. Create an App Store Connect API key
 

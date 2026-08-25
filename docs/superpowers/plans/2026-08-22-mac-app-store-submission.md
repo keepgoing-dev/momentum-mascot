@@ -130,6 +130,31 @@ can create. 80 tests passing.
 10. **`private API check: clean` through this script closes the native pet plan's Task 6 step 3**,
     which was the one step deferred there because `release-mas.sh` did not exist yet.
 
+### Task 16, sections 1 to 3
+
+Done 25 August 2026. The App ID is registered and both certificates exist, so
+`security find-identity -v` reports three and the signing preflight passes for the first time.
+Xcode's Settings > Accounts > Manage Certificates issued both without a CSR or a portal visit,
+which is not the flow Task 16's document described.
+
+11. **Both certificates installed correctly and still did not appear.** `security find-identity
+    -v` kept reporting one. The `-v` flag filters to *valid* identities, so `security
+    find-identity` without it is the diagnostic, and it named the fault directly:
+    `CSSMERR_TP_NOT_TRUSTED` on both new certificates. The cause was a missing intermediate. Both
+    are issued by **WWDR G3** and this machine had only the **G1**, expired 7 February 2023. The
+    Developer ID certificate chains through a different CA, which is exactly why it kept working
+    and made the failure look like it was about the new certificates. Installing
+    `AppleWWDRCAG3.cer` into the login keychain fixed it with no restart and nothing reissued.
+    Written up as `docs/app-store.md` section 3a, because the misleading part is that the `-v`
+    output is indistinguishable from the certificates not existing.
+12. **The installer certificate's common name includes the name.** It reads `3rd Party Mac
+    Developer Installer: Hoa Trinh (3LM6674AC2)`, not the team-ID-only form Task 16's document
+    predicted. No script change was needed: the discovery `sed` matches the prefix and takes
+    whatever follows, verified against the real `find-identity` output. The document and
+    `tools/.release-env.example` are corrected.
+
+Sections 4 to 6 (API key, app record) are still open, so Task 16 steps 4 and 5 stay unticked.
+
 **Also noticed, not acted on.** The release build emits six dead-code warnings from
 `src-tauri/src/sprite.rs`, all of them the debug probe's fields and constants, which is the
 `#[cfg(debug_assertions)]` restructure at the end of the pet work leaving its `Probe` struct
