@@ -155,6 +155,34 @@ which is not the flow Task 16's document described.
 
 Sections 4 to 6 (API key, app record) are still open, so Task 16 steps 4 and 5 stay unticked.
 
+### Task 16, sections 4 to 6
+
+13. **The document's own API key verification command is impossible.** Section 4 said to run
+    `altool --list-providers --api-key ... --api-issuer ...`, and altool refuses it:
+    `AuthenticationFailure("list-providers does not support APIKey authentication.")`. That
+    command is username-and-password only. The replacement is `altool --generate-jwt`, which
+    proves the key id, issuer id and `.p8` are mutually consistent without a network call, and
+    whose flags are camelCase `--apiKey`/`--apiIssuer` while every other altool command takes
+    `--api-key`/`--api-issuer`. Task 16 step 5 is corrected in place.
+14. **Section 6 is a prerequisite for validation, not a later step.** With the certificates and
+    the API key in place, `--validate-app` on the real package failed with `Cannot determine the
+    Apple ID from Bundle ID 'dev.keepgoing.momentum-mascot' and platform 'MAC_OS'. (19)`. Nothing
+    can be validated before the app record exists. The error is also the useful half: it is App
+    Store Connect answering a query rather than rejecting a credential, so it doubles as the
+    server-side proof that the API key works.
+15. **`codesign` and `productbuild` both passed on the first attempt with real certificates**,
+    which retires two of the three stages correction 8 listed as unrehearsed. Verified on the
+    build rather than assumed: `Authority=Apple Distribution: Hoa Trinh (3LM6674AC2)` over WWDR
+    over Apple Root CA, `flags=0x10000(runtime)`, `TeamIdentifier=3LM6674AC2`, the five expected
+    entitlements sealed in, and the `.pkg` chained through
+    `3rd Party Mac Developer Installer: Hoa Trinh (3LM6674AC2)`. Build number 3 is spent.
+16. **The review notes in Task 17 contradict the bundle.** They say "The app makes no network
+    requests of any kind" while the sandboxed build ships `com.apple.security.network.client`,
+    which Probe 1 measured as mandatory: without it the webview never finishes navigation and the
+    popover is blank, silently. Both statements are true, and the distinction (WebKit talking to
+    its own networking process, not the app making requests) has to be stated in the review notes
+    themselves rather than only in the entitlements file's comment. To be folded into Task 17.
+
 **Also noticed, and since fixed.** The release build emitted six dead-code warnings from
 `src-tauri/src/sprite.rs`: the debug probe's `Probe` struct, its ivar, its two constants and
 `frame_at`. The `#[cfg(debug_assertions)]` restructure at the end of the pet work gated the
@@ -2969,11 +2997,14 @@ through.
 
 ```sh
 security find-identity -v
-xcrun altool --list-providers --api-key "$ASC_API_KEY_ID" --api-issuer "$ASC_API_ISSUER_ID"
+xcrun altool --generate-jwt --apiKey "$ASC_API_KEY_ID" --apiIssuer "$ASC_API_ISSUER_ID"
 ```
 
 Expected: three identities including `Apple Distribution:` and
-`3rd Party Mac Developer Installer:`, and a provider list that names the team.
+`3rd Party Mac Developer Installer:`, and exit 0 from the second.
+
+`--list-providers`, which this step originally specified, cannot verify an API key at all:
+altool answers `list-providers does not support APIKey authentication`. See correction 13.
 
 - [ ] **Step 6: Rehearse the script again, now that the certificates exist**
 

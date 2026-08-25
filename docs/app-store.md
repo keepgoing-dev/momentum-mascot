@@ -119,11 +119,27 @@ Then put the key id and the issuer id into `tools/.release-env`, per
 `tools/.release-env.example`. `tools/.release-env` currently holds an app-specific
 password, which works, but an API key is the better auth for uploads.
 
-Check it works before a build depends on it:
+Check it works before a build depends on it. **Not with `--list-providers`**, which is
+what an earlier draft of this document said: altool refuses it outright with
+`AuthenticationFailure("list-providers does not support APIKey authentication.")`. That
+command is username-and-password only, so it can never verify an API key.
+
+The check that does work needs no network at all, and note the flags: `--generate-jwt`
+takes camelCase `--apiKey` and `--apiIssuer`, where every other altool command takes
+`--api-key` and `--api-issuer`.
 
 ```sh
-xcrun altool --list-providers --api-key "$ASC_API_KEY_ID" --api-issuer "$ASC_API_ISSUER_ID"
+set -a; . tools/.release-env; set +a
+xcrun altool --generate-jwt --apiKey "$ASC_API_KEY_ID" --apiIssuer "$ASC_API_ISSUER_ID"
 ```
+
+Exit 0 and a token proves the key id, the issuer id and the `.p8` are mutually consistent
+and that altool found the file. The token is a live credential for twenty minutes, so do
+not paste it anywhere.
+
+Server-side, the proof arrives for free during the first `--validate-app`: an
+authentication failure and a *rejection about the app* are different errors, and getting
+the latter means the key was accepted.
 
 ## 5. Optionally, a provisioning profile
 
@@ -142,9 +158,23 @@ it is absent.
 
 ## 6. Create the app record
 
+**This is a prerequisite for validating anything, not a later step.** Without an app
+record, `altool --validate-app` fails at once with:
+
+```
+ERROR: Cannot determine the Apple ID from Bundle ID 'dev.keepgoing.momentum-mascot'
+       and platform 'MAC_OS'. (19)
+```
+
+That is App Store Connect answering a query rather than refusing a credential, so it also
+happens to be the server-side confirmation that the API key from section 4 works.
+
 <https://appstoreconnect.apple.com> > Apps > + > New App. Platform macOS, name
 "Momentum Mascot", primary language English (UK or US), bundle ID from step 1, SKU
 `momentum-mascot-1`.
+
+The bundle ID appears in that dropdown only once section 1 is done, and the name is
+reserved account-wide the moment the record is created.
 
 The listing content itself is in `docs/app-store-listing.md`.
 
