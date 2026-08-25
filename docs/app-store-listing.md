@@ -210,12 +210,31 @@ unobtainable, and 4 doubly so because closing the popover is also what resolves 
 celebration.
 
 `KEEPGOING_PIN_POPOVER` skips the hide-on-focus-loss, and `hold-state.sh` sets it. Escape and
-the tray icon still close the popover, so there is always a way out. Debug builds only, for
-the same reason as the clock and the state path, and measured rather than asserted: the release
-binary contains the string zero times, exactly like `KEEPGOING_CLOCK_SCALE` and
-`KEEPGOING_MASCOT_STATE`.
+the tray icon still close the popover, so there is always a way out.
+
+That was not enough on its own. The celebration is a thirty minute one-shot and **any** close
+ends it, so two attempts at shot 4 were lost to a stray click: the popover reopened showing
+`awake`, which is correct behaviour and a useless photograph. `KEEPGOING_HOLD_COMEBACK`
+suspends the cap and the resolution, so the room can be opened and closed as often as it takes.
+It deliberately does not suspend the third exit: a held comeback still ends the moment the
+resting state stops being awake, because a celebration over a project that has gone quiet again
+would be a different bug wearing this one's clothes. Asserted in
+`momentum::tests::a_held_comeback_outlives_both_the_cap_and_the_close`.
+
+Both are debug builds only, for the same reason as the clock and the state path, and measured
+rather than asserted. In the release binary:
+
+```
+KEEPGOING_HOLD_COMEBACK  0        PROBE              0
+KEEPGOING_PIN_POPOVER    0        drawsBackground    0
+KEEPGOING_CLOCK_SCALE    0        fullScreenEnabled  0
+KEEPGOING_MASCOT_STATE   0
+```
 
 ### The five commands
+
+Screenshots land wherever `defaults read com.apple.screencapture location` says, which is not
+always the Desktop.
 
 Shoot against a plain desktop. A full-screen browser or editor behind the popover makes a busy
 screenshot and puts someone else's interface in the listing.

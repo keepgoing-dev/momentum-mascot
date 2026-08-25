@@ -52,7 +52,13 @@ NAMES=(pixel-diary tiny-synth dotfiles)
 # state file as `last_displayed_state`. Seeding it is the same path as the restart case the
 # app already supports: quit while asleep, commit, relaunch (spec section 4.5).
 LAST_DISPLAYED=null
-[ "$STATE_NAME" = comeback ] && LAST_DISPLAYED='"asleep"'
+HOLD_COMEBACK=
+if [ "$STATE_NAME" = comeback ]; then
+  LAST_DISPLAYED='"asleep"'
+  # Otherwise the celebration is a thirty minute one-shot that any close also ends, which is
+  # correct for a user and useless for a photographer.
+  HOLD_COMEBACK=1
+fi
 
 cargo build --manifest-path src-tauri/Cargo.toml
 
@@ -109,8 +115,8 @@ done
 if [ "$STATE_NAME" = comeback ]; then
   cat <<'INFO'
 
-  the comeback is capped at 30 REAL minutes (mood.rs COMEBACK_CAP), and CLOSING the popover
-  resolves it (spec 4.5), so open the popover, shoot it, and rerun this for another attempt.
+  the comeback is HELD: neither the 30 minute cap nor closing the popover will end it, so the
+  popover can be opened and closed as often as it takes. Debug builds only.
 INFO
 fi
 printf '\n  the popover is PINNED: it will not close when the screenshot tool takes the focus.\n'
@@ -118,6 +124,11 @@ printf '  escape or the tray icon still close it. ctrl-c here when the shots are
 
 # Pinned, because the popover closes on focus loss and every way of triggering a screen capture
 # takes the focus first. Escape and the tray icon still close it. Debug builds only.
-KEEPGOING_PIN_POPOVER=1 KEEPGOING_MASCOT_STATE="$STATE" "$BIN" &
+# Through `env`, not a bare assignment prefix. The shell decides what is an assignment BEFORE
+# it expands anything, so `${HOLD_COMEBACK:+VAR=1}` in that position expands into a command name
+# and exits 127. `env` takes its assignments after expansion.
+env KEEPGOING_PIN_POPOVER=1 \
+  ${HOLD_COMEBACK:+KEEPGOING_HOLD_COMEBACK=1} \
+  KEEPGOING_MASCOT_STATE="$STATE" "$BIN" &
 APP_PID=$!
 wait "$APP_PID"

@@ -48,6 +48,18 @@ pub struct Momentum {
     /// recording made to show it. Nothing else about the app speeds up at 3600x either; the
     /// animations do not, and this is the same kind of quantity.
     comeback_since: Option<i64>,
+    /// Debug-only: keep a live comeback on screen instead of letting it end.
+    ///
+    /// The celebration is a thirty minute one-shot that any close also ends, which makes it the
+    /// one state that cannot be photographed at leisure. Two attempts at the App Store
+    /// screenshot were lost to a stray click before this existed. Reads
+    /// `KEEPGOING_HOLD_COMEBACK`, and only in a debug build, for the same reason as the clock
+    /// and the state path.
+    ///
+    /// It suspends the cap and the resolution, and nothing else. A held comeback still ends the
+    /// moment the resting state stops being awake, because a celebration over a project that
+    /// has gone quiet again would be a different bug wearing this one's clothes.
+    hold_comeback: bool,
     quote_turn: usize,
     /// Held so that timestamps read out of git can be mapped onto the app's timeline. At the
     /// default scale that mapping is the identity and this does nothing at all.
@@ -85,6 +97,8 @@ impl Momentum {
             reasons: HashMap::new(),
             access: HashMap::new(),
             comeback_since: None,
+            hold_comeback: cfg!(debug_assertions)
+                && std::env::var_os("KEEPGOING_HOLD_COMEBACK").is_some(),
             quote_turn: 0,
             clock,
         };
@@ -211,7 +225,8 @@ impl Momentum {
         if let Some(since) = self.comeback_since {
             // A celebration nobody attended is not a debt: the cap expires silently, with no
             // badge and no queued notification (section 4.5).
-            if real_now - since >= COMEBACK_CAP || rest != Rest::Awake {
+            let capped = real_now - since >= COMEBACK_CAP && !self.hold_comeback;
+            if capped || rest != Rest::Awake {
                 self.comeback_since = None;
             } else {
                 self.state.last_displayed_state = Some(rest);
@@ -232,6 +247,9 @@ impl Momentum {
     /// Opening the popover is the resolution (section 4.5): the user sees the full-room
     /// celebration, and it settles back to awake.
     pub fn resolve_comeback(&mut self) {
+        if self.hold_comeback {
+            return;
+        }
         self.comeback_since = None;
     }
 
@@ -389,6 +407,7 @@ fn apply_reading(project: &mut Project, reading: Option<i64>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mood::DOZING_AFTER;
 
     const T: i64 = 1_760_000_000;
 
@@ -417,6 +436,7 @@ mod tests {
             reasons: HashMap::new(),
             access: HashMap::new(),
             comeback_since: None,
+            hold_comeback: false,
             quote_turn: 0,
             clock: Clock::real(),
         }
@@ -571,6 +591,32 @@ mod tests {
         // Closed.
         m.resolve_comeback();
         assert_eq!(m.evaluate(T + 2, T + 2), Mood::Rest(Rest::Awake));
+    }
+
+    /// The screenshot knob, which suspends two things and must not suspend a third.
+    #[test]
+    fn a_held_comeback_outlives_both_the_cap_and_the_close() {
+        let mut m = with(vec![project(Some(T - 100 * 3600))], None);
+        m.hold_comeback = true;
+        m.evaluate(T, T);
+        m.state.projects[0].last_commit_at = Some(T);
+        assert_eq!(m.evaluate(T, T), Mood::Comeback);
+
+        m.resolve_comeback();
+        assert_eq!(m.evaluate(T + 1, T + 1), Mood::Comeback, "a close ended it");
+        assert_eq!(
+            m.evaluate(T + COMEBACK_CAP * 4, T + COMEBACK_CAP * 4),
+            Mood::Comeback,
+            "the cap ended it"
+        );
+
+        // The one thing it does not suspend: falling quiet again still ends the celebration.
+        m.state.projects[0].last_commit_at = Some(T - DOZING_AFTER);
+        assert_eq!(
+            m.evaluate(T + 1, T + 1),
+            Mood::Rest(Rest::Dozing),
+            "a held comeback survived the project going quiet"
+        );
     }
 
     #[test]

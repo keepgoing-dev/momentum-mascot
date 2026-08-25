@@ -239,6 +239,18 @@ Sections 4 to 6 (API key, app record) are still open, so Task 16 steps 4 and 5 s
     only, set by `hold-state.sh`; Escape and the tray icon still close it. The release binary
     contains the string zero times, measured alongside `KEEPGOING_CLOCK_SCALE` and
     `KEEPGOING_MASCOT_STATE`, which are also zero, and the private-API gate is still clean.
+24. **Pinning the popover was still not enough for the comeback.** The celebration is a thirty
+    minute one-shot and any close ends it, so two more attempts at shot 4 were lost to a stray
+    click: the popover reopened showing `awake`, which is correct behaviour and a useless
+    photograph. `KEEPGOING_HOLD_COMEBACK` suspends the cap and the resolution and nothing else;
+    a held comeback still ends when the resting state stops being awake, which the new test
+    asserts rather than leaves to trust. Also zero in the release binary.
+25. **A conditional environment assignment cannot be a bare command prefix.** `hold-state.sh`
+    launched the app with `${HOLD_COMEBACK:+KEEPGOING_HOLD_COMEBACK=1}` in front of it and
+    exited 127: the shell decides what is an assignment before it expands anything, so the
+    expansion became a command name. It goes through `env` now. Worth recording because the
+    failure was loud, and the same mistake with a `2>/dev/null` on it would have launched the
+    app without the hold and looked like the hold not working.
 
 **Also noticed, and since fixed.** The release build emitted six dead-code warnings from
 `src-tauri/src/sprite.rs`: the debug probe's `Probe` struct, its ivar, its two constants and
