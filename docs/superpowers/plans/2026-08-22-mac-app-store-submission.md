@@ -3050,7 +3050,7 @@ form. The 4.2 argument lives here.
 **Files:**
 - Create: `docs/app-store-listing.md`
 
-- [ ] **Step 1: Write it**
+- [x] **Step 1: Write it**
 
 Create `docs/app-store-listing.md`:
 
