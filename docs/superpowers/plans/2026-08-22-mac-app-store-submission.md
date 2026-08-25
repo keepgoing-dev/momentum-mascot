@@ -91,9 +91,9 @@ Phase 4 (spec section 4, the native AppKit pet) got its own plan,
 `docs/superpowers/plans/2026-08-22-native-pet.md`, and is **done and merged to `master`**. The
 gate it existed to pass reports 0 on a signed sandboxed arm64 build.
 
-Phase 5 is **done except the Apple-account work**: Task 14 and Task 15 in full, Task 16's
-documents written, and Task 16 steps 4 to 6 waiting on certificates that only the account holder
-can create. 80 tests passing.
+Phase 5 is **done**. Task 14 and Task 15 in full, Task 16 in full including the Apple-account
+work, and the whole pipeline rehearsed to `VERIFY SUCCEEDED` against App Store Connect. 80 tests
+passing.
 
 **Corrections to the tasks as written.**
 
@@ -182,6 +182,21 @@ Sections 4 to 6 (API key, app record) are still open, so Task 16 steps 4 and 5 s
     popover is blank, silently. Both statements are true, and the distinction (WebKit talking to
     its own networking process, not the app making requests) has to be stated in the review notes
     themselves rather than only in the entitlements file's comment. To be folded into Task 17.
+
+17. **The rehearsal is complete: `VERIFY SUCCEEDED with no errors, 1 warning`.** The warning is
+    `90889`, the missing provisioning profile, which is a TestFlight eligibility statement and not
+    a store one. It is exactly what section 5 of `docs/app-store.md` says to expect, so it
+    confirms the TN3125 reading rather than contradicting it. Validation was run against the
+    package the script had already produced rather than through a fresh script run, so no
+    additional build number was spent; the script's own path to this point is unchanged and was
+    exercised in full to produce that package. Nothing in the pipeline is now unproven except the
+    upload itself.
+18. **The app record was created at version 1.0 and the build is 0.3.1.** App Store Connect
+    matches a build to a version by `CFBundleShortVersionString`, so these have to agree before a
+    build can be attached. Open decision, deliberately not resolved here: editing the record down
+    to 0.3.1 keeps the single version line that `release-mas.sh` has no version bumping *in order
+    to* preserve, whereas moving the project to 1.0 means `tools/release.sh 1.0`, which also tags,
+    dates the changelog, notarizes a DMG and publishes a GitHub release.
 
 **Also noticed, and since fixed.** The release build emitted six dead-code warnings from
 `src-tauri/src/sprite.rs`: the debug probe's `Probe` struct, its ivar, its two constants and
@@ -2987,13 +3002,13 @@ The Mac App Store build is a separate script with separate certificates:
 codebase and differ by a single entitlements file at signing time.
 ```
 
-- [ ] **Step 4: Do the setup**
+- [x] **Step 4: Do the setup**
 
 Work through sections 1 to 6 of the document just written. This is the part of the whole project
 that the project exists to learn, so read what each screen actually says rather than clicking
 through.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 ```sh
 security find-identity -v
@@ -3006,7 +3021,7 @@ Expected: three identities including `Apple Distribution:` and
 `--list-providers`, which this step originally specified, cannot verify an API key at all:
 altool answers `list-providers does not support APIKey authentication`. See correction 13.
 
-- [ ] **Step 6: Rehearse the script again, now that the certificates exist**
+- [x] **Step 6: Rehearse the script again, now that the certificates exist**
 
 ```sh
 MASCOT_MAS_ALLOW_PRIVATE_API=1 tools/release-mas.sh

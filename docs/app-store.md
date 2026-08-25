@@ -209,7 +209,9 @@ under Rosetta, and the only complaint came from macOS weeks later as a "Support 
 Intel-based Apps" notification. `release-mas.sh` prepends rustup's `bin` to `PATH` and then
 asserts on `lipo -archs` rather than printing it.
 
-So the first run with real certificates should reach `codesign`, `productbuild` and
-`altool --validate-app`, and those three are all that is left unrehearsed. A validation
+All three were reached on 25 August 2026 and all three passed. `altool --validate-app`
+reports `VERIFY SUCCEEDED with no errors, 1 warning`, the warning being `90889`, the
+missing provisioning profile, which is a TestFlight eligibility statement rather than a
+store one and so confirms section 5's TN3125 reading. A validation
 failure there is worth more than anything else in this phase: it names exactly what App
 Review's automated checks will object to, for free.
