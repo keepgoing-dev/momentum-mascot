@@ -162,11 +162,22 @@ explain it, not to remove it and not to leave it unmentioned.
 
 2560x1600, five of them, in this order:
 
-1. The pet on a desktop, in the bottom-right corner, over a real wallpaper. The product's face.
-2. The popover open with the room in the **awake** state, showing two or three tracked projects.
+1. The popover in **comeback**, which is the moment the whole product exists for.
+2. The popover open with the room in the **awake** state, showing three tracked projects.
 3. The popover in **dozing**.
-4. The popover in **comeback**, which is the moment the whole product exists for.
+4. The pet on a desktop, over a real wallpaper.
 5. The share card at full size.
+
+**The pet used to be first, and shooting it is what changed the order.** The old note called it
+"the product's face". The pet is 64x64, so 128 physical pixels inside a 2560x1600 frame, which
+is five per cent of the width: in a gallery thumbnail it is not visible at all, and the first
+shot read as a photograph of the wallpaper it happened to be standing on. The face of this
+product is the room. The pet shot still earns its place, because "it lives on your desktop" is
+a claim a popover cannot make, but it is a supporting shot and not the opener.
+
+Put the pet in a corner where the wallpaper is calm. On the wallpaper this was shot against, the
+bottom-right corner was dense foliage at exactly the pet's scale and the sprite did not separate
+from it at all; the bottom-left corner was flat water and it read immediately.
 
 ### The two scripts, and why not `drive-states.sh`
 
@@ -250,17 +261,17 @@ Shoot against a plain desktop. A full-screen browser or editor behind the popove
 screenshot and puts someone else's interface in the listing.
 
 ```sh
-tools/hold-state.sh awake                              # then drag the pet to the corner
-tools/store-shots.sh clip 1 pet br
+tools/hold-state.sh comeback                           # open the popover from the menu bar
+tools/store-shots.sh clip 1 comeback popover
 
-tools/hold-state.sh awake                              # open the popover from the menu bar
+tools/hold-state.sh awake
 tools/store-shots.sh clip 2 awake popover
 
 tools/hold-state.sh dozing
 tools/store-shots.sh clip 3 dozing popover
 
-tools/hold-state.sh comeback
-tools/store-shots.sh clip 4 comeback popover
+tools/hold-state.sh awake                              # popover closed, pet in a calm corner
+tools/store-shots.sh clip 4 pet bl
 
 # Click Share Status, which puts the card on the clipboard, then:
 tools/store-shots.sh card --clip 5 card
