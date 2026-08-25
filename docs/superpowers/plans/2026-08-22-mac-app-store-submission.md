@@ -155,10 +155,13 @@ which is not the flow Task 16's document described.
 
 Sections 4 to 6 (API key, app record) are still open, so Task 16 steps 4 and 5 stay unticked.
 
-**Also noticed, not acted on.** The release build emits six dead-code warnings from
-`src-tauri/src/sprite.rs`, all of them the debug probe's fields and constants, which is the
-`#[cfg(debug_assertions)]` restructure at the end of the pet work leaving its `Probe` struct
-compiled but unused. Cosmetic, and no change to what ships.
+**Also noticed, and since fixed.** The release build emitted six dead-code warnings from
+`src-tauri/src/sprite.rs`: the debug probe's `Probe` struct, its ivar, its two constants and
+`frame_at`. The `#[cfg(debug_assertions)]` restructure at the end of the pet work gated the
+probe's *methods* and left the state they operate on compiled but unreachable. Now gated to
+match, with `frame_at` at `#[cfg(any(test, debug_assertions))]` because the tests call it too.
+Release, debug and test all compile without warnings, 80 tests pass, and the release binary still
+contains zero `PROBE` strings and zero private-API strings.
 
 ---
 

@@ -38,6 +38,10 @@ pub fn key_times() -> Vec<f64> {
 
 /// The CSS oracle: which frame `steps(12)` shows at normalised progress `p`. Kept so the
 /// keyTimes can be checked against the thing they are replacing rather than against themselves.
+///
+/// Its only two callers are the tests and the `MASCOT_PROBE_FRAMES` probe, so it is gated like
+/// the probe is: a submitted binary should not carry the oracle it was measured against.
+#[cfg(any(test, debug_assertions))]
 pub fn frame_at(progress: f64) -> usize {
     ((progress * FRAMES as f64).floor().max(0.0) as usize).min(FRAMES - 1)
 }
@@ -242,8 +246,10 @@ mod view {
     };
 
     use super::{
-        cell_origin, cell_side, duration, frame_at, frame_rect, key_times, resolve_path, FRAMES,
+        cell_origin, cell_side, duration, frame_rect, key_times, resolve_path, FRAMES,
     };
+    #[cfg(debug_assertions)]
+    use super::frame_at;
 
     #[derive(Default)]
     pub struct SpriteState {
@@ -318,6 +324,7 @@ mod view {
         app: tauri::AppHandle,
         state: RefCell<SpriteState>,
         /// Only used by the `MASCOT_PROBE_FRAMES` probe. See `probeFrames`.
+        #[cfg(debug_assertions)]
         probe: RefCell<Probe>,
     }
 
@@ -332,6 +339,7 @@ mod view {
     /// that machinery and measures the claim more directly anyway: the eleven-plateau mistake
     /// holds its twelfth frame for zero time, so it is exactly the scheme under which a sampler
     /// can never observe twelve distinct frames.
+    #[cfg(debug_assertions)]
     #[derive(Default)]
     pub struct Probe {
         /// How many samples have been taken.
@@ -342,7 +350,9 @@ mod view {
 
     /// Sampling interval and count: 40ms across 5s, comfortably longer than the 4s `awake`
     /// cycle, so every one of the twelve plateaus is sampled several times over.
+    #[cfg(debug_assertions)]
     const PROBE_INTERVAL: f64 = 0.04;
+    #[cfg(debug_assertions)]
     const PROBE_SAMPLES: usize = 125;
 
     define_class!(
@@ -654,6 +664,7 @@ mod view {
                     // coming back to edit this literal.
                     ..Default::default()
                 }),
+                #[cfg(debug_assertions)]
                 probe: RefCell::new(Probe::default()),
             });
             let this: Retained<Self> = unsafe { msg_send![super(this), initWithFrame: bounds] };
