@@ -264,8 +264,14 @@ is a permission. The way round it needs no permission change: take the shot with
 choosing the whole display rather than a region, and hand the file over.
 
 ```sh
-tools/store-shots.sh crop ~/Desktop/'Screenshot ....png' 3 dozing tr
+tools/store-shots.sh crop ~/Downloads/'Screenshot ....png' 3 dozing tr
+tools/store-shots.sh clip 3 dozing tr                  # ctrl-shift-cmd-3, whole screen
 ```
+
+**Do not paste a capture into a chat window or a document to move it around.** That path
+downscales: a 4002x2768 capture arrived as 2000x1383 that way, which is both too small for the
+listing and resampled, the one thing this whole section exists to avoid. The clipboard itself
+holds the capture at native resolution, which is why `clip` exists.
 
 Output lands in `docs/store-shots/`, gitignored for the same reason `docs/mockups/` is.
 

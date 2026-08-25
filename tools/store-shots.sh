@@ -15,6 +15,7 @@
 # Usage:
 #   tools/store-shots.sh grab  <n> <name> [corner] [display]   capture and crop
 #   tools/store-shots.sh crop  <file> <n> <name> [corner]      crop a capture you took
+#   tools/store-shots.sh clip  <n> <name> [corner]             crop the capture on the clipboard
 #   tools/store-shots.sh card  <file>|--clip <n> <name>        frame a 1200x630 share card
 #   tools/store-shots.sh check                                 verify every shot's size
 #
@@ -22,9 +23,10 @@
 #
 # `grab` needs Screen & System Audio Recording permission for the terminal, in System Settings
 # > Privacy & Security. Without it `screencapture` fails with "could not create image from
-# display", which reads like a bug and is a permission. `crop` is the way round it: take the
-# shot with shift-cmd-5, which captures the whole display at native resolution and needs no
-# permission of yours, then hand the file to this.
+# display", which reads like a bug and is a permission. `crop` and `clip` are the ways round it,
+# and neither needs a permission change: take the shot with shift-cmd-5, whole display rather
+# than a region, and either hand over the saved file or hold ctrl so it lands on the clipboard.
+# Prefer those two to pasting a capture into a chat or a document, which usually downscales it.
 #
 # Output goes to docs/store-shots/, which is gitignored for the same reason docs/mockups is:
 # these are derived LimeZu art. Uploading them to the listing is presentation of the app and
@@ -63,6 +65,25 @@ offset_for() {  # offset_for <corner> <srcW> <srcH> -> "+X+Y"
   esac
 }
 
+# The clipboard, because ctrl-shift-cmd-3 and the "Copy to Clipboard" option in the shift-cmd-5
+# panel are how a capture gets taken when the terminal has no Screen Recording permission, and
+# they need none. The pasteboard holds the capture at NATIVE resolution, which is the part that
+# matters: pasting the same capture into a chat window or a document usually does not.
+#
+# `«class PNGf»` is the pasteboard's PNG flavour, and asking for it fails rather than converting
+# if the clipboard holds something else.
+from_clipboard() {  # from_clipboard -> path of a temp png
+  local out
+  out=$(mktemp -t mascot-clip).png
+  osascript >/dev/null 2>&1 <<AS
+set f to (open for access (POSIX file "$out") with write permission)
+write (the clipboard as «class PNGf») to f
+close access f
+AS
+  [ -s "$out" ] || { echo "no PNG on the clipboard" >&2; return 1; }
+  echo "$out"
+}
+
 crop_to() {  # crop_to <src> <dest> <corner>
   local src=$1 dest=$2 corner=$3
   local dims sw sh at
@@ -90,21 +111,19 @@ crop)
   crop_to "$src" "$OUT/$n-$name.png" "$corner"
   ;;
 
+clip)
+  n=${2:?slot number}; name=${3:?slot name}; corner=${4:-tr}
+  src=$(from_clipboard) || exit 1
+  trap 'rm -f "$src"' EXIT
+  crop_to "$src" "$OUT/$n-$name.png" "$corner"
+  ;;
+
 card)
   src=${2:?source file, or --clip}; n=${3:?slot number}; name=${4:?slot name}
   if [ "$src" = --clip ]; then
-    # Straight off the clipboard, because that is the only place the app puts the card: there
-    # is no "save as" and there should not be one. `«class PNGf»` is the pasteboard's PNG
-    # flavour, and asking for it fails rather than converting if the clipboard holds something
-    # else, which is the behaviour worth having.
-    clip=$(mktemp -t mascot-card).png
-    trap 'rm -f "$clip"' EXIT
-    osascript >/dev/null <<AS || { echo "no PNG on the clipboard: click Share Status first" >&2; exit 1; }
-set f to (open for access (POSIX file "$clip") with write permission)
-write (the clipboard as «class PNGf») to f
-close access f
-AS
-    src=$clip
+    # The only place the app puts the card: there is no "save as" and there should not be one.
+    src=$(from_clipboard) || { echo "click Share Status first" >&2; exit 1; }
+    trap 'rm -f "$src"' EXIT
   fi
   dims=$(size_of "$src")
   [ "$dims" = "1200x630" ] || { echo "expected a 1200x630 share card, got $dims" >&2; exit 1; }
