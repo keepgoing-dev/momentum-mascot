@@ -159,6 +159,14 @@ fi
 sed -i '' "s/\"version\": \"$CURRENT\"/\"version\": \"$VERSION\"/" src-tauri/tauri.conf.json
 sed -i '' "s/^version = \"$CURRENT\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
 
+# The site states the latest version in prose, so it is a version file too. It was two releases
+# behind before this line existed, which is what a public page does when nothing owns it.
+#
+# Matched on any version rather than on $CURRENT deliberately: anchoring on the old value means
+# a page that has already drifted is silently left alone, and silently doing nothing is the
+# failure mode being fixed here.
+sed -i '' "s|Latest release: v[0-9][0-9.]*|Latest release: v$VERSION|" site/index.html
+
 # Keep Cargo.lock in sync.
 cargo update --manifest-path src-tauri/Cargo.toml -p momentum-mascot >/dev/null
 
@@ -208,7 +216,8 @@ fi
 
 # ---------------------------------------------------------------- commit and tag
 
-git add src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock CHANGELOG.md
+git add src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock CHANGELOG.md \
+  site/index.html
 git commit -m "Release v$VERSION"
 git tag -a "v$VERSION" -m "Release v$VERSION"
 git push origin "$(git branch --show-current)" "v$VERSION"
