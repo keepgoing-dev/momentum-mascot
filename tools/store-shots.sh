@@ -205,7 +205,7 @@ check)
     fi
   done
   printf '\n  %d shots, %s\n' "$count" "$([ "$bad" = 0 ] && echo "all ${W}x${H}" || echo "SOME WRONG")"
-  [ "$count" = 5 ] || printf '  the listing wants 5, in the order in docs/app-store-listing.md\n'
+  [ "$count" = 6 ] || printf '  the listing wants 6, in the order in docs/app-store-listing.md\n'
   exit "$bad"
   ;;
 

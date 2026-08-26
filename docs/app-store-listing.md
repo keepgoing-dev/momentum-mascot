@@ -160,13 +160,18 @@ explain it, not to remove it and not to leave it unmentioned.
 
 ## Screenshots
 
-2560x1600, five of them, in this order:
+2560x1600, six of them, in this order:
 
 1. The popover in **comeback**, which is the moment the whole product exists for.
 2. The popover open with the room in the **awake** state, showing three tracked projects.
 3. The popover in **dozing**.
-4. The pet on a desktop, over a real wallpaper.
-5. The share card at full size.
+4. The popover in **asleep**.
+5. The pet on a desktop, over a real wallpaper.
+6. The share card at full size.
+
+**Apple's limit is ten and its minimum is one.** The App Store Connect panel reads "Drag up to
+3 app previews and 10 screenshots here", so ten is a ceiling and not a target. Six is the number
+that earns its place; past that each addition dilutes the ones before it.
 
 **The pet used to be first, and shooting it is what changed the order.** The old note called it
 "the product's face". The pet is 64x64, so 128 physical pixels inside a 2560x1600 frame, which
@@ -270,11 +275,14 @@ tools/store-shots.sh clip 2 awake popover
 tools/hold-state.sh dozing
 tools/store-shots.sh clip 3 dozing popover
 
+tools/hold-state.sh asleep
+tools/store-shots.sh clip 4 asleep popover
+
 tools/hold-state.sh awake                              # popover closed, pet in a calm corner
-tools/store-shots.sh clip 4 pet bl
+tools/store-shots.sh clip 5 pet bl
 
 # Click Share Status, which puts the card on the clipboard, then:
-tools/store-shots.sh card --clip 5 card
+tools/store-shots.sh card --clip 6 card
 
 tools/store-shots.sh check                             # every file exactly 2560x1600
 ```
@@ -315,27 +323,41 @@ either one. It took needing the screenshot to find it.
 
 ### Taken
 
-All five, on 25 August 2026, and `store-shots.sh check` reports every one at exactly 2560x1600.
+All six, on 25 and 26 August 2026, and `store-shots.sh check` reports every one at exactly
+2560x1600.
 
 | # | File | What is in it |
 |---|---|---|
 | 1 | `1-comeback.png` | popover, comeback, "I KNEW IT.", rows at 3 minutes / 6 days / 14 days |
 | 2 | `2-awake.png` | popover, awake, "Something moved today. That counts." |
 | 3 | `3-dozing.png` | popover, dozing, "Taking five. Same here." |
-| 4 | `4-pet.png` | the pet alone, bottom-left corner, over water |
-| 5 | `5-card.png` | the comeback share card, BACK!!!, at 2x on its mat |
+| 4 | `4-asleep.png` | popover, asleep, "Sleeping, not gone. Wake me whenever." |
+| 5 | `5-pet.png` | the pet alone, bottom-left corner, over water |
+| 6 | `6-card.png` | the comeback share card, BACK!!!, at 2x on its mat |
 
-Shots 1 to 3 share a frame deliberately: same wallpaper, same popover position, same menu bar in
-view, so the three states read as three states of one thing rather than three screenshots. The
+Shots 1 to 4 share a frame deliberately: same wallpaper, same popover position, same menu bar in
+view, so the four states read as four states of one thing rather than four screenshots. The
 first attempt at shot 1 was taken without the menu bar and had to be redone for that reason
 alone.
 
+**`asleep` was missing from the first set, and that was a copy problem rather than a taste
+one.** The description says "they doze, then sleep", the site has a section headed "Four moods",
+and the screenshots showed three. Promising four and showing three is the kind of gap a reader
+notices without being able to name it.
+
+**Operating mode has no screenshot, deliberately.** The description gives it its own bullet, so
+it was considered and then measured against `popover.css`: the entire visual difference is one
+glyph, `○` becoming `●`, plus the row's timestamp turning the accent colour. There is no label.
+Nobody browsing the App Store could infer "this project runs without commits and the mascot
+ignores it" from a recoloured dot, so the claim stays in the description where words can carry
+it.
+
 ### The pet shot is thin, and that is a judgement call rather than a defect
 
-Shot 4 is 95 per cent flat water with a 128 pixel sprite in the corner. Two readings of it are
+Shot 5 is 95 per cent flat water with a 128 pixel sprite in the corner. Two readings of it are
 both true: the emptiness is the product's actual pitch, since the pet sits in a corner and does
 not ask for anything, and a screenshot that is mostly wallpaper is a weak screenshot. It is
-fourth rather than first for that reason.
+fifth rather than first for that reason.
 
 The stronger version, if this is ever reshot: the pet over a fullscreen window. The description
 claims "visible over fullscreen apps" and no other shot supports that claim. It needs a window

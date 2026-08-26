@@ -270,6 +270,19 @@ Sections 4 to 6 (API key, app record) are still open, so Task 16 steps 4 and 5 s
     recording as a hazard of the `grab` path that the `clip` path does not have: `grab` captures
     whatever is on screen, and the operator is not looking at the screen.
 
+29. **Ten screenshots is a ceiling, not a target, and reading the panel settled it.** App Store
+    Connect says "Drag up to 3 app previews and 10 screenshots here" and counts "0 of 10";
+    Apple's minimum is one. So the question was never how many but which, and asking it found a
+    real gap: the description says "they doze, then sleep" and the site has a section headed
+    "Four moods", while the set showed three. `asleep` is now shot 4 and the set is six.
+30. **Operating mode was considered for a seventh shot and rejected on measurement.** It has its
+    own bullet in the description, so it looked like an obvious omission. `popover.css` says the
+    entire visual difference is `○` becoming `●` plus the row's timestamp turning the accent
+    colour, with no label anywhere. A recoloured dot cannot carry "this project runs without
+    commits and the mascot ignores it" to a stranger, so the claim stays in prose. Recorded
+    because the wrong version of this decision, adding the shot because the feature exists, would
+    have looked more thorough and communicated less.
+
 **Also noticed, and since fixed.** The release build emitted six dead-code warnings from
 `src-tauri/src/sprite.rs`: the debug probe's `Probe` struct, its ivar, its two constants and
 `frame_at`. The `#[cfg(debug_assertions)]` restructure at the end of the pet work gated the
