@@ -175,6 +175,21 @@ does not use encryption, exempt or otherwise, and there is no documentation to u
 exists so WKWebView can reach its own networking process, which is what Probe 1 measured; it
 grants a capability the app never exercises.
 
+**The answer belongs in the bundle, not in a dialog.** Build 4 was uploaded without it and
+landed as **Missing Compliance**, which blocks submission until someone clicks through a
+question in App Store Connect. There is no API for it either: `buildBundles` returns
+`403 FORBIDDEN` to this key, so build 4 had to be answered by hand.
+
+`ITSAppUsesNonExemptEncryption` in `src-tauri/Info.plist` answers it at build time, and Tauri
+merges that file into the bundle on macOS. Measured on a real bundle rather than assumed:
+
+```
+LSUIElement                      true
+ITSAppUsesNonExemptEncryption    false
+```
+
+So build 4 needed the dialog and build 5 onwards will not.
+
 ## Attaching the build: the picker only shows a processed build
 
 The Build section stays empty, with no error and no progress indicator, until Apple finishes

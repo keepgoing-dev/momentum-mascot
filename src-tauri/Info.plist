@@ -8,11 +8,22 @@
   runtime call takes effect once the process is up, so a bundled build without this key shows
   a Dock icon for the fraction of a second before that. A menu bar app that blinks into the
   Dock on every launch is the kind of detail that reads as unfinished.
+
+  ITSAppUsesNonExemptEncryption answers App Store Connect's export compliance question in the
+  bundle, so it stops being asked. Without it, every upload lands as "Missing Compliance" and
+  cannot be submitted until someone clicks through a dialog, which happened to build 4.
+
+  False is the factual answer, not the convenient one. The app opens no connection at all: no
+  network requests, no cryptographic library, and not even the system HTTPS stack. The
+  com.apple.security.network.client entitlement does not change it, because that exists so
+  WKWebView can reach its own networking process and grants a capability the app never uses.
 -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
   <dict>
     <key>LSUIElement</key>
     <true/>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
   </dict>
 </plist>

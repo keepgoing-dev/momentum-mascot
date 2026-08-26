@@ -305,6 +305,19 @@ Sections 4 to 6 (API key, app record) are still open, so Task 16 steps 4 and 5 s
     Attaching it to the version and pressing Submit for Review are separate deliberate acts, and
     they belong to the account holder rather than to this script.
 
+35. **Build 4 uploaded clean and still could not be submitted: Missing Compliance.** The export
+    compliance question is asked per build, and an unanswered one blocks submission with no
+    error at upload time. There is no API route either; `buildBundles` returns `403 FORBIDDEN`
+    to an App Manager key, so build 4 was answered by hand in the browser.
+
+    `ITSAppUsesNonExemptEncryption` false now sits in `src-tauri/Info.plist`, which Tauri merges
+    into the bundle on macOS, so the question stops being asked from build 5. Verified on a real
+    bundle with PlistBuddy rather than assumed, and the first attempt at that verification read
+    the wrong bundle: `target/*/release/bundle` globs only the cross-compiled target directory,
+    never `target/release` itself, so it reported the key missing from a build made before the
+    key existed. False is also the factual answer here and not merely the convenient one: the
+    app opens no connection at all.
+
 **Also noticed, and since fixed.** The release build emitted six dead-code warnings from
 `src-tauri/src/sprite.rs`: the debug probe's `Probe` struct, its ivar, its two constants and
 `frame_at`. The `#[cfg(debug_assertions)]` restructure at the end of the pet work gated the
