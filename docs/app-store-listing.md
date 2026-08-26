@@ -164,6 +164,40 @@ curl -sS https://keepgoing.dev/privacy | grep -q "<title>Privacy Policy" && echo
 Verified live on 25 August 2026: HTTP 200 and the right title. `/privacy.html` returns a
 308 to the clean path, which is Cloudflare Pages normalising and not a problem.
 
+## Export compliance: no encryption
+
+App Store Connect asks this on every submission, and for this app the answer is factual rather
+than a judgement. The app makes no network requests at all, links no cryptographic library, and
+does not use the system's own HTTPS stack either, because it never opens a connection. So it
+does not use encryption, exempt or otherwise, and there is no documentation to upload.
+
+`com.apple.security.network.client` in the bundle does not change that answer. The entitlement
+exists so WKWebView can reach its own networking process, which is what Probe 1 measured; it
+grants a capability the app never exercises.
+
+## Attaching the build: the picker only shows a processed build
+
+The Build section stays empty, with no error and no progress indicator, until Apple finishes
+processing the upload. That looks identical to a failed upload from the browser. The way to tell
+the difference without guessing is the API:
+
+```sh
+set -a; . tools/.release-env; set +a
+JWT=$(xcrun altool --generate-jwt --apiKey "$ASC_API_KEY_ID" --apiIssuer "$ASC_API_ISSUER_ID" \
+  2>&1 | grep -o 'eyJ[A-Za-z0-9._-]*' | head -1)
+curl -s -H "Authorization: Bearer $JWT" \
+  'https://api.appstoreconnect.apple.com/v1/apps/6804925509/builds?limit=10'
+```
+
+`processingState` is the answer: `PROCESSING` means wait, `VALID` means the picker will show it
+after a page refresh, `INVALID` or `FAILED` means the upload needs redoing. Build 4 read `VALID`
+with `minOsVersion 10.15` about twenty minutes after the upload.
+
+Two traps in that snippet, both hit while writing it. `--generate-jwt` prints the token to
+**stderr**, so `2>/dev/null` silently discards the thing being captured and leaves an empty
+variable. And the token is a live credential for twenty minutes, so it belongs in a variable and
+a header, never in a command line or an echo.
+
 ## Review notes
 
 Paste verbatim into App Review Notes. Without it the app looks broken to a reviewer who
