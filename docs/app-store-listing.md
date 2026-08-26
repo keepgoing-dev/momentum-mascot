@@ -38,6 +38,56 @@ bundle agrees: `tauri.conf.json` sets `"category": "DeveloperTool"`, which lands
 `LSApplicationCategoryType = public.app-category.developer-tools`. If one of the two ever
 changes, change both.
 
+## Promotional Text
+
+162 characters against a limit of 170.
+
+```
+For the side projects you keep coming back to. A pixel character who waits instead of
+nagging: no streaks, no scores, and never a word about how long it has been.
+```
+
+**This is the only field in the listing that can change without a new build.** Apple's own
+description of it: it informs visitors of current features "without requiring an updated
+submission". Everything else here is frozen until the next upload, so this is the one place to
+say something that might need saying later.
+
+It sits directly above the Description, which is what ruled out the obvious drafts. Three of
+four candidates opened by restating "a retro pixel character who lives in a tiny room on your
+desktop and reflects how your side projects are going", which is the Description's own first
+sentence, two lines below. Spending the one changeable field on a line the reader is about to
+read anyway is the waste worth avoiding. This one leads with the audience and the
+anti-features, which the Description does not reach until "WHAT IT IS NOT".
+
+## App Previews: none, for now
+
+Optional, up to three, and video rather than stills. Skipped for the first submission, because
+the point of this phase is to get the process walked end to end and a preview delays that
+without changing whether the app is approved.
+
+**The argument for making one later is already in the spec**, written about the share card and
+truer of the listing: "A still frame cannot show a transition, and this product *is* a
+transition." The listing is where a stranger decides, and none of the six screenshots can show
+a character getting out of bed.
+
+One measured constraint for whoever does it. `tools/drive-states.sh` is the obvious recording
+tool and **cannot produce a full-arc take inside an app preview's length at any clock scale.**
+Its comeback commit lands at `AT_ASLEEP + 30`, and the 30 is fixed wall-clock seconds on
+purpose, because it is how long a person gets to look at the blanket rather than a quantity
+derived from git. So the commit never arrives before the 30 second mark however fast the clock
+runs:
+
+```
+scale       3600:  dozing   24.0s  asleep   72.0s  commit  102.0s
+scale      10000:  dozing    8.6s  asleep   25.9s  commit   55.9s
+scale     100000:  dozing    0.9s  asleep    2.6s  commit   32.6s
+```
+
+Two ways round it: edit that constant for the recording, or record only asleep to comeback,
+which is the payload anyway and which `tools/hold-state.sh comeback` stages instantly. Read the
+resolution and codec requirements off App Store Connect's own Media Manager rather than from
+here; they are not recorded in this document because they were not measured.
+
 ## Keywords
 
 72 characters against a limit of 100.
