@@ -209,6 +209,12 @@ under Rosetta, and the only complaint came from macOS weeks later as a "Support 
 Intel-based Apps" notification. `release-mas.sh` prepends rustup's `bin` to `PATH` and then
 asserts on `lipo -archs` rather than printing it.
 
+Apple also **emails** the 90889 warning after a successful delivery, subject line about "one
+or more issues with a recent delivery", which reads far more alarming than it is. The email's
+own wording settles it: "Although delivery was successful, you may want to correct the following
+issues in your next delivery." It is the same warning three times over for build 4: at validate,
+at upload, and by email. Nothing about it blocks App Store review; it blocks TestFlight only.
+
 All three were reached on 25 August 2026 and all three passed. `altool --validate-app`
 reports `VERIFY SUCCEEDED with no errors, 1 warning`, the warning being `90889`, the
 missing provisioning profile, which is a TestFlight eligibility statement rather than a
