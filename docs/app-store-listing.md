@@ -527,7 +527,21 @@ reason is worth more than a clean pass.
 | Date | Version | Build | Result |
 |---|---|---|---|
 | 2026-08-25 | 0.3.1 | 3 | validated only, not uploaded: `VERIFY SUCCEEDED with no errors, 1 warning` (90889, TestFlight profile) |
-| 2026-08-26 | 0.3.1 | 4 | `UPLOAD SUCCEEDED with no errors, 1 warning` (90889 again). Delivery UUID `8297c738-5a78-419c-99e7-d4f63e2fd308`, 7197291 bytes. Not yet attached to the version or submitted for review. |
+| 2026-08-26 | 0.3.1 | 4 | `UPLOAD SUCCEEDED with no errors, 1 warning` (90889 again). Delivery UUID `8297c738-5a78-419c-99e7-d4f63e2fd308`, 7197291 bytes. Attached to 0.3.1 and **submitted for review** the same day, after answering export compliance by hand. |
+
+**Submitting took six tries, none of them about the build.** After the build was attached,
+"Add for Review" refused five times over listing fields, all recorded above: contact information,
+content rights, an unpublished privacy questionnaire, no price, and an unanswered age rating,
+then a sixth time over the demo account fields that Sign-in required had turned on. The build
+itself was never the obstacle. Worth knowing for the next version: allow a session for the
+listing that has nothing to do with compiling anything.
+
+**What was not done before submitting.** Task 18 step 2 asks for the full manual test list from
+spec section 9 against the exact build being submitted. It was not re-run against build 4. The
+private API gate was verified on build 4 itself, and the comeback path was exercised while
+staging the screenshots, but the rest of the list was last run against an earlier build. That is
+a real gap rather than an oversight worth hiding: if review rejects on function, this is the
+first thing to rule out, and the list runs before the next upload either way.
 
 **The upload is one run, not two.** Task 18 said to rehearse with `tools/release-mas.sh` and then
 re-run with `--upload`, which burns two build numbers, because the counter increments on every

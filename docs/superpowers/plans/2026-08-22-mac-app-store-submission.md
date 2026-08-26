@@ -3334,7 +3334,7 @@ The scripts guarantee the dimensions and that they resampled nothing. Still look
 100%, because they cannot tell you the popover is fully inside the crop or that the wallpaper
 behind shot 1 is not distracting.
 
-- [ ] **Step 3: Fill in App Store Connect**
+- [x] **Step 3: Fill in App Store Connect**
 
 Type every field from the document into the listing. Upload the screenshots. Answer the privacy
 questionnaire as "Data Not Collected" in every category.
@@ -3342,7 +3342,7 @@ questionnaire as "Data Not Collected" in every category.
 The privacy half is **done**, on 25 August 2026: App Privacy reads "Data Not Collected", Data
 Types reads "Data is not collected from this app", and the Privacy Policy URL is set.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```sh
 git add docs/app-store-listing.md
@@ -3354,7 +3354,7 @@ shipped behaviour and does not belong buried in a metadata commit.
 
 ## Task 18: Submit
 
-- [ ] **Step 1: Confirm the gate is actually clean**
+- [x] **Step 1: Confirm the gate is actually clean**
 
 ```sh
 tools/release-mas.sh
@@ -3367,6 +3367,10 @@ anyway, and the refusal is the feature.
 Expected also: a clean `altool --validate-app`.
 
 - [ ] **Step 2: Run the full manual test list one more time on the exact build being submitted**
+
+**Not done before the 26 August submission.** Left unticked deliberately: the private API
+gate was verified on build 4 and the comeback path was exercised while staging the screenshots,
+but the rest of this list was last run against an earlier build. It runs before the next upload.
 
 From spec section 9, against the signed sandboxed build:
 
@@ -3406,7 +3410,7 @@ Add a row for every outcome, including rejections and what they cited. That log 
 deliverable of this project: the point was to learn the process end to end, and a rejection
 reason is worth more than a clean pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```sh
 git add docs/app-store-listing.md
