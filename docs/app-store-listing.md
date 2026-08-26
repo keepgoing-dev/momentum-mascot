@@ -190,6 +190,41 @@ ITSAppUsesNonExemptEncryption    false
 
 So build 4 needed the dialog and build 5 onwards will not.
 
+## The five app-level fields that block Add for Review
+
+"Add for Review" refuses until all of these are set, and it lists them all at once rather
+than one at a time. None of them is part of a build, so none of them needs an upload. They
+live in four different places, which is the only reason this section exists.
+
+| Field | Where | Answer |
+|---|---|---|
+| Contact Information | version page, App Review Information | name, phone with country code, email |
+| Sign-in required | version page, App Review Information | No: the app has no accounts |
+| Content Rights | App Information | Yes, third-party content, rights confirmed |
+| App Privacy | App Privacy | Data Not Collected, then **Publish** |
+| Price | Pricing and Availability | Free, all countries |
+| Age Rating | App Information | every question at its lowest value: 4+ |
+
+**App Privacy has its own Publish button.** Answering the questionnaire saves a draft, and a
+draft does not satisfy submission: the blocker still reads "an Admin must provide information
+about the app's privacy practices". The answers were entered on 25 August 2026 and the
+submission was still blocked on 26 August, which is what published means here.
+
+**Content Rights is Yes because the room art is licensed, not owned.** The rooms and
+characters are the LimeZu Modern Interiors pack. Most games that bundle an asset pack answer
+No, on the reading that licensed art is part of the app rather than third-party content the
+app shows, and that reading is defensible. Yes is chosen anyway: it is true, it costs one
+checkbox and no documentation, and it agrees with the constraint that already shapes the
+release scripts, which is that the pack cannot be redistributed and only its composed output
+ships.
+
+**Unrestricted web access is No, and that is measured rather than assumed.** The only URL the
+app can open is the constant `PRIVACY_POLICY_URL` in `src-tauri/src/commands.rs`, opened in the
+default browser through `NSWorkspace`. There is deliberately no `open_url(url)` command, so the
+webview cannot open an arbitrary address, and `src-tauri/capabilities/default.json` grants no
+shell and no opener plugin. An in-app browser is what that question is about, and there is not
+one.
+
 ## Attaching the build: the picker only shows a processed build
 
 The Build section stays empty, with no error and no progress indicator, until Apple finishes
