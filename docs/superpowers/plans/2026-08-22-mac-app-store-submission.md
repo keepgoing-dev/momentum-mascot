@@ -283,6 +283,28 @@ Sections 4 to 6 (API key, app record) are still open, so Task 16 steps 4 and 5 s
     because the wrong version of this decision, adding the shot because the feature exists, would
     have looked more thorough and communicated less.
 
+### Task 18, the upload
+
+31. **`UPLOAD SUCCEEDED with no errors, 1 warning`, version 0.3.1 build 4, on 26 August 2026.**
+    Delivery UUID `8297c738-5a78-419c-99e7-d4f63e2fd308`. The warning is `90889` again, the
+    TestFlight provisioning profile, exactly as section 5 of `docs/app-store.md` predicts. The
+    last unrehearsed stage in the pipeline is now rehearsed.
+32. **Steps 1 and 3 are one run, and running both would waste a build number.** The counter at
+    `release-mas.sh:149` increments on every run, not only on an upload, so the rehearsal-then-
+    upload sequence this task specifies burns two. It does not need to: the script is `set -eu`
+    and `--validate-app` runs before `--upload-package`, so a validation failure stops it before
+    anything is sent. One `--upload` run did the whole pipeline and build 3 stayed the last
+    rehearsal instead of becoming a discarded number. The script's own line 327 already knew
+    this, which is where the two-run instruction should have been questioned.
+33. **Every gate reported clean on the build that actually left the machine**, which is the only
+    build where that claim carries weight: `x86_64 arm64`, `private API check: clean`, version
+    0.3.1, build 4. The private API gate is the reason the native pet rewrite happened at all,
+    and Phase 6 was blocked until `drawsBackground` and `fullScreenEnabled` were gone. This is
+    the first time it has been asserted on a submitted binary rather than a local one.
+34. **Not submitted for review.** Uploading puts a build in App Store Connect and nothing more.
+    Attaching it to the version and pressing Submit for Review are separate deliberate acts, and
+    they belong to the account holder rather than to this script.
+
 **Also noticed, and since fixed.** The release build emitted six dead-code warnings from
 `src-tauri/src/sprite.rs`: the debug probe's `Probe` struct, its ivar, its two constants and
 `frame_at`. The `#[cfg(debug_assertions)]` restructure at the end of the pet work gated the
@@ -3346,7 +3368,7 @@ From spec section 9, against the signed sandboxed build:
 - The popover's rounded corners read correctly on a light and a dark desktop.
 - Pixel art stays crisp when the pet is dragged to a display of a different density.
 
-- [ ] **Step 3: Upload**
+- [x] **Step 3: Upload**
 
 ```sh
 tools/release-mas.sh --upload
@@ -3355,7 +3377,7 @@ tools/release-mas.sh --upload
 Expected: the upload completes and names a delivery id. Then, in App Store Connect, wait for
 processing, attach the build to the version, and Submit for Review.
 
-- [ ] **Step 4: Record what happened**
+- [x] **Step 4: Record what happened**
 
 Append to `docs/app-store-listing.md`:
 

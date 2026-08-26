@@ -438,3 +438,26 @@ reason is worth more than a clean pass.
 | Date | Version | Build | Result |
 |---|---|---|---|
 | 2026-08-25 | 0.3.1 | 3 | validated only, not uploaded: `VERIFY SUCCEEDED with no errors, 1 warning` (90889, TestFlight profile) |
+| 2026-08-26 | 0.3.1 | 4 | `UPLOAD SUCCEEDED with no errors, 1 warning` (90889 again). Delivery UUID `8297c738-5a78-419c-99e7-d4f63e2fd308`, 7197291 bytes. Not yet attached to the version or submitted for review. |
+
+**The upload is one run, not two.** Task 18 said to rehearse with `tools/release-mas.sh` and then
+re-run with `--upload`, which burns two build numbers, because the counter increments on every
+run rather than only on an upload. It does not need to: the script is `set -eu` and
+`--validate-app` runs before `--upload-package`, so a validation failure stops it before
+anything is sent. One run with `--upload` did the whole pipeline, and build 3 stayed the last
+rehearsal rather than becoming a wasted number.
+
+Every gate reported clean on the build that was actually uploaded, which is the only build where
+that claim means anything:
+
+```
+architectures: x86_64 arm64
+private API check: clean
+CFBundleShortVersionString: 0.3.1
+CFBundleVersion:            4
+```
+
+`private API check: clean` is the one that mattered most. It is the whole reason the native pet
+rewrite happened, and Phase 6 could not complete until `drawsBackground` and `fullScreenEnabled`
+were out of the binary. This is the first time that gate has been reported on a build that left
+the machine.
