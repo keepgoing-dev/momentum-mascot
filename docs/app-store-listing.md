@@ -210,6 +210,11 @@ draft does not satisfy submission: the blocker still reads "an Admin must provid
 about the app's privacy practices". The answers were entered on 25 August 2026 and the
 submission was still blocked on 26 August, which is what published means here.
 
+**The sign-in error does not name the checkbox that causes it.** Leaving Sign-in required on
+produces "User name - This field is required" and "Password - This field is required" with no
+indication of which section they belong to. They are the demo account fields, they only exist
+while that checkbox is ticked, and there is no account to supply: untick it and they go.
+
 **Content Rights is Yes because the room art is licensed, not owned.** The rooms and
 characters are the LimeZu Modern Interiors pack. Most games that bundle an asset pack answer
 No, on the reading that licensed art is part of the app rather than third-party content the
