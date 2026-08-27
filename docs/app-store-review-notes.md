@@ -3,162 +3,115 @@
 **Rejected 27 August 2026, guideline 2.1 Information Needed**, on build 4 of 0.3.1. Nothing
 about the binary, the art, or 4.2: App Review asked for a screen recording and seven pieces of
 information, and the request is the standard new-app questionnaire rather than a finding about
-this app. **No new build is needed.** The reply goes into Resolution Center, the same seven
-answers go into the Notes field of App Review Information so the next version does not get
+this app. **No new build is needed.** The reply goes into Resolution Center in two messages,
+an addendum goes into the Notes field of App Review Information so the next version is not
 asked again, and build 4 continues in review.
 
-The text below is meant to be pasted. Everything in it is checked against the code rather than
-remembered; the section after it records where each answer comes from.
+**Reply to App Review holds 4000 characters, and the answer does not fit in one.** The seven
+answers came to 5302 characters after being cut as far as they go without gutting point 7, which
+is the one where wording carries weight. Resolution Center accepts more than one reply, so this
+is two messages rather than a compressed one. Post them in order, back to back, with the
+recording attached to the first.
 
-**It goes below the review notes in `docs/app-store-listing.md`, not instead of them.** That
-block is written for a reviewer sitting in front of the app and says where to click; this one
-answers a questionnaire. Both belong in the Notes field, in that order, and the one paragraph
-they share on purpose is the network entitlement.
+Everything below is checked against the code rather than remembered; the section after it
+records where each answer comes from. Character counts are exact and measured, not estimated.
 
-## The reply, verbatim
+## Reply 1 of 2: points 1 to 4 (3438 characters)
 
 ```
-Thank you for the review. Momentum Mascot has no accounts, no in-app purchases, no
-subscriptions, no user-generated content, and makes no network requests. Answers to each
-point below, in order.
+Momentum Mascot has no accounts, no purchases, no subscriptions, no user-generated content and makes no network requests, so it has no registration, login, deletion, purchase or content-reporting flows to show.
 
 1. SCREEN RECORDING
+Attached: one continuous take on a MacBook Pro, starting with launching the app and covering every feature. The app's only permission prompt is the folder picker at 4(d), which is included.
 
-Attached. It is one continuous take on a physical Mac, beginning with launching the app,
-and it covers every feature the app has. There are no registration, login, deletion,
-purchase, subscription, or content-reporting flows to show, because the app has none. The
-only permission prompt in the app is the standard folder picker in step 3, which is
-included.
+2. TESTED ON
+MacBook Pro (Mac16,8), Apple M4 Pro, macOS 26.5.2 (25F84). Universal binary (arm64 and x86_64), minimum deployment target macOS 10.15.
 
-2. DEVICES AND OPERATING SYSTEMS TESTED
-
-- MacBook Pro (Mac16,8), Apple M4 Pro, macOS 26.5.2 (25F84)
-
-The app is a universal binary (arm64 and x86_64) and its minimum deployment target is
-macOS 10.15.
-
-3. WHAT THE APP DOES, AND FOR WHOM
-
-Momentum Mascot is an ambient desktop companion for people who work on side projects in
-their spare time. The user points it at git repositories on their own Mac. It reads exactly
-one fact from each: the timestamp of the last commit. From that it picks one of four states
-for a pixel character who lives in a small animated room:
-
-- awake, at their desk: committed within the last 24 hours
+3. WHAT IT DOES, AND FOR WHOM
+An ambient desktop companion for developers with side projects. The user points it at git repositories on their own Mac. It reads one fact from each, the time of the last commit, and picks a state for a pixel character in a small animated room:
+- awake, at their desk: a commit within 24 hours
 - dozing: 24 to 72 hours
-- asleep: more than 72 hours
-- comeback: a commit arrives after the character was asleep, and the character leaps out
-  of bed
+- asleep: over 72 hours
+- comeback: a commit arrives after the character was asleep, and they leap out of bed
+The character is a 64x64 pet in a corner of the desktop; the full room is in a popover from the menu bar icon.
+The problem it solves: side projects go quiet for weeks when a day job gets busy, and existing tools answer that with streaks, scores and reminders. This app has none of those and never states how long it has been. The character waits, and the comeback is the moment of value. Audience: working developers with unfinished personal projects. There is no server, no account and no content outside the app bundle.
 
-The character appears as a 64x64 pet in a corner of the desktop, and the full room is in a
-popover from the menu bar icon.
+4. SETUP AND ACCESS
+No credentials, and nothing to sign in to. The app needs a git repository on the review machine, and since its states are defined by commit age, a backdated commit is the fastest way to see them.
+(a) Launch the app. The character appears in the bottom-right corner of the desktop and an icon appears in the menu bar.
+(b) Click that icon. The popover holds the room, a character picker, a line of copy, the project list and two buttons.
+(c) In Terminal, make a repository whose last commit is 100 hours old:
+  mkdir -p ~/Documents/mascot-demo && cd ~/Documents/mascot-demo
+  git init -q .
+  GIT_COMMITTER_DATE="@$(( $(date +%s) - 100*3600 )) +0000" git -c user.email=demo@example.com -c user.name=Demo commit -q --allow-empty -m "work"
+(d) Click "Add Project" and choose that folder. This is the folder picker, the app's only prompt. The character is ASLEEP: the last commit is older than 72 hours.
+(e) For the COMEBACK, the app's central feature, commit again in that repository:
+  git -C ~/Documents/mascot-demo -c user.email=demo@example.com -c user.name=Demo commit --allow-empty -m "back at it"
+The pet leaps out of bed within a few seconds. Reopen the popover for the comeback room.
+(f) Any repository with a recent commit shows AWAKE. Backdating 30 hours instead of 100 shows DOZING.
+The rest is in the popover, and all of it is in the recording: a character head switches character, the open circle on a row marks a project "operating" so it keeps its place but stops affecting the character, the x on a hovered row stops tracking it, "Share Status" copies a 1200x630 image of the room to the clipboard, "privacy" opens the privacy policy in the default browser, and Escape closes the popover. Right-click the menu bar icon for Open and Quit. No sample files are needed.
 
-The problem it solves is that side projects go quiet for weeks when a day job gets busy,
-and every existing tool responds to that with streaks, scores, and reminders that punish
-the gap. This app deliberately does the opposite: no streaks, no scores, no notifications,
-no leaderboards, and it never states how long it has been. The character simply waits, and
-the moment of value is the comeback animation when the user returns. The target audience is
-working developers with unfinished personal projects.
+Points 5, 6 and 7 follow in a second reply, because this field holds 4000 characters.
+```
 
-There is no server, no account, and no content beyond what is in the app bundle.
+## Reply 2 of 2: points 5 to 7 (1985 characters)
 
-4. SETTING UP AND ACCESSING THE MAIN FEATURES
+```
+Continued from the previous reply.
 
-No credentials are needed and there is nothing to sign in to. The app needs at least one
-git repository on the review machine, and because the states are defined by how long ago a
-commit happened, the fastest way to see all of them is to create a repository with a
-backdated commit.
-
-  a. Launch the app. The character appears in the bottom-right corner of the desktop, and
-     a small icon appears in the menu bar.
-
-  b. Click the menu bar icon to open the popover: the animated room, a character picker,
-     one line of copy, the project list, and two buttons.
-
-  c. In Terminal, create a repository whose last commit is 100 hours old:
-
-       mkdir -p ~/Documents/mascot-demo && cd ~/Documents/mascot-demo
-       git init -q .
-       GIT_COMMITTER_DATE="@$(( $(date +%s) - 100*3600 )) +0000" \
-         git -c user.email=demo@example.com -c user.name=Demo \
-         commit -q --allow-empty -m "work"
-
-  d. In the popover, click "Add Project" and choose ~/Documents/mascot-demo. This is the
-     folder picker, and it is the only permission prompt the app shows. The project appears
-     in the list and the character is ASLEEP, because the last commit is older than 72
-     hours.
-
-  e. To see the COMEBACK, which is the app's central feature, commit again in that same
-     repository:
-
-       cd ~/Documents/mascot-demo
-       git -c user.email=demo@example.com -c user.name=Demo \
-         commit --allow-empty -m "back at it"
-
-     Within a few seconds the desktop character leaps out of bed, and reopening the
-     popover shows the comeback room and a line of copy for it.
-
-  f. Any ordinary repository with a recent commit shows the AWAKE state. Backdating the
-     commit in step (c) by 30 hours instead of 100 shows DOZING.
-
-Everything else is in the popover: click a character head to switch character, click the
-open circle on a project row to mark it as "operating" so it keeps its place in the list but
-no longer affects the character, hover a row and click the x to stop tracking it, and click
-"Share Status" to copy a 1200x630 image of the room to the clipboard, which can then be
-pasted into any app that accepts an image. The "privacy" link under the buttons opens the
-privacy policy in the default browser. Pressing Escape closes the popover. Right-clicking
-the menu bar icon gives an Open and Quit menu, which is where the app is quit.
-
-No sample files are required beyond the repository created above.
-
-5. EXTERNAL SERVICES, TOOLS, OR PLATFORMS USED
-
-None. The app makes no network requests of any kind. There is no data provider, no
-authentication service, no payment processor, no analytics, no crash reporter, and no AI
-service. Specifically:
-
-- Repository timestamps are read from a local file inside the folder the user chose
-  (.git/logs/HEAD), and in a rare fallback case by running the local "git" command.
-- All state is one JSON file inside the app's own sandbox container.
-- All artwork, animation, and fonts are inside the app bundle.
-- The only outbound action in the app is opening the privacy policy URL in the user's
-  default browser, which happens only when the user clicks the "privacy" link. The app
-  cannot open any other address: that URL is a compile-time constant and the app exposes no
-  command that takes a URL.
-
-The bundle does carry com.apple.security.network.client, and that is not a contradiction of
-the above. The entitlement is required for WKWebView to reach its own networking process:
-without it, a sandboxed webview never finishes navigation, so the popover renders blank and
-the app appears broken, with no sandbox violation logged. It grants WebKit that access. The
-app itself issues no requests, and the content the webview loads is local files inside the
-app bundle.
+5. EXTERNAL SERVICES
+None: no data provider, authentication service, payment processor, analytics, crash reporter or AI service, and no network requests. Commit times come from a local file inside the folder the user chose (.git/logs/HEAD), with a rare fallback that runs the local "git" command. State is one JSON file in the app's own container. Artwork and fonts are inside the bundle. The only outbound action is opening the privacy policy URL in the default browser when the user clicks "privacy"; that URL is a compile-time constant and the app exposes no command that takes a URL.
+The bundle does carry com.apple.security.network.client, which is not a contradiction. WKWebView needs it to reach its own networking process; without it a sandboxed webview never finishes navigation, so the popover renders blank with no violation logged. It grants WebKit that access. The app issues no requests, and the webview loads only local files from the bundle.
 
 6. REGIONAL DIFFERENCES
-
-There are none. The app behaves identically in every region. It has no region-gated
-features, no region-specific content, no server, and no localization: the interface is
-English only.
+None. Behaviour is identical in every region: no region-gated features or content, no server, no localization (English only).
 
 7. THIRD-PARTY MATERIAL
+Artwork: the rooms, furniture and characters are derived from "Modern Interiors" by LimeZu (limezu.itch.io), a commercial asset pack purchased under its full-version licence, which permits use and editing in any commercial project and forbids reselling or distributing the asset itself. The art ships composited into the application with no way to extract the source sprite sheets, so this is use rather than redistribution. The credit the licence requires is shown in the popover and in the app's copyright field. Receipt and licence text available on request.
+Typeface: Departure Mono by Helena Zhang, under the SIL Open Font License 1.1, which permits bundling; its licence text ships in the app bundle.
+The app is not in a regulated industry, handles no health, financial or personal data, and collects nothing.
+```
 
-Two items, both licensed for this use.
+## The Notes field: the review notes plus this addendum (2025 characters)
 
-- ARTWORK. The rooms, furniture, and characters are derived from "Modern Interiors" by
-  LimeZu (limezu.itch.io), a commercial asset pack purchased under its full-version
-  licence. That licence permits "Edit and use the asset in any commercial or non commercial
-  project", with no restriction on distribution channel, and forbids reselling or
-  distributing the asset itself. This app ships the art composited into the application
-  binary and exposes no way to extract or export the source sprite sheets, so it uses the
-  art rather than redistributing it. The licence requires a credit to limezu.itch.io, which
-  is displayed in the app under the buttons in the popover, and in the app's copyright
-  field. The purchase receipt and the full licence text can be provided on request.
+Apple's closing line asks for this information in the Notes field of App Review Information so
+the next version is not asked again. The version is editable while it sits rejected, so this can
+be done now, and it should be: the questionnaire arrives per app, but a reviewer who cannot
+reach the four states arrives per version.
 
-- TYPEFACE. Departure Mono by Helena Zhang, under the SIL Open Font License 1.1, which
-  permits bundling in an application. The licence text ships with the font in the app
-  bundle.
+**The field must keep the reviewer instructions.** Those are in `docs/app-store-listing.md` under
+"Review notes", they are 1971 characters, and they are what tells a reviewer where to click in an
+app with no window. This addendum goes below them and covers only what a reviewer cannot work out
+by clicking: what it was tested on, who it is for, how to reach the states, and what is licensed
+from whom.
 
-The app is not in a regulated industry. It handles no health, financial, or personal data,
-and collects nothing.
+**The pair lands at 3998 characters against a 4000 limit, which is not a comfortable fit.** The
+limit on this field is assumed rather than measured: 4000 is what Reply to App Review states, and
+the Notes field is treated the same here. If it turns out to be smaller, or if the review notes
+above are ever edited longer, **drop the TARGET AUDIENCE AND VALUE paragraph first** (about 310
+characters). It is the one thing here that also exists in the Description, which a reviewer can
+read on the same page.
+
+```
+TESTED ON: MacBook Pro (Mac16,8), Apple M4 Pro, macOS 26.5.2 (25F84). Universal binary (arm64 and x86_64), minimum deployment target macOS 10.15.
+
+TARGET AUDIENCE AND VALUE: working developers with unfinished side projects, which go quiet for weeks when a day job gets busy. Existing tools answer that with streaks and reminders; this app has none, and never states how long it has been. The character waits, and the celebration when a commit arrives is the point.
+
+SEEING ALL FOUR STATES: the thresholds are 24 and 72 hours, so backdate a commit. In Terminal:
+
+  mkdir -p ~/Documents/mascot-demo && cd ~/Documents/mascot-demo
+  git init -q .
+  GIT_COMMITTER_DATE="@$(( $(date +%s) - 100*3600 )) +0000" git -c user.email=demo@example.com -c user.name=Demo commit -q --allow-empty -m "work"
+
+Add that folder with "Add Project" and the character is asleep. Commit again in it, without the date, and the character leaps out of bed: that is the comeback. Backdate 30 hours instead of 100 for dozing.
+
+EXTERNAL SERVICES: none, as above: no data provider, authentication service, payment processor, analytics, crash reporter or AI service.
+
+REGIONAL DIFFERENCES: none. No region-gated features or content, and no localization (English only).
+
+THIRD-PARTY MATERIAL: the rooms, furniture and characters are derived from "Modern Interiors" by LimeZu (limezu.itch.io), a commercial asset pack purchased under its full-version licence, which permits use and editing in any commercial project and forbids reselling or distributing the asset itself. The art ships composited into the application with no way to extract the source sheets, so this is use rather than redistribution. The required credit is shown in the popover and in the copyright field; receipt and licence text available on request. The typeface is Departure Mono by Helena Zhang under the SIL Open Font License 1.1, which permits bundling, and its licence text ships in the bundle.
+
+Not a regulated industry: no health, financial or personal data, and nothing collected.
 ```
 
 ## Where each answer comes from
