@@ -3368,9 +3368,29 @@ Expected also: a clean `altool --validate-app`.
 
 - [ ] **Step 2: Run the full manual test list one more time on the exact build being submitted**
 
-**Not done before the 26 August submission.** Left unticked deliberately: the private API
-gate was verified on build 4 and the comeback path was exercised while staging the screenshots,
-but the rest of this list was last run against an earlier build. It runs before the next upload.
+**Not done before the 26 August submission**, and still unticked, but no longer for the same
+reason. Before 0.3.1 went live there was no artifact that was both the shipped bits and runnable:
+the uploaded pkg cannot be installed here and the Developer ID build is not sandboxed. A live
+version removes that, so on 27 August this list was run against the App Store copy of build 4,
+installed as `/Applications/Momentum Mascot 2.app`.
+
+Settled, by `tools/verify-store-copy.sh` and by measurement:
+
+- **Sandbox persistence: passes, decisively.** Quit and relaunched, and `last_commit_at` for two
+  of the three tracked projects *advanced* across the restart (15:53:46 to 15:59:02, and 15:58:25
+  to 15:59:34, UTC). State surviving would only prove the file was reread; timestamps moving
+  proves the security-scoped bookmarks resolved and the app read `.git/logs/HEAD` from inside the
+  sandbox. No sandbox denials in the system log across the restart.
+- **`strings -a` returns 0** for `drawsBackground` and `fullScreenEnabled`, and also for all four
+  debug environment variables. First time this gate has been run on Apple's delivered bits rather
+  than on a binary built here.
+- Universal `x86_64 arm64` survives the store, `LSUIElement` is set, and the category matches the
+  listing.
+
+Still open, all of it needing a person at the screen: the pet over a fullscreen app, dragging to
+four corners, the popover's six controls, the comeback room, the worktree message, the privacy
+link, rounded corners on a light and a dark desktop, and pixel density across two displays. The
+script prints this half of the list every run so it cannot drift from the half it checks.
 
 From spec section 9, against the signed sandboxed build:
 
