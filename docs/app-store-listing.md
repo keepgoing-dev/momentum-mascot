@@ -340,9 +340,19 @@ the shot that replaced it, keeps the whole figure as one shape with a defined ed
 second reason not to go dark that has nothing to do with the sprite: the App Store product page is
 itself dark, so a near-black screenshot loses its own frame against the page.
 
-Put the pet in a corner where the wallpaper is calm. On the wallpaper this was shot against, the
-bottom-right corner was dense foliage at exactly the pet's scale and the sprite did not separate
-from it at all; the bottom-left corner was flat water and it read immediately.
+Put the pet in a corner where the wallpaper is calm. On the wallpaper the first version was shot
+against, the bottom-right corner was dense foliage at exactly the pet's scale and the sprite did
+not separate from it at all; the bottom-left corner was flat water and it read immediately at full
+size, which turned out to be the wrong test.
+
+**Reshot on 27 August, and the fix was the frame rather than the pet.** Flat mid-tone wallpaper
+solved the sprite and created a new problem: at gallery size a 2560x1600 frame of nothing but flat
+colour reads as a blue rectangle, not as a desktop. So the pet goes in the **top-left** corner and
+the crop is `tl`, which puts the **menu bar** in frame. That one dark band is what makes the image
+read as somebody's Mac instead of a swatch, and it gives the pet a scale to be small against,
+which is the claim the shot exists to make. It costs nothing in privacy on this display: `tl`
+takes x=0..2560 of a 6720-wide capture, so the clock, the date, the status icons and the desktop
+files all sit outside the frame, and the only menu titles inside it are Finder's.
 
 ### The two scripts, and why not `drive-states.sh`
 
@@ -591,12 +601,11 @@ below with it.
 
 - **Reorder the screenshots**: `5-pet` out of slot 1, comeback into it. Read the slots back off
   the panel after uploading, because the file numbering does not survive the drop.
-- **Re-shoot `5-pet` against a flat, dark wallpaper.** At the 640px the gallery shows, the
-  current shot is water with a speck in one corner. A zoom is the wrong instrument: the pet is
-  64x64 logical, the frame must be exactly 2560x1600, so getting it larger means scaling, and
-  every screenshot in this listing is a crop for the reason `store-shots.sh` opens with. A flat
-  background gets the silhouette to read at thumbnail size for the cost of changing the
-  wallpaper before the shot.
+- **Re-shoot `5-pet`: done on 27 August**, and sitting in `docs/store-shots/5-pet.png` waiting
+  for a version that can carry it. Flat mid-tone wallpaper, pet in the top-left corner, cropped
+  `tl` so the menu bar is in frame. The reasoning is above; the short version is that a zoom was
+  never available, because the pet is 64x64 logical and the frame must be exactly 2560x1600, so
+  making it bigger means scaling and every shot here is a crop on purpose.
 - **The App Preview**, which is not the review video. That one was 43 seconds with Terminal and
   Finder in it, which is what App Review asked for and the opposite of what a preview may
   contain. A preview is 15 to 30 seconds, up to three, public, in the gallery ahead of the
