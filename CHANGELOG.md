@@ -1,8 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+- Nothing yet.
+
 ## 0.3.1 (2026-08-20)
 
 - Release 0.3.1.
+- On the Mac App Store from 27 August 2026: https://apps.apple.com/app/momentum-mascot/id6804925509. Same version, built and signed separately by `tools/release-mas.sh`, sandboxed where the disk image is not.
 
 ## 0.3.0 (2026-08-18)
 
@@ -11,9 +16,6 @@
 ## 0.2.0 (2026-08-18)
 
 - Release 0.2.0.
-
-## [Unreleased]
-
 - Added a visible character picker under the room so users can switch mascots directly. Clicking the mascot still cycles through the three characters.
 
 ## 0.1.2 (2026-08-17)
