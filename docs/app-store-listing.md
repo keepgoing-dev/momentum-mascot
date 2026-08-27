@@ -310,6 +310,15 @@ explain it, not to remove it and not to leave it unmentioned.
 5. The pet on a desktop, over a real wallpaper.
 6. The share card at full size.
 
+**The listing went live with this order wrong, and the file names did not prevent it.** The
+shots are numbered `1-comeback` through `6-card` in `docs/store-shots/`, which is the order
+argued for below, and the pet shot still ended up in slot 1 on the store. App Store Connect's
+media panel orders by the position a file is dropped into, not by its name, and six files
+dropped together do not land in name order. So the numbering is a note to the person uploading
+and nothing more: after uploading, read the slots back off the panel. Resized to the 640px the
+gallery actually shows, shot 5 is a photograph of water with a speck in one corner, which is the
+whole argument below arriving as a consequence.
+
 **Apple's limit is ten and its minimum is one.** The App Store Connect panel reads "Drag up to
 3 app previews and 10 screenshots here", so ten is a ceiling and not a target. Six is the number
 that earns its place; past that each addition dilutes the ones before it.
