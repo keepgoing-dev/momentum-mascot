@@ -529,7 +529,7 @@ reason is worth more than a clean pass.
 | 2026-08-25 | 0.3.1 | 3 | validated only, not uploaded: `VERIFY SUCCEEDED with no errors, 1 warning` (90889, TestFlight profile) |
 | 2026-08-26 | 0.3.1 | 4 | `UPLOAD SUCCEEDED with no errors, 1 warning` (90889 again). Delivery UUID `8297c738-5a78-419c-99e7-d4f63e2fd308`, 7197291 bytes. Attached to 0.3.1 and **submitted for review** the same day, after answering export compliance by hand. |
 | 2026-08-27 | 0.3.1 | 4 | **Rejected, guideline 2.1 Information Needed.** Apple's standard new-app questionnaire: a screen recording plus seven answers, no finding about the binary. Reply and recording plan in `docs/app-store-review-notes.md`. No new build required. |
-| 2026-08-27 | 0.3.1 | 4 | Answered the same day: two replies in Resolution Center (the field holds 4000 characters and the answers measure 5302), a 43 second 1920x1080 screen recording attached, and the Notes field updated with the addendum. Same build, no upload. |
+| 2026-08-27 | 0.3.1 | 4 | Answered the same day: two replies in Resolution Center (the field holds 4000 characters and the answers measure 5302), a 43 second 1920x1080 screen recording attached, and the Notes field updated with the addendum. Then resubmitted, because the metadata edit had moved the version to Ready for Review. Same build, no upload. |
 
 **Submitting took six tries, none of them about the build.** After the build was attached,
 "Add for Review" refused five times over listing fields, all recorded above: contact information,
