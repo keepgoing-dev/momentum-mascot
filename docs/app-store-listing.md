@@ -528,6 +528,7 @@ reason is worth more than a clean pass.
 |---|---|---|---|
 | 2026-08-25 | 0.3.1 | 3 | validated only, not uploaded: `VERIFY SUCCEEDED with no errors, 1 warning` (90889, TestFlight profile) |
 | 2026-08-26 | 0.3.1 | 4 | `UPLOAD SUCCEEDED with no errors, 1 warning` (90889 again). Delivery UUID `8297c738-5a78-419c-99e7-d4f63e2fd308`, 7197291 bytes. Attached to 0.3.1 and **submitted for review** the same day, after answering export compliance by hand. |
+| 2026-08-27 | 0.3.1 | 4 | **Rejected, guideline 2.1 Information Needed.** Apple's standard new-app questionnaire: a screen recording plus seven answers, no finding about the binary. Reply and recording plan in `docs/app-store-review-notes.md`. No new build required. |
 
 **Submitting took six tries, none of them about the build.** After the build was attached,
 "Add for Review" refused five times over listing fields, all recorded above: contact information,
@@ -535,6 +536,16 @@ content rights, an unpublished privacy questionnaire, no price, and an unanswere
 then a sixth time over the demo account fields that Sign-in required had turned on. The build
 itself was never the obstacle. Worth knowing for the next version: allow a session for the
 listing that has nothing to do with compiling anything.
+
+**The rejection was not about the app, and it was not 4.2.** Guideline 2.1 Information Needed
+arrived the day after submission and asked for a screen recording and seven pieces of
+information about what the app is, what it was tested on, and what third-party material it
+contains. None of it is a finding: it is the questionnaire Apple sends new apps, and the same
+build stays in review while it is answered. The reply is in `docs/app-store-review-notes.md`,
+which also holds the shot list for the recording. Two things learned worth carrying forward.
+The review notes already on the listing did not prevent this, so budget for the questionnaire
+rather than hoping good notes make it unnecessary; and the seven answers belong in the Notes
+field from the first submission of every version, which is what Apple's closing line asks for.
 
 **What was not done before submitting.** Task 18 step 2 asks for the full manual test list from
 spec section 9 against the exact build being submitted. It was not re-run against build 4. The
