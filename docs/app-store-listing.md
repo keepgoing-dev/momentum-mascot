@@ -330,6 +330,16 @@ shot read as a photograph of the wallpaper it happened to be standing on. The fa
 product is the room. The pet shot still earns its place, because "it lives on your desktop" is
 a claim a popover cannot make, but it is a supporting shot and not the opener.
 
+**The wallpaper has to be mid-tone, and both extremes fail for different reasons.** Measured on
+27 August by replacing the wallpaper colour behind a real capture and comparing at the 640px the
+gallery shows. The sprite is outlined in near-black, so on a black desktop the outline stops
+working as an edge: the figure loses its outer boundary and its dark trousers and boots, and what
+still reads is the cap, the visor and a patch of shirt, floating. A busy mid-tone wallpaper fails
+the other way, which is what the original water shot was. A flat mid-tone, `srgb(77,83,208)` in
+the shot that replaced it, keeps the whole figure as one shape with a defined edge. There is a
+second reason not to go dark that has nothing to do with the sprite: the App Store product page is
+itself dark, so a near-black screenshot loses its own frame against the page.
+
 Put the pet in a corner where the wallpaper is calm. On the wallpaper this was shot against, the
 bottom-right corner was dense foliage at exactly the pet's scale and the sprite did not separate
 from it at all; the bottom-left corner was flat water and it read immediately.
