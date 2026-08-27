@@ -529,6 +529,39 @@ The answer is the review notes and the category, not new features. Appeal explai
 an ambient status indicator for developers is the whole product and that its restraint is
 deliberate. Do not add scope to satisfy a guess about App Review's appetite.
 
+## What rides on 0.3.2
+
+**Screenshots on a released version cannot be reordered.** Tried on 27 August 2026, the day
+0.3.1 went live: the media panel does not accept a change to a version that is already
+distributing. So the fix for shot 1 is not a fix to the listing, it is the next version, and
+that has a price worth stating before anyone reaches for it.
+
+**A store-only version does not exist in this repository.** Version bumping lives in
+`tools/release.sh` and deliberately nowhere else, so that the two channels cannot disagree about
+what a version is (`tools/release-mas.sh:11`). `release-mas.sh` reads the version out of
+`tauri.conf.json` and only owns the build number, in `tools/.mas-build`. So 0.3.2 means a tagged
+release, a notarized disk image, and a GitHub release, and then a store upload. **Do not spend a
+version on a screenshot order.** Let it ride with the next real change, and take the whole list
+below with it.
+
+- **Reorder the screenshots**: `5-pet` out of slot 1, comeback into it. Read the slots back off
+  the panel after uploading, because the file numbering does not survive the drop.
+- **Re-shoot `5-pet` against a flat, dark wallpaper.** At the 640px the gallery shows, the
+  current shot is water with a speck in one corner. A zoom is the wrong instrument: the pet is
+  64x64 logical, the frame must be exactly 2560x1600, so getting it larger means scaling, and
+  every screenshot in this listing is a crop for the reason `store-shots.sh` opens with. A flat
+  background gets the silhouette to read at thumbnail size for the cost of changing the
+  wallpaper before the shot.
+- **The App Preview**, which is not the review video. That one was 43 seconds with Terminal and
+  Finder in it, which is what App Review asked for and the opposite of what a preview may
+  contain. A preview is 15 to 30 seconds, up to three, public, in the gallery ahead of the
+  screenshots, and only footage of the app itself. The content is already decided above:
+  asleep to comeback, staged by `tools/hold-state.sh comeback`, because the measured constraint
+  on `drive-states.sh` rules out a full arc at any clock scale. Read resolution and codec off
+  Media Manager.
+- **Task 18 step 2**, the manual test list from spec section 9, against the build being
+  uploaded. Still open, and the next upload is where it stops being deferrable.
+
 ## Submission log
 
 A row for every outcome, including rejections and what they cited. This log is the actual
