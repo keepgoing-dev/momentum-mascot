@@ -515,6 +515,29 @@ Two consequences to hold onto:
   - **Ad-hoc signed and not notarized**, which is a real limit rather than a detail: Gatekeeper refuses the app on any machine other than the one that built it, so anyone receiving the disk image has to right-click and Open once. Removing that needs a paid Developer ID. Recorded because it is the first thing that will be reported as a bug by whoever is handed the demo.
 - **The application icon is derived from the pack; the tray icon is not.** They are different jobs at different sizes (section 6.2), and the split has a licensing consequence worth being explicit about. The tray mark is drawn by hand at 16px, is covered by nothing in the pack's licence, and is committed. The app icon is the character at 1024px inside the popover's own mat and mount colours, so it falls under section 4.2 exactly as the rooms do: shipped compiled into the binary, never committed as an asset. `tools/make-app-icon.sh` builds it, and `tauri build` therefore needs the licensed pack, which is already true for every other reason.
 
+> **Superseded, 2026-08-22, and settled 2026-08-27.** The trade above was correct while direct
+> distribution was the only target. It is no longer the plan: see
+> `docs/superpowers/specs/2026-08-22-mac-app-store-design.md`, and
+> `docs/app-store-listing.md` for what actually happened at the store.
+>
+> The prediction was closer to right than the first draft of that design document was. The pet
+> does **not** have to be an opaque square. But the reason the first draft gave, that window
+> transparency is public API, does not hold through Tauri: `tauri-runtime-wry`'s
+> `window.transparent(...)` and `WindowBuilder::transparent()` are both gated on the
+> `macos-private-api` feature, and with it off the only complaint is an `eprintln!` gated on
+> `debug_assertions`. So the pet keeps its alpha only because the app makes the `setOpaque:` and
+> `setBackgroundColor:` calls itself, in `src-tauri/src/appkit.rs`.
+>
+> Two private API strings also remain in the shipped binary and are not removable without forking
+> wry and tao: `allowsPictureInPictureMediaPlayback` and `_wantsKeyDownForEvent`. Neither is
+> reachable from this codebase, and precedent is the whole justification for shipping them.
+>
+> **0.3.1 was approved for the Mac App Store on 27 August 2026**, at
+> `apps.apple.com/app/momentum-mascot/id6804925509`, with the pet's alpha intact. The one
+> rejection on the way was guideline 2.1 Information Needed, a request for a screen recording and
+> seven answers about the app, and nothing to do with private API, transparency, or the art
+> licence.
+
 ### 10.4 Repository layout
 
 A single Tauri project, deliberately flat. No monorepo, no workspace, no shared packages.
@@ -702,7 +725,7 @@ Effort follows risk, and the risk is concentrated in a small amount of logic.
 | ~~**The pet is invisible over macOS fullscreen apps.**~~ **Retired: solved.** Was rated fatal to the pet. | Closed | Spiked before any other pet work and cleared. The fix is an `NSPanel` conversion, not a window level; no `NSWindow` configuration works at all. Recipe in section 11, wall 1, cost accounted in section 10.3, evidence in `spikes/always-on-top/RESULTS.md`. |
 | ~~**The pet is visible but hostile**~~, switching Spaces or stealing focus on click. **Retired: tested and does not happen.** | Closed | Verified as a separate verdict, because "visible" alone was not a pass: clicking the panel over fullscreen Chrome neither leaves the Space nor takes focus, and Chrome stays interactive. Section 6.1's "clickable, not click-through" stands. |
 | **The AppKit block rots on a future macOS release.** It relies on `object_setClass` and an undocumented interaction, and the spike already saw the same configuration behave differently depending on history. | Medium, ongoing | Contained: about fifteen lines, one place, commented with why each call exists (section 10.3). `RESULTS.md` keeps the dead ends so a future break is re-diagnosed in minutes rather than re-explored from scratch. The failure mode is graceful, since a pet that stops appearing over fullscreen is degraded rather than broken. |
-| **Transparency depends on a private API.** A non-rectangular pet needs `transparent: true`, which on macOS requires Tauri's `macos-private-api` feature and makes the app ineligible for the Mac App Store. | Low, scoped | Accepted. Distribution is direct, so the flag costs nothing. Recorded because it silently forecloses the App Store: if that ever becomes a target, the pet has to be an opaque square, which is a design decision rather than a bug. |
+| ~~**Transparency depends on a private API**, so the app is ineligible for the Mac App Store.~~ **Reversed 2026-08-27.** | Closed | Eligible, and shipped: 0.3.1 was approved for the Mac App Store on 27 August 2026 with the pet's alpha intact. The route is App Sandbox applied at signing time plus security-scoped bookmarks, `macos-private-api` off, and the pet's transparency made by the app's own `setOpaque:` call. See section 10.3, `docs/superpowers/specs/2026-08-22-mac-app-store-design.md`, `docs/app-store.md`, and `docs/app-store-listing.md`. The prediction that the pet would have to become an opaque square was wrong. |
 | **A pet that moves too much gets the app quit.** The always-visible surface is also the always-annoying one if it fidgets. | High | Motion is reserved by rule (section 6.1): asleep and dozing are still, awake is a slow idle, only comeback is loud. |
 | **The pet cannot exist on Wayland**, which deliberately does not let applications position their own windows. | High, Linux only | Accepted rather than solved. Section 11, wall 2. Linux may ship without the pet, or not ship at all, and that is decided deliberately rather than discovered mid-port. |
 | **Linux tray absent on GNOME; clipboard unreliable on Wayland.** | Medium | Stated honestly in section 11 and the README. Linux ships last and only after both paths are verified. |

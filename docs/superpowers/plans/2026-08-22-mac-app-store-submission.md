@@ -3425,13 +3425,13 @@ reasoning trail stays intact.
 **Files:**
 - Modify: `docs/spec-v2.md` section 10.3 and the risk table entry at `docs/spec-v2.md:705`
 
-- [ ] **Step 1: Find the two places**
+- [x] **Step 1: Find the two places**
 
 ```sh
 grep -n "App Store\|opaque square" docs/spec-v2.md
 ```
 
-- [ ] **Step 2: Amend section 10.3**
+- [x] **Step 2: Amend section 10.3**
 
 Leave the original reasoning and append:
 
@@ -3454,7 +3454,7 @@ Leave the original reasoning and append:
 > them.
 ```
 
-- [ ] **Step 3: Amend the risk table entry**
+- [x] **Step 3: Amend the risk table entry**
 
 Replace the App Store ineligibility row's response cell with:
 
@@ -3462,7 +3462,7 @@ Replace the App Store ineligibility row's response cell with:
 Reversed 2026-08-22. Eligible, via App Sandbox at signing time plus security-scoped bookmarks. See `docs/superpowers/specs/2026-08-22-mac-app-store-design.md` and `docs/app-store.md`.
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```sh
 git add docs/spec-v2.md

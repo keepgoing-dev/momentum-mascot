@@ -17,6 +17,8 @@ The one-time account setup is `docs/app-store.md`. The build and upload script i
 | Primary category | Developer Tools |
 | Secondary category | none |
 | Bundle ID | dev.keepgoing.momentum-mascot |
+| Apple ID (app) | 6804925509 |
+| App Store URL | https://apps.apple.com/app/momentum-mascot/id6804925509 |
 | SKU | momentum-mascot-1 |
 | Copyright | 2026 Hoa Trinh |
 | Support URL | https://keepgoing.dev |
@@ -530,6 +532,7 @@ reason is worth more than a clean pass.
 | 2026-08-26 | 0.3.1 | 4 | `UPLOAD SUCCEEDED with no errors, 1 warning` (90889 again). Delivery UUID `8297c738-5a78-419c-99e7-d4f63e2fd308`, 7197291 bytes. Attached to 0.3.1 and **submitted for review** the same day, after answering export compliance by hand. |
 | 2026-08-27 | 0.3.1 | 4 | **Rejected, guideline 2.1 Information Needed.** Apple's standard new-app questionnaire: a screen recording plus seven answers, no finding about the binary. Reply and recording plan in `docs/app-store-review-notes.md`. No new build required. |
 | 2026-08-27 | 0.3.1 | 4 | Answered the same day: two replies in Resolution Center (the field holds 4000 characters and the answers measure 5302), a 43 second 1920x1080 screen recording attached, and the Notes field updated with the addendum. Then resubmitted, because the metadata edit had moved the version to Ready for Review. Same build, no upload. |
+| 2026-08-27 | 0.3.1 | 4 | **Approved.** "Review of your submission has been completed. It is now eligible for distribution." Submitted 04:21 PDT, accepted the same day. Submission ID `c0dfeea1-544a-4452-8120-447c4732a7d4`, App Store URL `https://apps.apple.com/app/momentum-mascot/id6804925509`. |
 
 **Submitting took six tries, none of them about the build.** After the build was attached,
 "Add for Review" refused five times over listing fields, all recorded above: contact information,
@@ -537,6 +540,12 @@ content rights, an unpublished privacy questionnaire, no price, and an unanswere
 then a sixth time over the demo account fields that Sign-in required had turned on. The build
 itself was never the obstacle. Worth knowing for the next version: allow a session for the
 listing that has nothing to do with compiling anything.
+
+**Approved on the same day it was answered, on the same build that was rejected.** The 2.1
+questionnaire cost one round trip of a few hours, and nothing in it required a new upload: build 4
+was accepted exactly as it was first delivered on 26 August. Worth carrying into the next version,
+because it inverts the instinct a rejection produces. The reflex is to go and change the app. The
+correct first question is whether App Review asked about the app at all.
 
 **Editing metadata after a rejection takes the version out of the queue.** Updating the Notes
 field and attaching the recording moved 0.3.1 from Rejected to **Ready for Review**, which is not
