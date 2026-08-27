@@ -529,6 +529,41 @@ The answer is the review notes and the category, not new features. Appeal explai
 an ambient status indicator for developers is the whole product and that its restraint is
 deliberate. Do not add scope to satisfy a guess about App Review's appetite.
 
+## Verifying what the store actually delivered
+
+`tools/verify-store-copy.sh` runs every part of the spec section 9 list that a script can answer,
+against an installed App Store copy, and prints the rest of the list so the two halves do not
+drift apart.
+
+**The store copy is the artifact that closes the gap this project could not close before.** The
+pkg `release-mas.sh` uploads is signed `3rd Party Mac Developer Installer` and carries no
+provisioning profile, so it cannot be installed and launched here; the Developer ID build from
+`install-local.sh` runs but is not sandboxed, so it cannot answer a sandbox question. Once a
+version is live, one artifact is both the shipped bits and runnable, and it is the one users get.
+
+**It installs under a different name if a local build is in the way.** The store copy landed as
+`/Applications/Momentum Mascot 2.app`, because `install-local.sh` already owned
+`/Applications/Momentum Mascot.app`. Two copies of the same bundle id then run side by side, and
+they do not fight over state: the sandboxed one reads the container, the unsandboxed one reads
+`~/.keepgoing/mascot/state.json`. Delete the local build and reinstall from the store to get the
+name back.
+
+Run against 0.3.1 build 4, on 27 August 2026, the day it went live:
+
+```
+provenance   _MASReceipt present, Authority=Apple Mac OS Application Signing, signature verifies
+sandbox      app-sandbox, files.user-selected.read-only, files.bookmarks.app-scope all present
+             state file inside the container, 3 projects, 3 with a security-scoped bookmark
+private API  drawsBackground / fullScreenEnabled: 0
+             KEEPGOING_CLOCK_SCALE, MASCOT_STATE, PIN_POPOVER, HOLD_COMEBACK all absent
+bundle       version 0.3.1, build 4, x86_64 arm64, LSUIElement, developer-tools
+```
+
+**Two of those lines are new information rather than a repeat of the upload gate.** The private
+API check has only ever been run on a binary built here; this is the first time it has been run
+on the bits Apple delivered. And `x86_64 arm64` says the store did not thin the binary on the way
+through, which nothing in this repository had established either way.
+
 ## What rides on 0.3.2
 
 **Screenshots on a released version cannot be reordered.** Tried on 27 August 2026, the day
