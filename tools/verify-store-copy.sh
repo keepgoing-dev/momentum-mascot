@@ -12,6 +12,10 @@
 # the sandbox questions. Once a version is live, the store copy is the only artifact that is both
 # the shipped bits and runnable.
 #
+# `install-sandboxed.sh` makes a third kind of copy: sandboxed AND launchable, but signed here, so
+# it answers every sandbox question and no provenance question. This script tells the three apart
+# rather than assuming, because the difference decides what a green run is worth.
+#
 # Usage:  tools/verify-store-copy.sh ["/Applications/Momentum Mascot.app"]
 #
 # Read-only: nothing here launches, modifies, or signs anything.
@@ -36,13 +40,22 @@ echo ""
 echo "$APP"
 echo ""
 
+ENT=$(codesign -d --entitlements - --xml "$APP" 2>/dev/null | plutil -convert xml1 -o - - 2>/dev/null)
+SANDBOXED=
+printf '%s' "$ENT" | grep -q 'com.apple.security.app-sandbox' && SANDBOXED=1
+
 echo "provenance"
 IS_STORE=
 if [ -f "$APP/Contents/_MASReceipt/receipt" ]; then
   IS_STORE=1
   pass "_MASReceipt present: this is a Mac App Store copy"
+elif [ -n "$SANDBOXED" ]; then
+  # `install-sandboxed.sh`. Every sandbox answer below is real; none of them is evidence about
+  # the bits Apple shipped, so this is not a failure and not a pass either.
+  info "_MASReceipt absent, sandbox entitlement present: a locally signed sandboxed copy."
+  info "the sandbox answers below are real; the shipped-bits answers are not available here"
 else
-  fail "_MASReceipt absent: this is NOT a store copy, so the sandbox answers below are not the shipped ones"
+  fail "_MASReceipt absent and no sandbox entitlement: nothing below answers a sandbox question"
 fi
 # Authority lines only. The full codesign dump carries certificate hashes that have no business
 # in a terminal someone might paste from.
@@ -62,7 +75,6 @@ fi
 
 echo ""
 echo "sandbox"
-ENT=$(codesign -d --entitlements - --xml "$APP" 2>/dev/null | plutil -convert xml1 -o - - 2>/dev/null)
 for key in com.apple.security.app-sandbox \
            com.apple.security.files.user-selected.read-only \
            com.apple.security.files.bookmarks.app-scope; do
@@ -72,10 +84,11 @@ for key in com.apple.security.app-sandbox \
     fail "$key missing"
   fi
 done
-if [ -d "$CONTAINER" ] && [ -z "$IS_STORE" ]; then
+if [ -d "$CONTAINER" ] && [ -z "$SANDBOXED" ]; then
   # The container is keyed on the bundle id, not on the copy, so an unsandboxed build sits beside
   # a container left behind by some earlier sandboxed one. Saying "ok" here would credit this
-  # copy with a file it cannot even reach.
+  # copy with a file it cannot even reach. Gated on the entitlement and not on the receipt: a
+  # locally signed sandboxed copy shares this container and really does read and write it.
   info "a container exists, but this copy is not sandboxed: it belongs to some earlier sandboxed run"
 elif [ -d "$CONTAINER" ]; then
   pass "container exists: ~/Library/Containers/dev.keepgoing.momentum-mascot"
@@ -153,7 +166,10 @@ What is left needs a person at the screen. Spec section 9, in the order that fai
   8. Pixel art stays crisp when the pet is dragged to a display of a different density.
 
 The comeback room is the ninth and cannot be staged in a release build: it needs
-`KEEPGOING_HOLD_COMEBACK`, which the gate above proves is absent. Stage it with
-`tools/hold-state.sh comeback` on a debug build, or reach it in a store copy the slow way, by
-tracking a repository whose last commit is over 72 hours old and then committing to it.
+`KEEPGOING_HOLD_COMEBACK`, which the gate above proves is absent. `tools/hold-state.sh comeback`
+stages it on the unsandboxed debug build only: it drives the app through
+`KEEPGOING_MASCOT_STATE` and throwaway repositories in a temporary directory, and a sandboxed
+copy can reach neither. In any sandboxed copy the route is the slow one, which is also the real
+one: add a repository whose last commit is over 72 hours old through the picker, wait for asleep,
+then commit to it.
 LIST
