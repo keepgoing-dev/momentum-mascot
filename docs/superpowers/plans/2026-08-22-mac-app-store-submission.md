@@ -3392,6 +3392,33 @@ four corners, the popover's six controls, the comeback room, the worktree messag
 link, rounded corners on a light and a dark desktop, and pixel density across two displays. The
 script prints this half of the list every run so it cannot drift from the half it checks.
 
+**Two defects found on 28 August while setting the by-eye half up.** Both live in
+`watcher.rs::classify`, both are deviations from spec section 9.4, and both were reproduced from a
+seeded state file with the watcher's own event log on, so neither rests on interpretation.
+
+**1. A `.DS_Store` wakes the mascot, and can fire a false comeback.** With one empty repository
+tracked whose last commit was 100 hours old, the app correctly read `asleep`. A single
+`touch .DS_Store` in that folder produced `Create(File)`, then `tree changed: changed=true`, and
+the state went to `awake`. Nothing else was touched.
+
+The consequence is not cosmetic. `latest()` is the max of `last_commit_at` and `last_active_at`,
+and `mood::is_comeback(Some(Asleep), Awake)` is true, so a Finder window opened on a dormant
+project can spend the celebration that the product exists for. That is precisely the failure
+`reflog.rs` opens by naming, arriving through the other door: the reflog filter refuses to let a
+checkout count as work, and then section 9.4's working-tree watch counts a folder-view metadata
+file as work. Step 2 of 9.4 filters by the project's own `.gitignore`, and `.DS_Store` is almost
+never in one, because it belongs in a global ignore file.
+
+**2. A bare `mkdir` counts as work**, though 9.4 step 3 says "Ignore directories. Only file
+changes count." `mkdir a-new-folder` produced `Create(Folder)` and moved `last_active_at`.
+`classify` never rejects a directory; it only passes `path.is_dir()` into the gitignore matcher.
+
+**The picker is innocent, which is worth recording because it was the first suspicion.** Adding a
+dormant repository through Add Project produced no events at all, and the row read `4 days ago`
+with the asleep copy line under it. An earlier observation of `just now` on two fixture folders in
+`~/Documents` is unexplained: the mechanism above is the obvious candidate, but no `.DS_Store` was
+found in either folder afterwards, so it is not claimed.
+
 From spec section 9, against the signed sandboxed build:
 
 - Sandbox persistence: add a repository, quit, relaunch, still readable. (Task 13.)

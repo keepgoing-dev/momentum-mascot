@@ -615,6 +615,10 @@ below with it.
   Media Manager.
 - **Task 18 step 2**, the manual test list from spec section 9, against the build being
   uploaded. Still open, and the next upload is where it stops being deferrable.
+- **The two `watcher.rs` defects the test list turned up on 28 August**, written up in the plan
+  under that step. A `.DS_Store` is enough to wake the mascot and can spend a comeback, and a bare
+  `mkdir` counts as work. Neither is a listing matter, but shipping 0.3.2 without them fixed would
+  waste the upload.
 
 ## Submission log
 
