@@ -3460,6 +3460,72 @@ From spec section 9, against the signed sandboxed build:
 - The popover's rounded corners read correctly on a light and a dark desktop.
 - Pixel art stays crisp when the pet is dragged to a display of a different density.
 
+**Run on 28 August, against a locally signed sandboxed copy** built by `tools/install-sandboxed.sh`.
+That script exists because this list had no build to run against: `install-local.sh` launches and is
+not sandboxed, `release-mas.sh` is sandboxed and macOS will not launch it, so the list was blocked
+on downloading our own app from the store. Signing the store's entitlements with the Developer ID
+certificate gives a copy that is genuinely sandboxed - same container, same `$HOME` redirect, same
+bookmark requirement - and still runs here. It answers every sandbox question and no provenance
+question, and `verify-store-copy.sh` now says so rather than failing it for having no receipt.
+
+| Item | Result |
+|---|---|
+| Sandbox persistence | **pass**, and by the strong reading. The container survived the store copy being deleted, and on the new copy's first launch `last_commit_at` *advanced* for two projects (27/08 16:15 to 28/08 08:54, and 27/08 15:59 to 28/08 09:05). Advancing needs a real read of `.git/logs/HEAD` from inside the container; state merely surviving would only prove the file was reread. The bookmarks also survived a change of signing identity, which was not a given. |
+| No sandbox denials | **pass**, nothing from this app in the sandbox log. |
+| Pet over a fullscreen app | **pass** for the pet. It appears, does not switch Space, does not steal focus, and the app underneath stays interactive. **The popover does not appear at all.** See below. |
+| Pet drags to four corners, click opens the popover | **pass** |
+| The popover's six controls | **pass**: added a project, cycled the character to `12`, toggled operating on two, untracked a row, copied the share card and pasted it, dismissed with Escape. |
+| The worktree message | **fail.** The row reads as an ordinary project. See below. |
+| The privacy link | **pass** |
+| Rounded corners, light and dark desktop | **pass** |
+| Pixel art across display densities | **not run, and not runnable here.** Both displays on this machine are 2x. Recorded rather than ticked. |
+| The comeback room | Not yet run. Staging it needs the tracked set back to asleep. |
+
+**The popover cannot be seen over a fullscreen app, and the pet can.** That combination is worse
+than neither working: the pet is visible and clickable over fullscreen, so clicking it looks broken
+rather than unavailable. The cause is in `pet.rs`'s own opening paragraph, applied to only one of
+the two windows: `alwaysOnTop` is an `NSWindow` level, and the spike measured that *no* `NSWindow`
+configuration is visible over a fullscreen app, across ten `collectionBehavior` values and four
+levels up to `kCGMaximumWindowLevel`. What works is changing the kind of window it is. The pet gets
+that treatment - reclassed to a non-activating `NSPanel`, behaviour 273, level 25 - and the popover
+is still a plain window with `alwaysOnTop: true` in `tauri.conf.json`.
+
+The fix is to apply the same recipe in `app::setup_popover`, which already runs once at startup
+before the window is ever shown, and that ordering matters: the spike found that reconfiguring a
+*live* window gives history-dependent results. One difference from the pet: the popover has to
+become key, because Escape is a JavaScript `keydown`, so it wants `becomesKeyOnlyIfNeeded` off
+where the pet has it on. A non-activating panel can become key without activating the app.
+
+**`RepoError::GitDirOutside` can never fire under App Sandbox, so the message written for it is
+dead code in the shipped build.** The fixture is `~/Documents/mascot-check/worktree-outside`, a
+linked worktree whose `gitdir:` points into `other-repo`, a repository the app has no grant on. It
+shows as an ordinary project, first as "no activity yet" and then as "just now".
+
+Establishing that took two corrections. The first fixture was invalid: its gitdir pointed inside
+this repository, which the app tracks *with a bookmark*, so the sandbox really could reach it. The
+second was inconclusive for a different reason: `git worktree add` writes a reflog line with no
+message field at all, so `reflog::parse_line` returns `None` whether or not the read succeeded. What
+settled it was committing inside the worktree, which writes a genuine `commit:` entry:
+
+- `last_active_at` moved to the second of the commit. The work tree is inside the grant, so the
+  file watcher saw `work.txt`.
+- `last_commit_at` stayed `None`. The reflog lives in `other-repo`, and its **content** cannot be
+  read.
+- The row carried no reason line and no strikethrough, so `resolve` returned `Ok`.
+
+The mechanism is that `resolve` decides reachability with `is_dir()`, and the `HEAD` check right
+after it uses `is_file()`. Both are `stat`, and **App Sandbox permits `stat` on paths whose contents
+it refuses**. So the check that exists to detect an unreachable git directory passes on one. The
+`head_commit_time` fallback cannot save it either: it shells out to `git`, the child inherits the
+sandbox, and it fails for the same reason, silently, returning `None`.
+
+The user-visible result is the worst shape available: a project that looks tracked, looks healthy,
+and never records a commit for as long as it is listed. The fix is for `resolve` to prove
+*readability* rather than existence - open `HEAD` and read a byte, and treat a permission error as
+`GitDirOutside` - which is a smaller change than it sounds, because `RepoError` already has the
+variant and the copy for it.
+
+
 - [x] **Step 3: Upload**
 
 ```sh
