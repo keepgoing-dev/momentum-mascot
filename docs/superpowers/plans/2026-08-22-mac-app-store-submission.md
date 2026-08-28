@@ -3525,6 +3525,43 @@ and never records a commit for as long as it is listed. The fix is for `resolve`
 `GitDirOutside` - which is a smaller change than it sounds, because `RepoError` already has the
 variant and the copy for it.
 
+**Both fixed the same day.**
+
+`repo::resolve` now proves readability: one `std::fs::read` of `HEAD`, and which error a failure
+becomes is decided by how we got there - `GitDirOutside` through a `gitdir:` pointer, `Unreadable`
+through an ordinary `.git` directory. Reading the whole file rather than a byte, because `HEAD` is
+forty bytes and `read` on a *directory* fails where `File::open` would succeed, so the one call
+keeps what `is_file` was there for. Two tests first, both failing with `Ok(...)`, which is the same
+answer the live fixture gave. They reproduce the sandbox's asymmetry without a sandbox: `chmod 000`
+on `HEAD` and not on the folder above it, so the folder stays traversable, every existence check
+passes, and only a read fails. 89 tests pass.
+
+The window fix is `appkit::show_over_fullscreen`, called once by each window before it is shown,
+with one parameter for the one thing they disagree on. The constants and the spike's reasoning moved
+there from `pet.rs`; `pet.rs`'s module doc still carries the spike story and now points at it.
+
+**The naive version of this fix would have silently broken Escape**, and the by-eye list would not
+have caught it, because the item that exercises Escape is not the item that exercises fullscreen.
+`object_setClass` to the stock `NSPanel` **throws away tao's `canBecomeKeyWindow` override**, and
+`NSWindow`'s own answer for a borderless window is NO. Measured, by reading the properties back the
+way `make_transparent` was verified:
+
+| Popover | class | level | behaviour | `isKeyWindow` after show |
+|---|---|---|---|---|
+| Before | `TaoWindow` | 5 | 0 | false, then true within a second |
+| Stock `NSPanel` | `NSPanel` | 25 | 273 | **false, and still false after three seconds** |
+| Fixed | `MomentumKeyPanel` | 25 | 273 | true immediately, and stays |
+
+So the popover gets a registered `NSPanel` subclass whose only method answers YES, and the pet keeps
+the stock class, which is exactly the behaviour the pet wants. Click-outside dismissal was
+re-measured too, because it is the other thing a window-class change could have taken: focus stolen
+by another app still hides the popover. One scare on the way was mine and not the app's - the
+popover reappeared during a run, and printing every show request showed only one, so it was this
+plan's reader clicking the tray while the test was running.
+
+The spec's section 10.3 carries the correction. Section 9.2 needed none: the spec already said "the
+resolved git directory has a **readable** `HEAD`", and the code was checking that it existed.
+
 
 - [x] **Step 3: Upload**
 

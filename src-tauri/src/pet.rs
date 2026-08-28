@@ -14,6 +14,10 @@
 //!
 //! The dead ends are kept in `spikes/always-on-top/RESULTS.md` so that a future macOS release
 //! breaking this is re-diagnosed in minutes rather than re-explored from scratch.
+//!
+//! The recipe itself lives in `appkit::show_over_fullscreen`, because the popover turned out to
+//! need it too: it shipped as a plain `NSWindow`, so the pet was visible over a fullscreen app
+//! and clicking it opened a popover nobody could see.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
@@ -37,14 +41,6 @@ pub const SIZE: f64 = 64.0;
 
 /// Clearance from the corner of the usable screen, in logical pixels.
 const MARGIN: f64 = 20.0;
-
-/// `NSStatusWindowLevel`.
-#[cfg(target_os = "macos")]
-const LEVEL: isize = 25;
-
-/// `canJoinAllSpaces | stationary | fullScreenAuxiliary`.
-#[cfg(target_os = "macos")]
-const BEHAVIOR: usize = 273;
 
 pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     // Built here rather than in tauri.conf.json because `app.windows` has no webview-less form,
@@ -70,11 +66,11 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
 
     #[cfg(target_os = "macos")]
     {
-        let ns = win.ns_window()? as *mut objc2::runtime::AnyObject;
-        if !macos::make_panel(ns) {
+        // `false`: clicking the character must never take the keyboard from whatever the user
+        // is doing. The popover asks for the opposite, because Escape dismisses it.
+        if !crate::appkit::show_over_fullscreen(win.ns_window()?, false) {
             eprintln!("NSPanel class not found; the pet will not show over fullscreen apps");
         }
-        macos::apply(ns, LEVEL, BEHAVIOR);
 
         // Redundant while `macos-private-api` is on, because tao does it. Load-bearing the day
         // it is off, and silent if it is missing then: with the feature gone, tao's only
@@ -394,45 +390,8 @@ pub fn on_drag_end(app: &AppHandle, at: (f64, f64)) -> Option<(i32, i32)> {
 
 #[cfg(target_os = "macos")]
 mod macos {
-    use objc2::runtime::{AnyClass, AnyObject, Bool};
     use objc2_app_kit::NSScreen;
     use objc2_foundation::MainThreadMarker;
-
-    /// Swap the window's class for a non-activating `NSPanel`.
-    ///
-    /// This is the load-bearing step and the same approach `tauri-nspanel` takes. It is
-    /// hand-rolled rather than taken as a dependency because it is fifteen lines already
-    /// written and verified, against a dependency with its own Tauri-version coupling and its
-    /// own plugin surface, in a project whose stated failure mode is sprawl.
-    ///
-    /// A panel with `NSWindowStyleMaskNonactivatingPanel` can be shown without activating its
-    /// application, which is exactly the property a plain `NSWindow` lacks and exactly why
-    /// clicking the pet over a fullscreen app neither switches Space nor steals focus.
-    pub fn make_panel(ns: *mut AnyObject) -> bool {
-        unsafe {
-            let Some(panel) = AnyClass::get(c"NSPanel") else {
-                return false;
-            };
-            let cls = panel as *const AnyClass;
-            objc2::ffi::object_setClass(ns.cast(), cls.cast());
-            // Preserve borderless (0) and add nonactivatingPanel (1 << 7).
-            let mask: usize = objc2::msg_send![ns, styleMask];
-            let _: () = objc2::msg_send![ns, setStyleMask: mask | (1usize << 7)];
-            let _: () = objc2::msg_send![ns, setFloatingPanel: Bool::YES];
-            let _: () = objc2::msg_send![ns, setBecomesKeyOnlyIfNeeded: Bool::YES];
-            true
-        }
-    }
-
-    pub fn apply(ns: *mut AnyObject, level: isize, behavior: usize) {
-        unsafe {
-            let _: () = objc2::msg_send![ns, setCollectionBehavior: behavior];
-            let _: () = objc2::msg_send![ns, setLevel: level];
-            // An accessory app is never "active", so a window that hides on deactivation
-            // would vanish for a reason that has nothing to do with Spaces.
-            let _: () = objc2::msg_send![ns, setHidesOnDeactivate: Bool::NO];
-        }
-    }
 
     /// The bottom-right of the main screen's `visibleFrame`, in Tauri's physical pixels.
     ///

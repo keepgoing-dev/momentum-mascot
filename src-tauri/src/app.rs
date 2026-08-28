@@ -175,16 +175,32 @@ pub fn sync_watcher(app: &AppHandle) {
 
 /// The popover's window chrome, which the app owns now.
 ///
-/// Two calls, both public AppKit, both previously done for us by the private-API feature or not
-/// needed at all. `transparent: true` is gone from the window's config: the room art fills the
-/// whole surface, so the popover never needed a see-through webview. What it needed was rounded
-/// corners, and those come from the layer.
+/// Two of the three calls are cosmetic and were previously done for us by the private-API feature
+/// or not needed at all. `transparent: true` is gone from the window's config: the room art fills
+/// the whole surface, so the popover never needed a see-through webview. What it needed was
+/// rounded corners, and those come from the layer.
+///
+/// The third changes what kind of window this is, and has to run before the first `show`.
 #[cfg(target_os = "macos")]
 pub fn setup_popover(app: &AppHandle) {
     let Some(win) = app.get_webview_window(POPOVER) else {
         return;
     };
     if let Ok(ns) = win.ns_window() {
+        // Section 9 item 1, found by eye and not by test: the pet showed over a fullscreen app
+        // and the popover did not, which is worse than neither working, because the pet is still
+        // clickable and clicking it looks like the app is broken. `alwaysOnTop` in the window
+        // config is a *level*, and the spike proved no level is enough.
+        //
+        // This runs in `setup`, so it is still the ordering the spike requires: the window is
+        // created from `tauri.conf.json` with `visible: false`, configured here, and shown for
+        // the first time later. Nothing reconfigures it afterwards.
+        //
+        // `true`, unlike the pet: the popover has to be able to take the keyboard, because
+        // Escape dismisses it through a JS `keydown`.
+        if !crate::appkit::show_over_fullscreen(ns, true) {
+            eprintln!("NSPanel class not found; the popover will not show over fullscreen apps");
+        }
         crate::appkit::make_transparent(ns);
         // 12pt, matching `.panel`'s `border-radius: 12px` in popover.css. If these ever disagree,
         // the border draws a different curve than the mask cuts.

@@ -546,6 +546,25 @@ Two consequences to hold onto:
 > seven answers about the app, and nothing to do with private API, transparency, or the art
 > licence.
 
+> **Corrected 28 August 2026, after the section 9 test list was run by eye on 0.3.1.** This
+> section says "the desktop pet's window", and the popover needs the same conversion. It shipped
+> as an ordinary window with `alwaysOnTop: true`, which is a *level*, and the exception exists
+> precisely because no level is enough: over a fullscreen app the pet was visible and the popover
+> was not. That combination is worse than neither working, because the pet stays clickable and
+> clicking it looks like the app is broken.
+>
+> So the recipe now lives in `appkit::show_over_fullscreen` and both windows call it, once each,
+> before either is first shown. The two disagree on one thing: the pet must never take the
+> keyboard, and the popover must, because Escape dismisses it.
+>
+> That difference cost the one genuinely new piece of knowledge here. `object_setClass` to the
+> stock `NSPanel` **discards tao's own `canBecomeKeyWindow` override**, and `NSWindow` answers NO
+> for a borderless window, so a reclassed popover accepted no key events at all: measured
+> `isKeyWindow` false for as long as the window was up, against true within a second before the
+> reclass. The popover therefore gets a registered `NSPanel` subclass that answers YES. The count
+> in this section goes from about fifteen macOS-only lines to about twenty-five, still in one
+> place.
+
 ### 10.4 Repository layout
 
 A single Tauri project, deliberately flat. No monorepo, no workspace, no shared packages.

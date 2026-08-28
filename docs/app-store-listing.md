@@ -619,6 +619,12 @@ below with it.
   day**, and a third with them: a file inside an ignored directory was counting as work, because
   the matcher only ever looked at the path it was handed. Written up in the plan under that step.
   Not a listing matter, but the reason 0.3.2 now has something in it worth spending a version on.
+- ~~**The two defects the by-eye half of that list turned up.**~~ **Fixed the same day.** The
+  popover was invisible over a fullscreen app while the pet was visible over it, and a tracked
+  worktree whose git folder sits outside the picker's grant read as an ordinary healthy project
+  and never recorded a commit. Both are in the plan under Task 18 step 2. The first of them is a
+  listing matter after all: the App Preview is app footage only, and "click the pet, the panel
+  opens" is the obvious opening beat.
 
 ## Submission log
 

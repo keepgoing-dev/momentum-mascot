@@ -59,8 +59,10 @@ pub fn resolve(path: &Path) -> Result<PathBuf, RepoError> {
         return Err(RepoError::Missing);
     }
     let dot_git = path.join(".git");
-    let git_dir = if dot_git.is_dir() {
-        dot_git
+    // Which error an unreadable git folder deserves depends on how we got there, and both are
+    // decided by the same read below.
+    let (git_dir, out_of_reach) = if dot_git.is_dir() {
+        (dot_git, RepoError::Unreadable)
     } else if dot_git.is_file() {
         let contents = std::fs::read_to_string(&dot_git).map_err(|_| RepoError::Unreadable)?;
         let pointer = contents
@@ -73,16 +75,18 @@ pub fn resolve(path: &Path) -> Result<PathBuf, RepoError> {
         } else {
             path.join(pointer)
         };
-        if !resolved.is_dir() {
-            return Err(RepoError::GitDirOutside);
-        }
-        resolved
+        (resolved, RepoError::GitDirOutside)
     } else {
         return Err(RepoError::NotARepo);
     };
 
-    if !git_dir.join("HEAD").is_file() {
-        return Err(RepoError::Unreadable);
+    // A read, not `is_dir` plus `is_file`. Those are both `stat`, and App Sandbox permits `stat`
+    // on a path whose contents it refuses, so the checks written to catch an unreachable git
+    // folder passed on one: `GitDirOutside` could not fire in the shipped build, and a worktree
+    // read as tracked and healthy while never recording a commit. Reading `HEAD` is the same
+    // access the rest of the app needs, so it fails here or not at all.
+    if std::fs::read(git_dir.join("HEAD")).is_err() {
+        return Err(out_of_reach);
     }
     Ok(git_dir)
 }
@@ -215,6 +219,48 @@ mod tests {
         std::fs::create_dir_all(&bad).unwrap();
         std::fs::write(bad.join(".git"), "this is not a pointer\n").unwrap();
         assert_eq!(resolve(&bad), Err(RepoError::NotARepo));
+    }
+
+    /// `chmod 000` on the file, not on the folder above it: with the folder still traversable,
+    /// every existence check passes and only a read fails. That is the same asymmetry App
+    /// Sandbox produces on a path outside the grant, reachable without a sandbox to run in.
+    fn unreadable(path: &Path) {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o000)).unwrap();
+    }
+
+    #[test]
+    fn a_worktree_whose_git_folder_is_there_but_unreadable_is_still_outside() {
+        // The defect the store build shipped with. `is_dir` and `is_file` are both `stat`, and
+        // App Sandbox permits `stat` on a path whose contents it refuses, so the check written
+        // to catch an unreachable git folder passed on one: the project read as tracked and
+        // healthy and never recorded a commit.
+        let t = Temp::new("outside-unreadable");
+        let real = t.path().join("real-git-dir");
+        std::fs::create_dir_all(&real).unwrap();
+        let head = real.join("HEAD");
+        std::fs::write(&head, "ref: refs/heads/main\n").unwrap();
+        unreadable(&head);
+
+        let wt = t.path().join("checkout");
+        std::fs::create_dir_all(&wt).unwrap();
+        std::fs::write(wt.join(".git"), format!("gitdir: {}\n", real.display())).unwrap();
+
+        assert!(real.is_dir(), "the folder stats fine, which is the whole problem");
+        assert!(head.is_file(), "and so does the file inside it");
+        assert_eq!(resolve(&wt), Err(RepoError::GitDirOutside));
+    }
+
+    #[test]
+    fn an_ordinary_repository_whose_head_is_unreadable_is_unreadable() {
+        // Same read, different answer: nothing here points anywhere else, so "outside" would be
+        // a lie and `Unreadable` is the honest one.
+        let t = Temp::new("head-unreadable");
+        std::fs::create_dir_all(t.path().join(".git")).unwrap();
+        let head = t.path().join(".git/HEAD");
+        std::fs::write(&head, "ref: refs/heads/main\n").unwrap();
+        unreadable(&head);
+        assert_eq!(resolve(t.path()), Err(RepoError::Unreadable));
     }
 
     #[test]
