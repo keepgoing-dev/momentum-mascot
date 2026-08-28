@@ -473,6 +473,14 @@ For each tracked project the app also watches the project's root directory with 
 
 Working-tree events are debounced the same 250ms as reflog events. A single save burst collapses to one update.
 
+> **Corrected 28 August 2026, after three defects found in the build already on the store.** Step 2 as written above is not enough, and step 3 was not implemented at all.
+>
+> **Step 2 also filters a built-in list of operating system metadata**: `.DS_Store`, `._*`, `.Spotlight-V100`, `.Trashes`, `.fseventsd`, `Thumbs.db`, `desktop.ini`. The reasoning above is sound about a `.gitignore` encoding what the user considers noise, and wrong that it is the only place they encode it: `.DS_Store` belongs in a *global* ignore file, and under App Sandbox `$HOME` is the container, so the shipped build cannot read the one file that would have covered this. Untreated, opening a dormant project in Finder woke the mascot and could spend a comeback. The list is prepended to the project's own file rather than appended, so a `!` line in the repository still wins, which is the precedence git itself uses.
+>
+> **Step 2 matches parent directories too.** It asked whether the changed path was ignored, not whether anything above it was, so `target/debug/app` read as unignored with `target/` in the ignore file. Almost every line in a real ignore file names a directory, which left this filter mostly decorative.
+>
+> **Step 3 now exists.** Directory events are rejected by `notify`'s own `Create(Folder)` and `Remove(Folder)` labels and by `is_dir`; a removed folder is gone by the time the path is examined, so the label is the only evidence there.
+
 ---
 
 ## 10. Tech Stack

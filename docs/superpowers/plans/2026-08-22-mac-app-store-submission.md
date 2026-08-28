@@ -3413,6 +3413,34 @@ never in one, because it belongs in a global ignore file.
 changes count." `mkdir a-new-folder` produced `Create(Folder)` and moved `last_active_at`.
 `classify` never rejects a directory; it only passes `path.is_dir()` into the gitignore matcher.
 
+**A third defect fell out of writing the test for the second one.** `classify` asked
+`Gitignore::matched`, which tests the path it is given and nothing above it, so `target/debug/app`
+read as unignored while `target/` sat in the `.gitignore` one line up. Nearly every line in a real
+ignore file names a directory, which made step 2's filter mostly decorative: `node_modules`, build
+output and dependency trees have all been counting as work. `matched_path_or_any_parents` is the
+method that means what the spec says.
+
+**All three fixed on 28 August**, in `watcher.rs`, with six tests in the module (87 in the suite,
+up from 81):
+
+- `OS_METADATA` is prepended to every work tree's matcher: `.DS_Store`, `._*`, `.Spotlight-V100`,
+  `.Trashes`, `.fseventsd`, `Thumbs.db`, `desktop.ini`. Prepended and not appended, so a project
+  that genuinely tracks one can override it with a `!` line, the same precedence git gives a
+  repository's own file over a global one. It has to be a built-in list rather than a read of the
+  user's global ignore file, and that is a sandbox consequence: `$HOME` inside the container is not
+  the home the user's git config lives in, so the shipped build cannot read the one file where
+  `.DS_Store` actually belongs.
+- `is_directory` rejects directory events, from `notify`'s own `Create(Folder)` and
+  `Remove(Folder)` labels and from `path.is_dir()`. Both are needed: a removed folder is gone by
+  the time the path is looked at, so there the label is the only evidence left.
+- The gitignore test walks parents.
+
+Verified live as well as in tests, on a seeded dormant repository at 100 hours with the event log
+on. `.DS_Store`, `mkdir a-new-folder` and `build/nested/out.o` all arrive as real events
+(`Create(File)`, `Create(Folder)`, `Modify(Metadata(Extended))`) and all three are now discarded:
+state stays `asleep`, `last_active_at` stays null. The control still passes, which is the half that
+matters: one `echo >> notes.md` produced `tree changed: id=p1 changed=true` and `0.00h -> comeback`.
+
 **The picker is innocent, which is worth recording because it was the first suspicion.** Adding a
 dormant repository through Add Project produced no events at all, and the row read `4 days ago`
 with the asleep copy line under it. An earlier observation of `just now` on two fixture folders in

@@ -10,11 +10,24 @@ use std::path::{Path, PathBuf};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
 
-use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher as _};
+use notify::event::{CreateKind, RemoveKind};
+use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher as _};
 
 /// A single git operation writes the reflog several times, and an editor save often writes a
 /// file plus swap/backup siblings. Collapsing the burst means one reaction per operation.
 const DEBOUNCE: Duration = Duration::from_millis(250);
+
+/// Operating system metadata that nobody authored: these appear because a folder was looked at,
+/// not because work happened in it.
+const OS_METADATA: &[&str] = &[
+    ".DS_Store",
+    "._*",
+    ".Spotlight-V100",
+    ".Trashes",
+    ".fseventsd",
+    "Thumbs.db",
+    "desktop.ini",
+];
 
 pub enum ChangeEvent {
     /// A relevant `.git/logs/HEAD` change was seen. Re-read every project's reflog.
@@ -28,7 +41,7 @@ pub enum ChangeEvent {
 struct WatchState {
     git_dirs: HashSet<PathBuf>,
     work_trees: HashMap<PathBuf, String>,
-    gitignore: HashMap<PathBuf, Option<ignore::gitignore::Gitignore>>,
+    gitignore: HashMap<PathBuf, ignore::gitignore::Gitignore>,
 }
 
 pub struct Watcher {
@@ -84,7 +97,7 @@ impl Watcher {
             let guard = state_for_callback.lock().unwrap();
             let mut to_send: Option<ChangeEvent> = None;
             for path in &event.paths {
-                if let Some(evt) = classify(&guard, path) {
+                if let Some(evt) = classify(&guard, &event.kind, path) {
                     // Prefer the more specific TreeChanged event; ReflogChanged is already a
                     // blanket refresh, so one is enough.
                     to_send = Some(evt);
@@ -197,16 +210,41 @@ impl Watcher {
     }
 }
 
-fn load_gitignore(work_tree: &Path) -> Option<ignore::gitignore::Gitignore> {
-    let path = work_tree.join(".gitignore");
-    let (gi, err) = ignore::gitignore::Gitignore::new(path);
-    if let Some(e) = err {
+/// The ignore matcher for one work tree: the project's own `.gitignore`, plus the operating
+/// system's metadata files.
+///
+/// Section 9.4 step 2 names only the project's `.gitignore`, and on macOS that is not enough.
+/// `.DS_Store` belongs in a *global* ignore file, and the shipped build cannot read one: `$HOME`
+/// inside the App Sandbox container is not the home the user's git config lives in. Without
+/// `OS_METADATA`, opening a dormant project in Finder wakes the mascot and spends the comeback
+/// the product exists for.
+fn load_gitignore(work_tree: &Path) -> ignore::gitignore::Gitignore {
+    let mut builder = ignore::gitignore::GitignoreBuilder::new(work_tree);
+    // First, so a project that genuinely tracks one of these can override it with a `!` line,
+    // the same way a repository's own file beats a global one in git.
+    for pattern in OS_METADATA {
+        let _ = builder.add_line(None, pattern);
+    }
+    if let Some(e) = builder.add(work_tree.join(".gitignore")) {
         eprintln!("could not parse .gitignore: {e}");
     }
-    Some(gi)
+    builder.build().unwrap_or_else(|e| {
+        eprintln!("could not build the ignore matcher: {e}");
+        ignore::gitignore::Gitignore::empty()
+    })
 }
 
-fn classify(state: &WatchState, path: &Path) -> Option<ChangeEvent> {
+/// Section 9.4 step 3: only file changes count. `notify` labels the folder events it can, and
+/// `is_dir` catches the rest; a folder that has already been removed cannot be told from a file
+/// by the time we look at the path, so for those the label is the only evidence there is.
+fn is_directory(kind: &EventKind, path: &Path) -> bool {
+    matches!(
+        kind,
+        EventKind::Create(CreateKind::Folder) | EventKind::Remove(RemoveKind::Folder)
+    ) || path.is_dir()
+}
+
+fn classify(state: &WatchState, kind: &EventKind, path: &Path) -> Option<ChangeEvent> {
     // Git directories first: a normal repo's work tree contains its `.git` folder, so
     // reflog events must win the classification.
     if state.git_dirs.iter().any(|git_dir| path.starts_with(git_dir)) && path.ends_with("logs/HEAD") {
@@ -221,12 +259,138 @@ fn classify(state: &WatchState, path: &Path) -> Option<ChangeEvent> {
         if path.starts_with(work_tree.join(".git")) {
             return None;
         }
-        if let Some(Some(gi)) = state.gitignore.get(work_tree) {
-            if gi.matched(path, path.is_dir()).is_ignore() {
+        if is_directory(kind, path) {
+            return None;
+        }
+        if let Some(gi) = state.gitignore.get(work_tree) {
+            // `matched` alone tests the path and nothing above it, so `target/debug/app` read as
+            // unignored while `target/` sat in the .gitignore right there. Almost every line in a
+            // real ignore file names a directory, which made step 2's filter mostly decorative.
+            if gi.matched_path_or_any_parents(path, false).is_ignore() {
                 return None;
             }
         }
         return Some(ChangeEvent::TreeChanged(project_id.clone()));
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct Temp(PathBuf);
+    impl Temp {
+        fn new(name: &str) -> Self {
+            let p = std::env::temp_dir().join(format!("mascot-watch-{name}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&p);
+            std::fs::create_dir_all(&p).unwrap();
+            Temp(p)
+        }
+        fn path(&self) -> &Path {
+            &self.0
+        }
+    }
+    impl Drop for Temp {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn state_for(work_tree: &Path) -> WatchState {
+        let mut work_trees = HashMap::new();
+        work_trees.insert(work_tree.to_path_buf(), "p1".to_string());
+        let mut gitignore = HashMap::new();
+        gitignore.insert(work_tree.to_path_buf(), load_gitignore(work_tree));
+        WatchState {
+            git_dirs: HashSet::new(),
+            work_trees,
+            gitignore,
+        }
+    }
+
+    fn is_work(state: &WatchState, kind: EventKind, path: &Path) -> bool {
+        matches!(
+            classify(state, &kind, path),
+            Some(ChangeEvent::TreeChanged(_))
+        )
+    }
+
+    #[test]
+    fn a_finder_metadata_file_is_not_work() {
+        // A folder looked at in Finder is not a folder worked in. Before this filter a single
+        // `.DS_Store` took a project from asleep to awake, which spends the comeback.
+        let t = Temp::new("dsstore");
+        let s = state_for(t.path());
+        for name in [".DS_Store", "src/.DS_Store", "._notes.md"] {
+            let f = t.path().join(name);
+            std::fs::create_dir_all(f.parent().unwrap()).unwrap();
+            std::fs::write(&f, "x").unwrap();
+            assert!(
+                !is_work(&s, EventKind::Create(CreateKind::File), &f),
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_new_directory_is_not_work() {
+        let t = Temp::new("mkdir");
+        let s = state_for(t.path());
+        let dir = t.path().join("a-new-folder");
+        std::fs::create_dir(&dir).unwrap();
+        assert!(!is_work(&s, EventKind::Create(CreateKind::Folder), &dir));
+        assert!(!is_work(&s, EventKind::Any, &dir));
+    }
+
+    #[test]
+    fn a_removed_directory_is_not_work_either() {
+        // The path is gone, so `is_dir` says nothing. The event's own label is the only
+        // evidence left that this was a folder.
+        let t = Temp::new("rmdir");
+        let s = state_for(t.path());
+        let gone = t.path().join("was-a-folder");
+        assert!(!is_work(&s, EventKind::Remove(RemoveKind::Folder), &gone));
+    }
+
+    #[test]
+    fn an_ordinary_file_change_is_still_work() {
+        let t = Temp::new("real");
+        let s = state_for(t.path());
+        std::fs::create_dir(t.path().join("src")).unwrap();
+        let f = t.path().join("src/main.rs");
+        std::fs::write(&f, "fn main() {}").unwrap();
+        assert!(is_work(&s, EventKind::Create(CreateKind::File), &f));
+    }
+
+    #[test]
+    fn the_projects_own_gitignore_has_the_last_word() {
+        let t = Temp::new("ignore");
+        std::fs::write(t.path().join(".gitignore"), "build/\n!.DS_Store\n").unwrap();
+        let s = state_for(t.path());
+
+        // A file *inside* an ignored directory, which is how ignore files are actually written.
+        let built = t.path().join("build/nested/out.o");
+        std::fs::create_dir_all(built.parent().unwrap()).unwrap();
+        std::fs::write(&built, "x").unwrap();
+        assert!(!is_work(&s, EventKind::Create(CreateKind::File), &built));
+
+        // A project that deliberately tracks `.DS_Store` is believed, because `OS_METADATA` is
+        // added before the project's own file rather than after it.
+        let ds = t.path().join(".DS_Store");
+        std::fs::write(&ds, "x").unwrap();
+        assert!(is_work(&s, EventKind::Create(CreateKind::File), &ds));
+    }
+
+    #[test]
+    fn a_reflog_write_still_wins_over_the_work_tree() {
+        let t = Temp::new("reflog");
+        let mut s = state_for(t.path());
+        s.git_dirs.insert(t.path().join(".git"));
+        let reflog = t.path().join(".git/logs/HEAD");
+        assert!(matches!(
+            classify(&s, &EventKind::Modify(notify::event::ModifyKind::Any), &reflog),
+            Some(ChangeEvent::ReflogChanged)
+        ));
+    }
 }

@@ -2,7 +2,9 @@
 
 ## [Unreleased]
 
-- Nothing yet.
+- Fixed: a `.DS_Store` no longer counts as working on a project. Opening a dormant project's folder in Finder was enough to wake the mascot, which could spend the comeback celebration.
+- Fixed: creating or removing a folder no longer counts as working on a project.
+- Fixed: files inside a directory your `.gitignore` excludes no longer count as working on a project. Build output and dependency folders were being read as activity.
 
 ## 0.3.1 (2026-08-20)
 
