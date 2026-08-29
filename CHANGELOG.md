@@ -7,6 +7,7 @@
 - Fixed: files inside a directory your `.gitignore` excludes no longer count as working on a project. Build output and dependency folders were being read as activity.
 - Fixed: the popover now appears over fullscreen apps. The mascot was already visible there, so clicking it opened a panel you could not see.
 - Fixed: a tracked `git worktree` whose git folder is outside the folder you picked now says so, instead of looking healthy and never recording a commit.
+- Fixed: the popover now opens under the menu bar icon when you open it by clicking the mascot. It was appearing in the middle of the screen until the first time you clicked the menu bar icon, which was the only thing that ever told the app where that icon is.
 
 ## 0.3.1 (2026-08-20)
 

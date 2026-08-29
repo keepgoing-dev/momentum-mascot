@@ -23,8 +23,8 @@
 #
 # Usage:  tools/preview-take.sh [character] [--keep-terminal]
 #
-# Needs Accessibility permission for whatever runs it (synthetic pointer and Escape), checked up
-# front so it fails before it stages anything rather than halfway through a take.
+# Needs Accessibility permission for whatever runs it, because it drives the real pointer, and
+# checks for it before staging anything rather than halfway through a take.
 #
 # Nothing here touches ~/.keepgoing/mascot/state.json or any repository of yours.
 
@@ -132,15 +132,6 @@ func click(at p: CGPoint) {
     }
 }
 
-func key(_ code: CGKeyCode) {
-    let source = CGEventSource(stateID: .hidSystemState)
-    for down in [true, false] {
-        CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: down)?
-            .post(tap: .cghidEventTap)
-        usleep(40_000)
-    }
-}
-
 func point(_ args: [String]) -> CGPoint {
     guard let x = Double(args[2]), let y = Double(args[3]) else { exit(2) }
     return CGPoint(x: x, y: y)
@@ -160,11 +151,9 @@ case "click" where args.count == 5:
     let target = point(args)
     glide(to: target, seconds: Double(args[4]) ?? 1)
     click(at: target)
-case "escape":
-    key(53)
 default:
     FileHandle.standardError.write(
-        "usage: stage trusted|geometry|park X Y|move X Y SECONDS|click X Y SECONDS|escape\n"
+        "usage: stage trusted|geometry|park X Y|move X Y SECONDS|click X Y SECONDS\n"
             .data(using: .utf8)!)
     exit(2)
 }
@@ -178,7 +167,7 @@ cargo build --manifest-path src-tauri/Cargo.toml
 if ! "$WORK/stage" trusted; then
   cat >&2 <<'ERR'
 
-  This needs Accessibility permission to move the pointer and press Escape, and the terminal
+  This needs Accessibility permission to move and click the real pointer, and the terminal
   running it does not have it. System Settings > Privacy & Security > Accessibility, add the
   terminal, then run this again. The permission belongs to the terminal, not to this script.
 
@@ -229,8 +218,8 @@ cat > "$WORK/state.json" <<JSON
 }
 JSON
 
-# Pinned: the popover closes on focus loss, and hiding the terminal is a focus change. Escape
-# still closes it, which is the beat that needs it. Debug builds only.
+# Pinned: the popover closes on focus loss, and hiding the terminal is a focus change. A click
+# on the pet still closes it, which is the beat that needs it. Debug builds only.
 env KEEPGOING_PIN_POPOVER=1 KEEPGOING_MASCOT_STATE="$WORK/state.json" "$BIN" \
   >"$WORK/app.log" 2>&1 &
 APP_PID=$!
@@ -243,6 +232,19 @@ sleep 2
 "$WORK/stage" move "$CLICK_X" "$CLICK_Y" 0.7
 printf '\n  the pointer is on the pet now. If it is not, ctrl-c: everything below assumes it.\n'
 sleep 1
+
+# `copy.rs` rotates the four comeback lines rather than picking one at random, deliberately, so
+# that a recording is reproducible - and `show_popover` advances the turn on every open. The
+# take opens the popover exactly once, which lands on the second line, so the popover is opened
+# and closed three times here to make the take's own open the fourth. It is the difference
+# between a stranger reading "YOU CAME BACK." and reading "Woke up for this. Worth it."
+printf '  winding the quote to the line the listing wants...\n'
+for _ in 1 2 3; do
+  "$WORK/stage" click "$CLICK_X" "$CLICK_Y" 0.1
+  sleep 0.7
+  "$WORK/stage" click "$CLICK_X" "$CLICK_Y" 0.1
+  sleep 0.7
+done
 "$WORK/stage" park "$PARK_X" "$PARK_Y"
 
 TOTAL=$(LC_ALL=C awk "BEGIN{print $HOLD_ASLEEP+$GLIDE+$READ_NIGHT+$READ_COMEBACK+$AFTER_CLOSE}")
@@ -256,8 +258,8 @@ cat <<PLAN
     ${GLIDE}s   the pointer travels to it and clicks
     ${READ_NIGHT}s   the popover, on the night room
     -    a commit lands and the room becomes the comeback
-    ${READ_COMEBACK}s   "YOU CAME BACK."
-    -    escape closes the popover
+    ${READ_COMEBACK}s   the comeback room, on "YOU CAME BACK."
+    -    a second click closes the popover
     ${AFTER_CLOSE}s   the pet awake, alone
 
   ${TOTAL}s on camera, after a ${LEAD}s lead-in you trim off. Do not touch the mouse or the
@@ -293,7 +295,12 @@ GIT_COMMITTER_DATE="@$(date +%s) +0000" git -C "$WORK/${NAMES[0]}" \
   commit -q --allow-empty -m "wake up"
 sleep "$READ_COMEBACK"
 
-"$WORK/stage" escape
+# A second click on the pet, not Escape. A synthetic Escape does not reach this popover: the
+# pet and the popover are both non-activating panels, so the app never becomes frontmost, and
+# measured from both ways in - opened by the pet and opened by the tray icon - the panel was
+# still open a second after the keystroke, while a click closed it every time. It is also the
+# better beat: click to open, click to close is a complete sentence about how the thing works.
+"$WORK/stage" click "$CLICK_X" "$CLICK_Y" 0.35
 sleep "$AFTER_CLOSE"
 
 restore_terminal

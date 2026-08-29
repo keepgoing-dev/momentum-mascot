@@ -23,8 +23,6 @@ pub struct AppState {
     pub clock: Clock,
     pub store_path: PathBuf,
     pub watcher: Mutex<Option<Watcher>>,
-    /// Where the tray icon last reported itself, so the popover can be anchored to it.
-    pub tray_rect: Mutex<Option<(f64, f64, f64, f64)>>,
     pub popover_hidden_at: Mutex<Option<std::time::Instant>>,
     /// Set while the app's own folder picker is on screen. See `picker_is_open`.
     pub picker_open: AtomicBool,
@@ -66,7 +64,6 @@ impl AppState {
             clock,
             store_path,
             watcher: Mutex::new(None),
-            tray_rect: Mutex::new(None),
             popover_hidden_at: Mutex::new(None),
             picker_open: AtomicBool::new(false),
             last_published: Mutex::new(None),
@@ -227,8 +224,9 @@ pub fn show_popover(app: &AppHandle) {
         momentum.next_quote();
     }
 
-    // Anchored to the tray icon, which is the only reason the tray rect is kept at all.
-    if let Some((x, y, w, h)) = *state.tray_rect.lock().unwrap() {
+    // Anchored to the tray icon, asked for every time. Without this the window keeps whatever
+    // `tauri.conf.json` gave it, which is the centre of the screen.
+    if let Some((x, y, w, h)) = crate::tray::rect(app) {
         if let Ok(size) = win.outer_size() {
             let gap = 6.0;
             let left = x + w / 2.0 - size.width as f64 / 2.0;

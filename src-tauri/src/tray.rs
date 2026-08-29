@@ -10,9 +10,9 @@
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
-use crate::app::{self, AppState};
+use crate::app;
 
 /// Derived from the pack at build time by `tools/build-app-assets.sh`, which is why it is not
 /// in version control (section 4.2).
@@ -39,23 +39,28 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
             let TrayIconEvent::Click {
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
-                rect,
                 ..
             } = event
             else {
                 return;
             };
-            let app = tray.app_handle();
-            remember_rect(app, &rect);
-            app::toggle_popover(app);
+            app::toggle_popover(tray.app_handle());
         })
         .build(app)?;
     Ok(())
 }
 
-/// The popover is anchored under the icon, and the icon's position is only ever reported by
-/// its own click event, so it is kept when it arrives rather than asked for when needed.
-fn remember_rect(app: &AppHandle, rect: &tauri::Rect) {
+/// Where the icon is, in physical pixels, asked for when the popover needs it.
+///
+/// This used to be a copy kept from the icon's own click event, which was the only place the
+/// rect was known to arrive. The consequence was invisible while the tray was how anyone opened
+/// the popover and wrong the moment the pet became the other way in: nothing had ever clicked
+/// the icon, so there was no rect, so `show_popover` skipped positioning entirely and the panel
+/// opened in the middle of the screen. `TrayIcon::rect` answers on demand on macOS - it reads
+/// the status item button's own window - so the copy is gone and with it the question of
+/// whether it was ever filled in.
+pub fn rect(app: &AppHandle) -> Option<(f64, f64, f64, f64)> {
+    let rect = app.tray_by_id("mascot")?.rect().ok()??;
     let scale = app
         .primary_monitor()
         .ok()
@@ -64,6 +69,5 @@ fn remember_rect(app: &AppHandle, rect: &tauri::Rect) {
         .unwrap_or(1.0);
     let position = rect.position.to_physical::<f64>(scale);
     let size = rect.size.to_physical::<f64>(scale);
-    *app.state::<AppState>().tray_rect.lock().unwrap() =
-        Some((position.x, position.y, size.width, size.height));
+    Some((position.x, position.y, size.width, size.height))
 }
