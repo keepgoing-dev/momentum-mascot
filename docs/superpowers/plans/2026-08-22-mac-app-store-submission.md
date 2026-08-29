@@ -3562,6 +3562,16 @@ plan's reader clicking the tray while the test was running.
 The spec's section 10.3 carries the correction. Section 9.2 needed none: the spec already said "the
 resolved git directory has a **readable** `HEAD`", and the code was checking that it existed.
 
+**Both re-run by eye on the rebuilt sandboxed copy, and both pass.** The popover now appears over
+a fullscreen app, and `worktree-outside` reads struck through, "unavailable", with the line "That
+worktree's git folder isn't reachable from here." under it - which is `GitDirOutside` firing inside
+a sandbox for the first time, having been unreachable in the build that is on the store.
+
+One thing came free with the second fix. Setting that row to operating dropped the mood to asleep
+immediately, which is the comeback item's precondition and was reached without untracking anything:
+`latest()` skips operating projects, so the newest remaining non-operating commit was
+`stale-project` at five days, comfortably past the 72-hour bound.
+
 
 - [x] **Step 3: Upload**
 
