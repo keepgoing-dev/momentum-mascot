@@ -86,9 +86,28 @@ scale     100000:  dozing    0.9s  asleep    2.6s  commit   32.6s
 ```
 
 Two ways round it: edit that constant for the recording, or record only asleep to comeback,
-which is the payload anyway and which `tools/hold-state.sh comeback` stages instantly. Read the
-resolution and codec requirements off App Store Connect's own Media Manager rather than from
-here; they are not recorded in this document because they were not measured.
+which is the payload anyway. Read the resolution and codec requirements off App Store Connect's
+own Media Manager rather than from here; they are not recorded in this document because they
+were not measured.
+
+**`tools/preview-take.sh` is the second way, built.** You start the screen recording and it acts
+out the whole thing: a real asleep, the pointer travelling to the pet and clicking it, the night
+room, a real commit into a throwaway repository, the room turning into the comeback, Escape, the
+pet awake alone. Twenty-two seconds on camera, inside the thirty.
+
+`hold-state.sh comeback` is the wrong tool for it, despite staging a comeback instantly: what it
+stages has already fired and is pinned open, which is right for a photographer and useless for a
+video, where the transition *is* the subject. So the take stages asleep and fires the comeback
+mid-recording instead. Verified end to end before the first take: `120.00h -> asleep` at launch,
+`0.00h -> comeback` about a third of a second after the commit, which is `watcher.rs`'s 250 ms
+debounce and not a poll.
+
+Nothing about it is faked. The only debug overrides are the state file and the popover pin; the
+commit is a real commit and `src/popover.js:211` redraws an already-open popover on the `mood`
+event, so the room changes with nobody touching the machine. It needs Accessibility permission
+for the terminal that runs it, which it checks before staging anything rather than dying halfway
+through a take, and it rehearses the pointer's path to the pet while there is still a terminal to
+read the warning on.
 
 ## Keywords
 
@@ -610,9 +629,10 @@ below with it.
   Finder in it, which is what App Review asked for and the opposite of what a preview may
   contain. A preview is 15 to 30 seconds, up to three, public, in the gallery ahead of the
   screenshots, and only footage of the app itself. The content is already decided above:
-  asleep to comeback, staged by `tools/hold-state.sh comeback`, because the measured constraint
-  on `drive-states.sh` rules out a full arc at any clock scale. Read resolution and codec off
-  Media Manager.
+  asleep to comeback, because the measured constraint on `drive-states.sh` rules out a full arc
+  at any clock scale. **`tools/preview-take.sh` now performs that take**, hands off, while you
+  record; what is left is to run it, trim the lead-in, crop the menu bar off, and read
+  resolution and codec off Media Manager.
 - ~~**Task 18 step 2**, the manual test list from spec section 9.~~ **Run and closed on 28 August**,
   against a locally signed sandboxed copy, because that is the only kind of build that can answer a
   sandbox question and still launch. Eight items pass, one is not runnable on this hardware (both

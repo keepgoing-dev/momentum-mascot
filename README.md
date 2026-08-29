@@ -67,6 +67,13 @@ builds only.
 screenshot needs, and `tools/store-shots.sh` is the other half of it: full-display captures
 cropped to the App Store's 2560x1600 without ever resizing a pixel of art.
 
+`tools/preview-take.sh` is the third of that family, for video rather than stills. A still
+frame cannot show a transition, so it stages a real asleep and then acts the transition out:
+you start a screen recording, and it moves the pointer to the pet, clicks, commits into a
+throwaway repository so the room turns into the comeback, and presses Escape. Twenty-two
+seconds, hands off. It wants Accessibility permission for the terminal running it, and says so
+before it stages anything.
+
 ## Packaging it
 
 ### Manual build
