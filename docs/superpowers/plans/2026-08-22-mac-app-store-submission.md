@@ -3366,7 +3366,7 @@ anyway, and the refusal is the feature.
 
 Expected also: a clean `altool --validate-app`.
 
-- [ ] **Step 2: Run the full manual test list one more time on the exact build being submitted**
+- [x] **Step 2: Run the full manual test list one more time on the exact build being submitted**
 
 **Not done before the 26 August submission**, and still unticked, but no longer for the same
 reason. Before 0.3.1 went live there was no artifact that was both the shipped bits and runnable:
@@ -3479,7 +3479,7 @@ question, and `verify-store-copy.sh` now says so rather than failing it for havi
 | The privacy link | **pass** |
 | Rounded corners, light and dark desktop | **pass** |
 | Pixel art across display densities | **not run, and not runnable here.** Both displays on this machine are 2x. Recorded rather than ticked. |
-| The comeback room | Not yet run. Staging it needs the tracked set back to asleep. |
+| The comeback room | **pass**, both beats. |
 
 **The popover cannot be seen over a fullscreen app, and the pet can.** That combination is worse
 than neither working: the pet is visible and clickable over fullscreen, so clicking it looks broken
@@ -3571,6 +3571,24 @@ One thing came free with the second fix. Setting that row to operating dropped t
 immediately, which is the comeback item's precondition and was reached without untracking anything:
 `latest()` skips operating projects, so the newest remaining non-operating commit was
 `stale-project` at five days, comfortably past the 72-hour bound.
+
+**The comeback room passes, which closes the list.** Staged the slow way, because a sandboxed copy
+is the only kind that can answer these questions and `hold-state.sh` cannot drive one. An
+`--allow-empty` commit into `stale-project` was the right shape twice over: it leaves no litter in
+the fixture, and because it never touches the work tree the only thing that could have woken the app
+is `.git/logs/HEAD`, so the reflog path proved itself rather than being assumed.
+
+Both beats, and the second is the one worth having checked. The room showed "YOU CAME BACK." with
+the project at "just now"; closing the popover and reopening it gave an ordinary awake room. That is
+section 4.5's resolution-on-close, and it cannot be verified from outside the process: `comeback_since`
+lives in memory and is never written to `state.json`.
+
+**One obstacle worth recording for whoever runs this list next.** The fixtures live in
+`~/Documents`, and macOS TCC refuses that folder to the process Claude Code runs commands in -
+`ls` returns `Operation not permitted`, with or without the tool's own sandbox disabled, and the
+`!` prefix runs in the same process so it fails identically. The commit that stages the comeback
+has to be typed into a real terminal window. Nothing about the app; entirely about who is allowed
+to read `~/Documents`.
 
 
 - [x] **Step 3: Upload**

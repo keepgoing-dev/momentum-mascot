@@ -613,8 +613,11 @@ below with it.
   asleep to comeback, staged by `tools/hold-state.sh comeback`, because the measured constraint
   on `drive-states.sh` rules out a full arc at any clock scale. Read resolution and codec off
   Media Manager.
-- **Task 18 step 2**, the manual test list from spec section 9, against the build being
-  uploaded. Still open, and the next upload is where it stops being deferrable.
+- ~~**Task 18 step 2**, the manual test list from spec section 9.~~ **Run and closed on 28 August**,
+  against a locally signed sandboxed copy, because that is the only kind of build that can answer a
+  sandbox question and still launch. Eight items pass, one is not runnable on this hardware (both
+  displays are 2x), and the three defects it found are fixed. It has to be run again on the build
+  that is actually uploaded, which is the point of the step, but it is no longer unexplored ground.
 - ~~**The two `watcher.rs` defects the test list turned up on 28 August.**~~ **Fixed the same
   day**, and a third with them: a file inside an ignored directory was counting as work, because
   the matcher only ever looked at the path it was handed. Written up in the plan under that step.
