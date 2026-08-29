@@ -64,7 +64,11 @@ restore_terminal() {
     osascript -e "tell application \"$FRONT\" to activate" >/dev/null 2>&1
   return 0
 }
-trap 'kill ${APP_PID:-} 2>/dev/null || true; restore_terminal; rm -rf "$WORK"' EXIT
+# The log outlives the run on purpose. The take hides the terminal and deletes its own
+# workspace, so without this a take that goes wrong leaves nothing at all to look at afterwards.
+LOG="${TMPDIR:-/tmp}/momentum-take.log"
+trap 'kill ${APP_PID:-} 2>/dev/null || true; restore_terminal;
+      cp "$WORK/app.log" "$LOG" 2>/dev/null || true; rm -rf "$WORK"' EXIT
 
 cat > "$WORK/stage.swift" <<'SWIFT'
 import AppKit
@@ -132,6 +136,17 @@ func click(at p: CGPoint) {
     }
 }
 
+/// Every on-screen window this app owns, as WIDTHxHEIGHT in logical points, so the take can tell
+/// an open popover from a closed one instead of assuming its own clicks all landed.
+func windows(pid: Int) {
+    let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                          kCGNullWindowID) as? [[String: Any]] ?? []
+    for w in list where (w[kCGWindowOwnerPID as String] as? Int) == pid {
+        let b = w[kCGWindowBounds as String] as? [String: CGFloat] ?? [:]
+        print("\(Int(b["Width"] ?? 0))x\(Int(b["Height"] ?? 0))")
+    }
+}
+
 func point(_ args: [String]) -> CGPoint {
     guard let x = Double(args[2]), let y = Double(args[3]) else { exit(2) }
     return CGPoint(x: x, y: y)
@@ -143,6 +158,8 @@ case "trusted":
     exit(AXIsProcessTrusted() ? 0 : 1)
 case "geometry":
     geometry()
+case "windows" where args.count == 3:
+    windows(pid: Int(args[2]) ?? -1)
 case "park" where args.count == 4:
     CGWarpMouseCursorPosition(point(args))
 case "move" where args.count == 5:
@@ -153,7 +170,7 @@ case "click" where args.count == 5:
     click(at: target)
 default:
     FileHandle.standardError.write(
-        "usage: stage trusted|geometry|park X Y|move X Y SECONDS|click X Y SECONDS\n"
+        "usage: stage trusted|geometry|windows PID|park X Y|move X Y SECONDS|click X Y SECONDS\n"
             .data(using: .utf8)!)
     exit(2)
 }
@@ -233,6 +250,25 @@ sleep 2
 printf '\n  the pointer is on the pet now. If it is not, ctrl-c: everything below assumes it.\n'
 sleep 1
 
+popover_open() {
+  "$WORK/stage" windows "$APP_PID" | awk -F x '$1 > 200 { open = 1 } END { exit !open }'
+}
+
+# Click the pet until the popover is actually in the state asked for, rather than assuming the
+# click landed. A dropped click is not hypothetical - the app ignores a reopen within 250 ms of a
+# close - and because every step below is a toggle, ONE missed click inverts every open and close
+# after it. That turns the take's own click into a close, and the recording is of nothing at all.
+toggle_to() {  # toggle_to open|closed [glide]
+  local want=$1 glide=${2:-0.1} n
+  for n in 1 2 3; do
+    if [ "$want" = open ] && popover_open; then return 0; fi
+    if [ "$want" = closed ] && ! popover_open; then return 0; fi
+    "$WORK/stage" click "$CLICK_X" "$CLICK_Y" "$glide"
+    sleep 0.8
+  done
+  return 1
+}
+
 # `copy.rs` rotates the four comeback lines rather than picking one at random, deliberately, so
 # that a recording is reproducible - and `show_popover` advances the turn on every open. The
 # take opens the popover exactly once, which lands on the second line, so the popover is opened
@@ -240,10 +276,8 @@ sleep 1
 # between a stranger reading "YOU CAME BACK." and reading "Woke up for this. Worth it."
 printf '  winding the quote to the line the listing wants...\n'
 for _ in 1 2 3; do
-  "$WORK/stage" click "$CLICK_X" "$CLICK_Y" 0.1
-  sleep 0.7
-  "$WORK/stage" click "$CLICK_X" "$CLICK_Y" 0.1
-  sleep 0.7
+  toggle_to open   || { echo "  the popover will not open; ctrl-c and say so" >&2; exit 1; }
+  toggle_to closed || { echo "  the popover will not close; ctrl-c and say so" >&2; exit 1; }
 done
 "$WORK/stage" park "$PARK_X" "$PARK_Y"
 
@@ -285,7 +319,11 @@ fi
 sleep "$LEAD"
 sleep "$HOLD_ASLEEP"
 
+# The travelling click, then a check rather than a hope. A second click here is visible on
+# camera and still better than a take with no popover in it.
 "$WORK/stage" click "$CLICK_X" "$CLICK_Y" "$GLIDE"
+sleep 0.8
+toggle_to open 0.25 || true
 sleep "$READ_NIGHT"
 
 # The comeback, fired for real. `--allow-empty` so the work tree is never written: the only thing
@@ -301,16 +339,26 @@ sleep "$READ_COMEBACK"
 # still open a second after the keystroke, while a click closed it every time. It is also the
 # better beat: click to open, click to close is a complete sentence about how the thing works.
 "$WORK/stage" click "$CLICK_X" "$CLICK_Y" 0.35
+sleep 0.8
+toggle_to closed 0.25 || true
 sleep "$AFTER_CLOSE"
 
 restore_terminal
-cat <<'DONE'
-
-  stop your recording.
+printf '\n  stop your recording.\n\n'
+if grep -q comeback "$WORK/app.log"; then
+  printf '  the app reached the comeback: %s\n' \
+    "$(grep comeback "$WORK/app.log" | tail -1 | tr -s ' ' | sed 's/^ //')"
+else
+  printf '  WARNING: the app never reached the comeback, so the take is not usable.\n'
+  printf '  the log below is what to send back.\n'
+fi
+cat <<DONE
 
   trim the lead-in and everything after the last beat, then crop the menu bar off to lose the
   orange recording dot. The app is still running so the pet does not vanish out of the last
   frame - ctrl-c here when the recording is saved.
+
+  this run's app log is kept at $LOG
 
 DONE
 wait "$APP_PID"

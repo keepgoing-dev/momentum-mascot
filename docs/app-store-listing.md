@@ -102,6 +102,15 @@ mid-recording instead. Verified end to end before the first take: `120.00h -> as
 `0.00h -> comeback` about a third of a second after the commit, which is `watcher.rs`'s 250 ms
 debounce and not a poll.
 
+**Building it found two shipped bugs**, which is the argument for building tools that drive the
+real app rather than mocking it. The popover was opening in the centre of the screen whenever
+the mascot, rather than the menu bar icon, was the first thing clicked: the icon's position was
+only ever learned from the icon's own click event. And a project tracked through a symbolic link
+was never watched at all - FSEvents reports resolved paths, the watcher compared them against
+the path as given, and the project read as healthy while silently never recording another
+commit. `mktemp -d` hands back a path under `/var`, which is a symlink, so the take staged
+itself into exactly the blind spot.
+
 Nothing about it is faked. The only debug overrides are the state file and the popover pin; the
 commit is a real commit and `src/popover.js:211` redraws an already-open popover on the `mood`
 event, so the room changes with nobody touching the machine. It needs Accessibility permission

@@ -156,8 +156,18 @@ impl Momentum {
 
     /// Every path that is currently watchable. A project on an unplugged drive simply is not
     /// in this list, and reappears when the drive does.
+    ///
+    /// Symlinks resolved, which is not cosmetic. FSEvents reports paths with every symlink
+    /// already resolved, and `watcher.rs` matches what it was given against what arrives, so a
+    /// project tracked through a symlink is registered under a name no event ever carries: it
+    /// reads as healthy and silently never records a commit. `/tmp` and `/var` are both
+    /// symlinks on macOS, which is how this was found - `mktemp -d` hands back a path under
+    /// `/var`, and nothing that happened inside it was ever noticed.
+    ///
+    /// Only the watch set is resolved. The stored path is the one the user picked and the one
+    /// the bookmark was made from, and reading a reflog through a symlink works fine.
     pub fn watch_paths(&self) -> (HashMap<String, PathBuf>, HashMap<String, PathBuf>) {
-        (self.git_dirs.clone(), self.work_trees.clone())
+        (without_symlinks(&self.git_dirs), without_symlinks(&self.work_trees))
     }
 
     /// The single number the whole product runs on: the most recent real activity across every
@@ -369,6 +379,15 @@ pub fn read_commit_time(git_dir: &Path, work_tree: &Path) -> Option<i64> {
 
 /// Take what a bookmark resolved to and write it back into the project.
 ///
+/// A `canonicalize` that fails leaves the path as it was: the folder is unreadable or gone, and
+/// the watcher discovers that for itself rather than being handed an empty map here.
+fn without_symlinks(paths: &HashMap<String, PathBuf>) -> HashMap<String, PathBuf> {
+    paths
+        .iter()
+        .map(|(id, p)| (id.clone(), p.canonicalize().unwrap_or_else(|_| p.clone())))
+        .collect()
+}
+
 /// Returns whether the folder moved, which is the caller's cue to re-create the bookmark.
 ///
 /// Pure, and separated from the NSURL call on purpose: a `WithSecurityScope` bookmark can be
@@ -440,6 +459,32 @@ mod tests {
             quote_turn: 0,
             clock: Clock::real(),
         }
+    }
+
+    /// The bug this catches is silent by construction: the project reads as healthy, the reflog
+    /// is read correctly on startup, and only the live events never arrive. `std::env::temp_dir`
+    /// is itself under `/var` on macOS, so the fixture is the real shape and not a contrived one.
+    #[test]
+    fn a_project_tracked_through_a_symlink_is_watched_by_its_real_path() {
+        let real = std::env::temp_dir().join(format!("mascot-real-{}", std::process::id()));
+        let link = std::env::temp_dir().join(format!("mascot-link-{}", std::process::id()));
+        let _ = std::fs::remove_file(&link);
+        let _ = std::fs::remove_dir_all(&real);
+        std::fs::create_dir_all(&real).unwrap();
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+
+        let mut m = with(vec![], None);
+        m.work_trees.insert("a".into(), link.clone());
+        m.git_dirs.insert("a".into(), link.join(".git"));
+        std::fs::create_dir_all(link.join(".git")).unwrap();
+
+        let (git_dirs, work_trees) = m.watch_paths();
+        assert_eq!(work_trees["a"], real.canonicalize().unwrap());
+        assert_eq!(git_dirs["a"], real.canonicalize().unwrap().join(".git"));
+        assert_ne!(work_trees["a"], link, "the symlink went to the watcher, which no event names");
+
+        let _ = std::fs::remove_file(&link);
+        let _ = std::fs::remove_dir_all(&real);
     }
 
     #[test]
