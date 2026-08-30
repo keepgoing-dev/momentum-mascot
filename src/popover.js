@@ -4,6 +4,7 @@ import { composeCard } from "./share.js";
 
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
+const { getVersion } = window.__TAURI__.app;
 
 const room = document.getElementById("room");
 const charHit = document.getElementById("charHit");
@@ -200,6 +201,12 @@ charHit.addEventListener("click", () => invoke("cycle_character"));
 document
   .getElementById("privacy")
   .addEventListener("click", () => invoke("open_privacy_policy"));
+
+// Read from the bundle rather than written down here, so it cannot disagree with what
+// release.sh bumped. Allowed by core:app:default, which core:default already grants.
+getVersion().then((v) => {
+  document.getElementById("version").textContent = `v${v}`;
+});
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") invoke("hide_popover");

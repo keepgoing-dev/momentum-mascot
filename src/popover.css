@@ -254,6 +254,17 @@ body {
   font-size: 10px;
 }
 
+/* Baseline rather than centre: the credit is a text node and the version is a span, and only a
+   shared baseline makes the two read as one line at 10px. */
+.credit {
+  display: flex;
+  align-items: baseline;
+}
+
+.credit #version {
+  margin-left: auto;
+}
+
 .clock {
   color: var(--accent);
 }
