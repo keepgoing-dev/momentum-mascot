@@ -359,7 +359,7 @@ pub fn end_run(app: &AppHandle) {
 
 /// The pet was clicked rather than dragged.
 pub fn on_click(app: &AppHandle) {
-    crate::app::toggle_popover(app);
+    crate::app::toggle_popover(app, crate::app::OpenedBy::Pet);
 }
 
 /// Follow the cursor during a drag. Physical pixels.

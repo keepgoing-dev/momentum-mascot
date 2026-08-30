@@ -340,7 +340,9 @@ The tray icon is plumbing. Its only jobs are opening the popover and holding Qui
 
 ### 6.3 Popover
 
-Fixed width of 352px, height sized to content, anchored to the tray icon, closing on click-outside and `Esc`. Top to bottom:
+Fixed width of 352px, height sized to content, anchored to whichever surface opened it, closing on click-outside and `Esc`. Top to bottom:
+
+> **Anchored to the opener, not always to the tray icon**, which is a correction to this line rather than to its intent: it was written when the tray icon was the only way in, and section 6.1 has since made the pet the primary one. macOS moves the menu bar's status items to whichever display is active, so on a two-display desktop the tray icon is frequently not on the same screen as the pet, and a popover anchored to the tray after a click on the pet opened on the *other monitor*. The panel now hangs off the pet when the pet was clicked and off the icon when the icon was clicked, opening downwards from an anchor in the top half of its display and upwards from one in the bottom half, clamped into that display's work area.
 
 1. **Room panel.** 320x224, being the 160x112 room at 2x, which fits the 352px popover with 16px padding each side. The popover widened from 320px to 352px purely to accommodate the larger room (section 4.1).
 2. **Character.** Clicking the character cycles to the next of the three shipped characters. This is the entire selection mechanism: no picker UI and no settings screen, so the guardrail holds. The choice persists in `state.json` as `character_id` (section 13) and applies to the pet as well as the room.

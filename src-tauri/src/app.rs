@@ -9,6 +9,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::clock::Clock;
 use crate::momentum::Momentum;
+use crate::popover::{self, Rect};
 use crate::watcher::{ChangeEvent, Watcher};
 
 pub const POPOVER: &str = "popover";
@@ -208,8 +209,63 @@ pub fn setup_popover(app: &AppHandle) {
 #[cfg(not(target_os = "macos"))]
 pub fn setup_popover(_app: &AppHandle) {}
 
-/// Show the popover under the tray icon.
-pub fn show_popover(app: &AppHandle) {
+/// Which surface opened the popover, and therefore what the panel hangs off.
+///
+/// It used to always be the tray icon, which is what the spec says (section 6.3) and was
+/// written when the tray icon was the only way in. The pet came later and is now the primary
+/// entry point (section 6.1), and on a two-display desktop the two are not always on the same
+/// screen: macOS moves the menu bar's status items to whichever display is active, so clicking
+/// the pet in the corner of one display opened the popover on the other one.
+#[derive(Clone, Copy)]
+pub enum OpenedBy {
+    Pet,
+    Tray,
+}
+
+/// What the popover hangs off and the work area of the display that thing is on, both in
+/// physical pixels, plus that display's scale so the gap is a fixed number of points.
+fn anchor(app: &AppHandle, by: OpenedBy) -> Option<(Rect, Rect, f64)> {
+    let anchor = match by {
+        OpenedBy::Pet => {
+            let win = app.get_window(PET)?;
+            let at = win.outer_position().ok()?;
+            let size = win.outer_size().ok()?;
+            Rect::new(at.x as f64, at.y as f64, size.width as f64, size.height as f64)
+        }
+        OpenedBy::Tray => {
+            let (x, y, w, h) = crate::tray::rect(app)?;
+            Rect::new(x, y, w, h)
+        }
+    };
+    let monitor = monitor_holding(app, anchor)?;
+    let area = monitor.work_area();
+    let area = Rect::new(
+        area.position.x as f64,
+        area.position.y as f64,
+        area.size.width as f64,
+        area.size.height as f64,
+    );
+    Some((anchor, area, monitor.scale_factor()))
+}
+
+/// The display an anchor is on, found by its centre. The centre rather than a corner because
+/// the tray icon's own top edge is the display's top edge, and a point exactly on a boundary
+/// belongs to whichever display the runtime feels like naming.
+fn monitor_holding(app: &AppHandle, anchor: Rect) -> Option<tauri::Monitor> {
+    let (cx, cy) = (anchor.x + anchor.w / 2.0, anchor.y + anchor.h / 2.0);
+    app.available_monitors()
+        .ok()?
+        .into_iter()
+        .find(|m| {
+            let (at, size) = (m.position(), m.size());
+            Rect::new(at.x as f64, at.y as f64, size.width as f64, size.height as f64)
+                .contains(cx, cy)
+        })
+        .or_else(|| app.primary_monitor().ok().flatten())
+}
+
+/// Show the popover, hung off whichever surface opened it.
+pub fn show_popover(app: &AppHandle, by: OpenedBy) {
     let Some(win) = app.get_webview_window(POPOVER) else {
         return;
     };
@@ -224,15 +280,12 @@ pub fn show_popover(app: &AppHandle) {
         momentum.next_quote();
     }
 
-    // Anchored to the tray icon, asked for every time. Without this the window keeps whatever
-    // `tauri.conf.json` gave it, which is the centre of the screen.
-    if let Some((x, y, w, h)) = crate::tray::rect(app) {
-        if let Ok(size) = win.outer_size() {
-            let gap = 6.0;
-            let left = x + w / 2.0 - size.width as f64 / 2.0;
-            let top = y + h + gap;
-            let _ = win.set_position(tauri::PhysicalPosition::new(left.max(8.0), top));
-        }
+    // Anchored to whichever surface was clicked, asked for every time. Without this the window
+    // keeps whatever `tauri.conf.json` gave it, which is the centre of the screen.
+    if let (Some((anchor, area, scale)), Ok(size)) = (anchor(app, by), win.outer_size()) {
+        let size = (size.width as f64, size.height as f64);
+        let (x, y) = popover::anchored(anchor, size, area, 6.0 * scale);
+        let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
     }
 
     let _ = win.show();
@@ -313,7 +366,7 @@ impl Drop for PickerGuard {
 
 const REOPEN_GUARD: std::time::Duration = std::time::Duration::from_millis(250);
 
-pub fn toggle_popover(app: &AppHandle) {
+pub fn toggle_popover(app: &AppHandle, by: OpenedBy) {
     // The other way into the same bug: the pet and the tray icon are still clickable while the
     // picker is up, and hiding the popover from here would take the sheet with it.
     if picker_is_open(app) {
@@ -336,7 +389,7 @@ pub fn toggle_popover(app: &AppHandle) {
         return;
     }
     drop(hidden_at);
-    show_popover(app);
+    show_popover(app, by);
 }
 
 /// The 60-simulated-second tick (section 8.2).

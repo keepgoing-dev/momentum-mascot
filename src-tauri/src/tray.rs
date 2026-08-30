@@ -31,7 +31,7 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
-            "open" => app::show_popover(app),
+            "open" => app::show_popover(app, app::OpenedBy::Tray),
             "quit" => app.exit(0),
             _ => {}
         })
@@ -44,7 +44,7 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
             else {
                 return;
             };
-            app::toggle_popover(tray.app_handle());
+            app::toggle_popover(tray.app_handle(), app::OpenedBy::Tray);
         })
         .build(app)?;
     Ok(())

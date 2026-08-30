@@ -8,7 +8,7 @@
 - Fixed: the popover now appears over fullscreen apps. The mascot was already visible there, so clicking it opened a panel you could not see.
 - Fixed: a tracked `git worktree` whose git folder is outside the folder you picked now says so, instead of looking healthy and never recording a commit.
 - Fixed: a project whose folder path goes through a symbolic link is now watched properly. It was tracked and read correctly on startup, and then never noticed another commit for as long as the app stayed open, while looking perfectly healthy the whole time.
-- Fixed: the popover now opens under the menu bar icon when you open it by clicking the mascot. It was appearing in the middle of the screen until the first time you clicked the menu bar icon, which was the only thing that ever told the app where that icon is.
+- Fixed: the popover now opens next to whatever you clicked - above the mascot, or under the menu bar icon - rather than in the middle of the screen. Two separate faults produced that: the app only ever learned where the menu bar icon was from a click on the icon itself, so opening from the mascot first positioned nothing at all; and on two displays the popover could then open on the screen you were not looking at, because macOS moves menu bar icons to whichever display is active while the mascot stays where you left it.
 
 ## 0.3.1 (2026-08-20)
 

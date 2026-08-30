@@ -19,6 +19,7 @@ mod copy;
 mod momentum;
 mod mood;
 mod pet;
+mod popover;
 mod reflog;
 mod repo;
 mod scoped;

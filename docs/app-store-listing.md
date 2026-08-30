@@ -102,14 +102,22 @@ mid-recording instead. Verified end to end before the first take: `120.00h -> as
 `0.00h -> comeback` about a third of a second after the commit, which is `watcher.rs`'s 250 ms
 debounce and not a poll.
 
-**Building it found two shipped bugs**, which is the argument for building tools that drive the
-real app rather than mocking it. The popover was opening in the centre of the screen whenever
-the mascot, rather than the menu bar icon, was the first thing clicked: the icon's position was
-only ever learned from the icon's own click event. And a project tracked through a symbolic link
-was never watched at all - FSEvents reports resolved paths, the watcher compared them against
-the path as given, and the project read as healthy while silently never recording another
-commit. `mktemp -d` hands back a path under `/var`, which is a symlink, so the take staged
-itself into exactly the blind spot.
+**Building it found three shipped bugs**, which is the argument for building tools that drive
+the real app rather than mocking it, and all three were silent by construction.
+
+The popover was opening in the centre of the screen whenever the mascot, rather than the menu
+bar icon, was the first thing clicked: the icon's position was only ever learned from the icon's
+own click event. Anchoring it to the icon on demand fixed that and exposed the second one, which
+only exists on a desktop with two displays: macOS moves the menu bar's status items to whichever
+display is active, so a click on the mascot in the corner of one screen opened the popover on
+the other one. The panel now hangs off whatever was clicked, which is the only rule that is
+right for both ways in. A take recorded on the laptop while the terminal was on the second
+monitor is what surfaced it, and it looked perfectly fine from the terminal.
+
+Third, a project tracked through a symbolic link was never watched at all - FSEvents reports
+resolved paths, the watcher compared them against the path as given, and the project read as
+healthy while silently never recording another commit. `mktemp -d` hands back a path under
+`/var`, which is a symlink, so the take staged itself into exactly the blind spot.
 
 Nothing about it is faked. The only debug overrides are the state file and the popover pin; the
 commit is a real commit and `src/popover.js:211` redraws an already-open popover on the `mood`
@@ -464,7 +472,7 @@ Shoot against a plain desktop. A full-screen browser or editor behind the popove
 screenshot and puts someone else's interface in the listing.
 
 ```sh
-tools/hold-state.sh comeback                           # open the popover from the menu bar
+tools/hold-state.sh comeback                           # then open it FROM THE MENU BAR ICON
 tools/store-shots.sh clip 1 comeback popover
 
 tools/hold-state.sh awake
@@ -532,6 +540,10 @@ All six, on 25 and 26 August 2026, and `store-shots.sh check` reports every one 
 | 4 | `4-asleep.png` | popover, asleep, "Sleeping, not gone. Wake me whenever." |
 | 5 | `5-pet.png` | the pet alone, bottom-left corner, over water |
 | 6 | `6-card.png` | the comeback share card, BACK!!!, at 2x on its mat |
+
+The menu bar icon and not the mascot: the popover hangs off whichever of the two opened it, so
+opening it from the mascot puts the panel in the bottom-right corner and the four shots no
+longer share a frame.
 
 Shots 1 to 4 share a frame deliberately: same wallpaper, same popover position, same menu bar in
 view, so the four states read as four states of one thing rather than four screenshots. The

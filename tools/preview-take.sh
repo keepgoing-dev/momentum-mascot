@@ -80,20 +80,26 @@ import ApplicationServices
 let PET: CGFloat = 64
 let MARGIN: CGFloat = 20
 
-/// `pet.rs` `anchors()[3]`, the bottom-right corner, by the same arithmetic: AppKit measures
-/// from the bottom-left of the PRIMARY screen upwards, Tauri from the top-left downwards.
+/// `pet.rs` `anchors()[3]`, the bottom-right corner of the PRIMARY display, by the same
+/// arithmetic: AppKit measures from the bottom-left of that display upwards, Tauri from the
+/// top-left downwards.
+///
+/// The primary display, and not `NSScreen.main`, which is a different thing on a second
+/// reading: main is where the active window is, so the take would stage itself on whichever
+/// display the terminal happened to be on. The primary is the one macOS calls the main display
+/// in System Settings, which is where the menu bar is, which is the one anybody records.
 ///
 /// The conversion back to CGEvent's coordinates divides by one screen's scale, which is only
 /// right while every display shares it, so a mismatch is reported rather than assumed away.
 func geometry() {
-    guard let main = NSScreen.main, let primary = NSScreen.screens.first else { exit(1) }
-    let scale = main.backingScaleFactor
+    guard let primary = NSScreen.screens.first else { exit(1) }
+    let scale = primary.backingScaleFactor
     if NSScreen.screens.contains(where: { $0.backingScaleFactor != scale }) {
         FileHandle.standardError.write(
             "  displays disagree on scale factor; check the rehearsal carefully\n"
                 .data(using: .utf8)!)
     }
-    let visible = main.visibleFrame
+    let visible = primary.visibleFrame
     let right = (visible.origin.x + visible.size.width) * scale
     let bottom = (primary.frame.size.height - visible.origin.y) * scale
     let extent = PET * scale
@@ -109,6 +115,11 @@ func geometry() {
     // of however far the mouse happened to be left from the corner.
     print("PARK_X=\(Int(visible.midX))")
     print("PARK_Y=\(Int(primary.frame.size.height - visible.midY))")
+    // The take checks every window it opens against these, because a window on the wrong
+    // display is a ruined recording that looks fine from the terminal.
+    print("SCREEN_W=\(Int(primary.frame.size.width))")
+    print("SCREEN_H=\(Int(primary.frame.size.height))")
+    print("SCREEN_NAME='\(primary.localizedName)'")
 }
 
 /// Move the real pointer, in steps, easing out. A warp would teleport the cursor, and a
@@ -136,14 +147,16 @@ func click(at p: CGPoint) {
     }
 }
 
-/// Every on-screen window this app owns, as WIDTHxHEIGHT in logical points, so the take can tell
-/// an open popover from a closed one instead of assuming its own clicks all landed.
+/// Every on-screen window this app owns, as WIDTH HEIGHT X Y in logical points, so the take can
+/// tell an open popover from a closed one, and one on the recording display from one that is
+/// not, instead of assuming its own clicks all landed.
 func windows(pid: Int) {
     let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
                                           kCGNullWindowID) as? [[String: Any]] ?? []
     for w in list where (w[kCGWindowOwnerPID as String] as? Int) == pid {
         let b = w[kCGWindowBounds as String] as? [String: CGFloat] ?? [:]
-        print("\(Int(b["Width"] ?? 0))x\(Int(b["Height"] ?? 0))")
+        print("\(Int(b["Width"] ?? 0)) \(Int(b["Height"] ?? 0)) "
+            + "\(Int(b["X"] ?? 0)) \(Int(b["Y"] ?? 0))")
     }
 }
 
@@ -251,7 +264,12 @@ printf '\n  the pointer is on the pet now. If it is not, ctrl-c: everything belo
 sleep 1
 
 popover_open() {
-  "$WORK/stage" windows "$APP_PID" | awk -F x '$1 > 200 { open = 1 } END { exit !open }'
+  "$WORK/stage" windows "$APP_PID" | awk '$1 > 200 { open = 1 } END { exit !open }'
+}
+
+# Where the popover actually is, as X Y, or nothing when it is closed.
+popover_at() {
+  "$WORK/stage" windows "$APP_PID" | awk '$1 > 200 { print $3, $4; exit }'
 }
 
 # Click the pet until the popover is actually in the state asked for, rather than assuming the
@@ -277,6 +295,17 @@ toggle_to() {  # toggle_to open|closed [glide]
 printf '  winding the quote to the line the listing wants...\n'
 for _ in 1 2 3; do
   toggle_to open   || { echo "  the popover will not open; ctrl-c and say so" >&2; exit 1; }
+  # On the recording display, checked once, here, where there is still a terminal to say so in.
+  # This is not defensive coding: the popover used to hang off the tray icon, macOS moves the
+  # menu bar's status items to whichever display is active, and a take recorded on the laptop
+  # opened its popover on the other monitor - correct-looking from here and empty on camera.
+  read -r px py <<<"$(popover_at)"
+  if [ "${px:-0}" -lt 0 ] || [ "${py:-0}" -lt 0 ] ||
+     [ "${px:-0}" -ge "$SCREEN_W" ] || [ "${py:-0}" -ge "$SCREEN_H" ]; then
+    printf '  the popover opened at %s,%s, which is off %s.\n' "$px" "$py" "$SCREEN_NAME" >&2
+    printf '  ctrl-c: the take would record an empty screen.\n' >&2
+    exit 1
+  fi
   toggle_to closed || { echo "  the popover will not close; ctrl-c and say so" >&2; exit 1; }
 done
 "$WORK/stage" park "$PARK_X" "$PARK_Y"
@@ -284,7 +313,9 @@ done
 TOTAL=$(LC_ALL=C awk "BEGIN{print $HOLD_ASLEEP+$GLIDE+$READ_NIGHT+$READ_COMEBACK+$AFTER_CLOSE}")
 cat <<PLAN
 
-  character $CHARACTER, asleep on the real clock, pet in the bottom-right corner.
+  character $CHARACTER, asleep on the real clock, pet in the bottom-right corner of
+  $SCREEN_NAME. That is your main display, and it is the one to record; if you meant to
+  record the other one, make it the main display in System Settings > Displays first.
 
   the take, once it starts:
 
