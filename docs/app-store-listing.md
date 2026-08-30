@@ -151,8 +151,8 @@ WHAT YOU GET
 
 - A 64x64 desktop pet in the corner of your screen, visible over fullscreen apps, draggable
   to any corner.
-- A full animated room in a popover from the menu bar, with the character and a line of
-  copy that never scolds you.
+- A full animated room in a popover, opened from the mascot or the menu bar icon, with the
+  character and a line of copy that never scolds you.
 - Three characters to choose from.
 - A 1200x630 share card copied to your clipboard, carrying the room and the mood and
   nothing that identifies a project.
@@ -175,6 +175,55 @@ Art by LimeZu (limezu.itch.io). Type: Departure Mono, OFL 1.1.
 ```
 
 "Three characters" is checked against `store::CHARACTERS`, which is `07`, `12` and `20`.
+
+**"opened from the mascot or the menu bar icon" is a 0.3.2 correction.** The line read "in a
+popover from the menu bar", which was true when it was written and is now half the story: the
+mascot is the primary way in (spec 6.1), and since 0.3.2 the panel hangs off whichever of the
+two was clicked rather than always off the icon. A description that names only the menu bar
+sends the reader to the wrong corner of their own screen.
+
+## What's New in This Version, for 0.3.2
+
+**Required, and new.** 0.3.1 was the first submission, so this field did not exist yet; every
+version after the first refuses to submit without it. It is per-version and frozen at upload,
+unlike Promotional Text, which is the one field above that can change at any time.
+
+```
+The mascot now only wakes up for work you actually did.
+
+Three things were quietly counting as activity when they should not have: the .DS_Store that
+Finder writes just by looking at a folder, creating or deleting a folder, and anything inside
+a directory your .gitignore excludes, which meant build output and dependency folders were
+waking the character up. Any of the three could spend a comeback you had not earned yet, which
+is the one moment this app exists for.
+
+Also in this version:
+
+- The popover opens next to whatever you clicked: above the mascot, or under the menu bar
+  icon. It used to open in the middle of the screen, and on a two-display desk it could open
+  on the screen you were not looking at.
+- The popover shows over fullscreen apps. The mascot was already visible there, so clicking
+  it opened a panel you could not see.
+- The app version is on the credit line at the bottom of the popover. There was nowhere in
+  the app to read it, which is the moment you want it.
+- A project whose folder path goes through a symbolic link is watched properly. It looked
+  perfectly healthy and silently never recorded another commit.
+- A tracked git worktree whose git folder sits outside the folder you picked now says so,
+  instead of looking healthy and never recording a commit.
+```
+
+1296 characters against a limit of 4000.
+
+**Written from the CHANGELOG rather than copied from it.** The changelog entry for the
+gitignore fix says "files inside a directory your `.gitignore` excludes no longer count as
+working on a project", which is precise and means nothing to a reader who has not been told
+that a directory watch exists. What reaches them here is the consequence: build output was
+waking the character up.
+
+**The three watcher fixes lead, and share one paragraph, because they are one fault to a
+user**: the mascot woke up when it should not have. Splitting them into three bullets would
+spend the top of the field on three ways of saying the same thing. What earns the space is the
+last sentence, which is the only line here that says why any of it matters.
 
 ## Privacy answers: Data Not Collected, every category
 
