@@ -34,6 +34,18 @@ wrap it again on top.
 
 Name is 15 characters and subtitle 29, against Apple's limit of 30 for each.
 
+**Support URL takes http or https and nothing else.** Both `hello@keepgoing.dev` and
+`mailto:hello@keepgoing.dev` are refused with "The URL is formatted incorrectly. URLs must be
+formatted as: http://example.com", tried on 31 August 2026. So the support email lives on the
+page rather than in the field, which is the better answer anyway: the App Store renders this
+as a "Support" link on the product page, and a `mailto:` there opens an empty message with no
+context, or nothing at all on a Mac with no mail client configured.
+
+Guideline 1.5 wants contact information reachable **at** that URL, and until 31 August 2026 it
+was not: the landing page carried credits and a privacy link and no way to contact anyone, and
+the only address anywhere was an issue tracker link on the privacy page, which needs a GitHub
+account. `hello@keepgoing.dev` now sits in the footer of both pages.
+
 **The version has to match the build.** App Store Connect attaches a build to a version by
 `CFBundleShortVersionString`, so the record was created at 1.0 and edited down to 0.3.1 to
 match what ships. Version numbers live in `src-tauri/tauri.conf.json` and are bumped only
