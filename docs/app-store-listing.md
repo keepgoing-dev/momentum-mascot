@@ -6,6 +6,13 @@ file when the listing changes.
 The one-time account setup is `docs/app-store.md`. The build and upload script is
 `tools/release-mas.sh`.
 
+**Every fenced block in this file is dropped verbatim into an App Store Connect field, so a
+line break inside one is a line break the reader sees.** Prose is therefore left unwrapped
+here, against this repository's habit everywhere else, and the lines run long. It is not a
+style lapse: the 0.3.1 description shipped with the markdown source's 90-column wraps still
+in it, which broke every paragraph at an arbitrary word and then let the App Store window
+wrap it again on top.
+
 ## Basics
 
 | Field | Value |
@@ -45,9 +52,15 @@ changes, change both.
 162 characters against a limit of 170.
 
 ```
-For the side projects you keep coming back to. A pixel character who waits instead of
-nagging: no streaks, no scores, and never a word about how long it has been.
+For the side projects you keep coming back to. A pixel character who waits instead of nagging: no streaks, no scores, and never a word about how long it has been.
 ```
+
+**It does not carry across to a new version, and it is empty on 0.3.2.** Measured on 31 August
+2026: the live 0.3.1 localization holds all 162 characters and the 0.3.2 draft holds zero. App
+Store Connect copies the description and the keywords into a new version and does not copy this,
+so shipping 0.3.2 as it stands would delete the line from the listing rather than change it.
+Nothing warns about that at submission, because an empty promotional text is a legal listing.
+Re-enter it on every version.
 
 **This is the only field in the listing that can change without a new build.** Apple's own
 description of it: it informs visitors of current features "without requiring an updated
@@ -137,44 +150,49 @@ git,commit,pixel,pet,mascot,desktop,menubar,side project,momentum,reflog
 ## Description
 
 ```
-Momentum Mascot is a retro pixel character who lives in a tiny room on your desktop and
-reflects how your side projects are going.
+Momentum Mascot is a retro pixel character who lives in a tiny room on your desktop and reflects how your side projects are going.
 
-Point it at the git repositories you care about. It reads exactly one thing from each: when
-you last actually committed. Not messages, not diffs, not branch names. Commit something
-and the character is at their desk. Take a few days off and they doze, then sleep, still
-holding your place. Come back after a long silence and they leap out of bed.
+Point it at the git repositories you care about. It reads exactly one thing from each: when you last actually committed. Not messages, not diffs, not branch names. Commit something and the character is at their desk. Take a few days off, and they doze, then sleep, still holding your place. Come back after a long silence, and they leap out of bed.
 
 The mascot never dies. It waits.
 
 WHAT YOU GET
 
-- A 64x64 desktop pet in the corner of your screen, visible over fullscreen apps, draggable
-  to any corner.
-- A full animated room in a popover, opened from the mascot or the menu bar icon, with the
-  character and a line of copy that never scolds you.
+- A 64x64 desktop pet in the corner of your screen, visible over fullscreen apps, draggable to any corner.
+- A full animated room in a popover, opened from the mascot or the menu bar icon, with the character and a line of copy that never scolds you.
 - Three characters to choose from.
-- A 1200x630 share card copied to your clipboard, carrying the room and the mood and
-  nothing that identifies a project.
-- Operating mode, for projects that run without commits: they keep their place in your list
-  and the mascot ignores them.
+- A 1200x630 share card copied to your clipboard, carrying the room and the mood and nothing that identifies a project.
+- Operating mode, for projects that run without commits: they keep their place in your list, and the mascot ignores them.
 
 WHAT IT IS NOT
 
-It is not a productivity tool. There are no streaks, no scores, no notifications, no
-leaderboards, and nothing in it will ever tell you how long it has been since you last
-committed. It is a small companion for people with demanding day jobs who go through long
-stretches where nothing gets committed because life is happening.
+It is not a productivity tool. There are no streaks, no scores, no notifications, no leaderboards, and nothing in it will ever tell you how long it has been since you last committed. It is a small companion for people with demanding day jobs who go through long stretches where nothing gets committed because life is happening.
 
 PRIVACY
 
-No network requests. No accounts, no sign-in, no telemetry, no cloud, no sync. Everything
-lives in one JSON file inside the app's own container, which you can read or delete.
+No network requests. No accounts, no sign-in, no telemetry, no cloud, no sync. Everything lives in one JSON file inside the app's own container, which you can read or delete.
 
 Art by LimeZu (limezu.itch.io). Type: Departure Mono, OFL 1.1.
 ```
 
 "Three characters" is checked against `store::CHARACTERS`, which is `07`, `12` and `20`.
+
+**This block is the live 0.3.1 text, not the draft it was written from.** Three commas were
+typed straight into App Store Connect at submission (`off,`, `silence,`, `list,`) and never
+came back here, so for four days the file that calls itself every field was wrong about three
+of them. Read the shipping text out of the API before editing this block, rather than assuming
+the file is ahead of the store:
+
+```sh
+set -a; . tools/.release-env; set +a
+JWT=$(xcrun altool --generate-jwt --apiKey "$ASC_API_KEY_ID" --apiIssuer "$ASC_API_ISSUER_ID" \
+  2>&1 | grep -o 'eyJ[A-Za-z0-9._-]*' | head -1)
+VID=$(curl -s -H "Authorization: Bearer $JWT" \
+  'https://api.appstoreconnect.apple.com/v1/apps/6804925509/appStoreVersions?limit=5' \
+  | python3 -c 'import json,sys; [print(v["id"], v["attributes"]["versionString"], v["attributes"]["appStoreState"]) for v in json.load(sys.stdin)["data"]]')
+curl -s -H "Authorization: Bearer $JWT" \
+  "https://api.appstoreconnect.apple.com/v1/appStoreVersions/<id>/appStoreVersionLocalizations"
+```
 
 **"opened from the mascot or the menu bar icon" is a 0.3.2 correction.** The line read "in a
 popover from the menu bar", which was true when it was written and is now half the story: the
@@ -191,28 +209,18 @@ unlike Promotional Text, which is the one field above that can change at any tim
 ```
 The mascot now only wakes up for work you actually did.
 
-Three things were quietly counting as activity when they should not have: the .DS_Store that
-Finder writes just by looking at a folder, creating or deleting a folder, and anything inside
-a directory your .gitignore excludes, which meant build output and dependency folders were
-waking the character up. Any of the three could spend a comeback you had not earned yet, which
-is the one moment this app exists for.
+Three things were quietly counting as activity when they should not have: the .DS_Store that Finder writes just by looking at a folder, creating or deleting a folder, and anything inside a directory your .gitignore excludes, which meant build output and dependency folders were waking the character up. Any of the three could spend a comeback you had not earned yet, which is the one moment this app exists for.
 
 Also in this version:
 
-- The popover opens next to whatever you clicked: above the mascot, or under the menu bar
-  icon. It used to open in the middle of the screen, and on a two-display desk it could open
-  on the screen you were not looking at.
-- The popover shows over fullscreen apps. The mascot was already visible there, so clicking
-  it opened a panel you could not see.
-- The app version is on the credit line at the bottom of the popover. There was nowhere in
-  the app to read it, which is the moment you want it.
-- A project whose folder path goes through a symbolic link is watched properly. It looked
-  perfectly healthy and silently never recorded another commit.
-- A tracked git worktree whose git folder sits outside the folder you picked now says so,
-  instead of looking healthy and never recording a commit.
+- The popover opens next to whatever you clicked: above the mascot, or under the menu bar icon. It used to open in the middle of the screen, and on a two-display desk it could open on the screen you were not looking at.
+- The popover shows over fullscreen apps. The mascot was already visible there, so clicking it opened a panel you could not see.
+- The app version is on the credit line at the bottom of the popover. There was nowhere in the app to read it, which is the moment you want it.
+- A project whose folder path goes through a symbolic link is watched properly. It looked perfectly healthy and silently never recorded another commit.
+- A tracked git worktree whose git folder sits outside the folder you picked now says so, instead of looking healthy and never recording a commit.
 ```
 
-1296 characters against a limit of 4000.
+1284 characters against a limit of 4000.
 
 **Written from the CHANGELOG rather than copied from it.** The changelog entry for the
 gitignore fix says "files inside a directory your `.gitignore` excludes no longer count as
