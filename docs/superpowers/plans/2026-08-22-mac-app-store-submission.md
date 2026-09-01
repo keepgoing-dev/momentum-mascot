@@ -318,6 +318,33 @@ Sections 4 to 6 (API key, app record) are still open, so Task 16 steps 4 and 5 s
     key existed. False is also the factual answer here and not merely the convenient one: the
     app opens no connection at all.
 
+### 0.3.2, and the plan closing
+
+36. **0.3.2 is live: approved and released `2026-08-31T17:03:34Z`**, sixteen hours after Submit,
+    on the first try and with no Resolution Center round trip. Build 5, Submission ID
+    `67103224-ab09-4462-9f99-b8db71caecf1`, Delivery UUID
+    `ce4b6ca0-e770-439d-b5e5-f24ac837811f`. The full row-by-row account is in
+    `docs/app-store-listing.md`, which is where this project's real deliverable lives.
+37. **Item 35's prediction held: build 5 was never asked the export compliance question.**
+    `ITSAppUsesNonExemptEncryption` false in `src-tauri/Info.plist` did what it was put there for,
+    and the by-hand browser answer that build 4 needed did not recur. That is worth stating
+    because the fix and the confirmation were nine days apart, and only the second one is evidence.
+38. **What 0.3.1 taught about the 2.1 questionnaire was worth the round trip.** Apple's closing
+    line on that rejection asked for the seven answers in the Notes field of every submission. They
+    were there before Submit was pressed on 0.3.2, and no questionnaire came back. One rejection
+    bought a clean submission on the next version, which is the whole reason the log records
+    rejections in full.
+39. **Task 18 step 2 remains structurally retrospective, and that is now written down rather
+    than carried as an open item.** The only artifact that is both the shipped bits and launchable
+    is the store copy, and it does not exist until the version is approved, which is after the
+    moment the check exists to protect. `tools/verify-store-copy.sh` runs the mechanical half the
+    day a version goes live and prints the by-eye half with it. The reasoning is in
+    `docs/app-store-listing.md` under what was not done before submitting.
+
+**Every task in this plan is complete.** Two versions have shipped through the store channel, one
+with a rejection and one without, and the difference between them is recorded. What is left is not
+plan work: install 0.3.2 from the store and run `tools/verify-store-copy.sh` against that copy.
+
 **Also noticed, and since fixed.** The release build emitted six dead-code warnings from
 `src-tauri/src/sprite.rs`: the debug probe's `Probe` struct, its ivar, its two constants and
 `frame_at`. The `#[cfg(debug_assertions)]` restructure at the end of the pet work gated the

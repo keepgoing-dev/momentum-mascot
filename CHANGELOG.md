@@ -2,6 +2,7 @@
 
 ## 0.3.2 (2026-08-30)
 
+- On the Mac App Store from 31 August 2026: https://apps.apple.com/app/momentum-mascot/id6804925509. Approved on the first submission, sixteen hours after it was sent.
 - Added: the popover shows the app version on the credit line. With no Dock icon, no menu bar of its own and no About window, there was nowhere in the app to read it, which matters the moment you want to report something.
 - Fixed: a `.DS_Store` no longer counts as working on a project. Opening a dormant project's folder in Finder was enough to wake the mascot, which could spend the comeback celebration.
 - Fixed: creating or removing a folder no longer counts as working on a project.

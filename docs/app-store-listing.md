@@ -86,13 +86,13 @@ sentence, two lines below. Spending the one changeable field on a line the reade
 read anyway is the waste worth avoiding. This one leads with the audience and the
 anti-features, which the Description does not reach until "WHAT IT IS NOT".
 
-## App Previews: none, for now
+## App Previews: one, shipped with 0.3.2
 
-Optional, up to three, and video rather than stills. Skipped for the first submission, because
-the point of this phase is to get the process walked end to end and a preview delays that
-without changing whether the app is approved.
+Optional, up to three, and video rather than stills. Skipped for 0.3.1, because the point of
+that phase was to walk the process end to end and a preview delays that without changing
+whether the app is approved. One `DESKTOP` set went up with 0.3.2 on 31 August 2026.
 
-**The argument for making one later is already in the spec**, written about the share card and
+**The argument for making one is in the spec**, written about the share card and
 truer of the listing: "A still frame cannot show a transition, and this product *is* a
 transition." The listing is where a stranger decides, and none of the six screenshots can show
 a character getting out of bed.
@@ -111,9 +111,27 @@ scale     100000:  dozing    0.9s  asleep    2.6s  commit   32.6s
 ```
 
 Two ways round it: edit that constant for the recording, or record only asleep to comeback,
-which is the payload anyway. Read the resolution and codec requirements off App Store Connect's
-own Media Manager rather than from here; they are not recorded in this document because they
-were not measured.
+which is the payload anyway.
+
+**Two encoding requirements a QuickTime screen recording does not meet.** Both come from
+Apple's stated App Preview specification rather than from a rejection, because the file was fixed
+before it was ever offered to Media Manager. Apple asks for an **exact** frame rate, and a screen
+recording comes out at `30000/1001`, which is 29.97 and not 30. It also asks for an audio track,
+and a recording of a silent app has none. So the take needs a re-encode:
+
+```sh
+ffmpeg -i take.mov -r 30 -c:v libx264 -pix_fmt yuv420p \
+  -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 \
+  -c:a aac -shortest preview.mp4
+```
+
+What went up: 1920x1080, `30/1`, an AAC track, 17.07 seconds, 434795 bytes. 1920x1080 is
+accepted for a macOS preview and is not the same constraint as the screenshots' exact 2560x1600.
+Confirm the re-encode did not damage the pixel art rather than assuming, because a preview of a
+pixel-art app that has been resampled is worse than no preview: `ffmpeg` with the `ssim` filter
+against the original measured 0.999016 mean, with 6 frames of 512 under 0.99 and both clusters
+sitting on hard cuts, which is where SSIM is expected to dip. Use `LC_ALL=C` when reading that
+number through `awk`; a comma decimal separator parses as zero and reports a perfect failure.
 
 **`tools/preview-take.sh` is the second way, built.** You start the screen recording and it acts
 out the whole thing: a real asleep, the pointer travelling to the pet and clicking it, the night
@@ -693,7 +711,11 @@ API check has only ever been run on a binary built here; this is the first time 
 on the bits Apple delivered. And `x86_64 arm64` says the store did not thin the binary on the way
 through, which nothing in this repository had established either way.
 
-## What rides on 0.3.2
+## What rode on 0.3.2, and what it cost
+
+**Everything on this list shipped on 31 August 2026.** It is kept rather than deleted because the
+reason each item was waiting is the part worth reading, and because the shape of it recurs: a
+listing defect that cannot be fixed on a live version becomes a queue against the next one.
 
 **Screenshots on a released version cannot be reordered.** Tried on 27 August 2026, the day
 0.3.1 went live: the media panel does not accept a change to a version that is already
@@ -708,30 +730,34 @@ release, a notarized disk image, and a GitHub release, and then a store upload. 
 version on a screenshot order.** Let it ride with the next real change, and take the whole list
 below with it.
 
-- **Reorder the screenshots**: `5-pet` out of slot 1, comeback into it. Read the slots back off
-  the panel after uploading, because the file numbering does not survive the drop.
-- **Re-shoot `5-pet`: done on 27 August**, and sitting in `docs/store-shots/5-pet.png` waiting
-  for a version that can carry it. Flat mid-tone wallpaper, pet in the top-left corner, cropped
+- ~~**Reorder the screenshots**: `5-pet` out of slot 1, comeback into it.~~ **Done on 31 August**,
+  and read back off the API rather than the panel: comeback in slot 1, `5-pet` in slot 5, all six
+  `COMPLETE` at 2560x1600. Read the slots back after uploading either way, because the file
+  numbering does not survive the drop.
+- ~~**Re-shoot `5-pet`**~~: **shot on 27 August, shipped on 31 August**, from
+  `docs/store-shots/5-pet.png`. Flat mid-tone wallpaper, pet in the top-left corner, cropped
   `tl` so the menu bar is in frame. The reasoning is above; the short version is that a zoom was
   never available, because the pet is 64x64 logical and the frame must be exactly 2560x1600, so
   making it bigger means scaling and every shot here is a crop on purpose.
-- **The App Preview**, which is not the review video. That one was 43 seconds with Terminal and
+- ~~**The App Preview**, which is not the review video.~~ **Recorded, encoded and uploaded on
+  30 and 31 August**, one `DESKTOP` set. The two encoding requirements it turned up are in the
+  App Previews section above, along with the SSIM check that the re-encode did not resample the
+  pixel art. That one was 43 seconds with Terminal and
   Finder in it, which is what App Review asked for and the opposite of what a preview may
   contain. A preview is 15 to 30 seconds, up to three, public, in the gallery ahead of the
-  screenshots, and only footage of the app itself. The content is already decided above:
-  asleep to comeback, because the measured constraint on `drive-states.sh` rules out a full arc
-  at any clock scale. **`tools/preview-take.sh` now performs that take**, hands off, while you
-  record; what is left is to run it, trim the lead-in, crop the menu bar off, and read
-  resolution and codec off Media Manager.
+  screenshots, and only footage of the app itself. The content was decided above: asleep to
+  comeback, because the measured constraint on `drive-states.sh` rules out a full arc at any clock
+  scale. `tools/preview-take.sh` performs that take hands off while you record.
 - ~~**Task 18 step 2**, the manual test list from spec section 9.~~ **Run and closed on 28 August**,
   against a locally signed sandboxed copy, because that is the only kind of build that can answer a
   sandbox question and still launch. Eight items pass, one is not runnable on this hardware (both
-  displays are 2x), and the three defects it found are fixed. It has to be run again on the build
-  that is actually uploaded, which is the point of the step, but it is no longer unexplored ground.
+  displays are 2x), and the three defects it found are fixed. **Still open against build 5**: it
+  has to be run on the build that is actually uploaded, which is the point of the step, and the
+  store copy that can answer it only became installable when 0.3.2 went live.
 - ~~**The two `watcher.rs` defects the test list turned up on 28 August.**~~ **Fixed the same
   day**, and a third with them: a file inside an ignored directory was counting as work, because
   the matcher only ever looked at the path it was handed. Written up in the plan under that step.
-  Not a listing matter, but the reason 0.3.2 now has something in it worth spending a version on.
+  Not a listing matter, but the reason 0.3.2 had something in it worth spending a version on.
 - ~~**The two defects the by-eye half of that list turned up.**~~ **Fixed the same day.** The
   popover was invisible over a fullscreen app while the pet was visible over it, and a tracked
   worktree whose git folder sits outside the picker's grant read as an ordinary healthy project
@@ -752,6 +778,9 @@ reason is worth more than a clean pass.
 | 2026-08-27 | 0.3.1 | 4 | **Rejected, guideline 2.1 Information Needed.** Apple's standard new-app questionnaire: a screen recording plus seven answers, no finding about the binary. Reply and recording plan in `docs/app-store-review-notes.md`. No new build required. |
 | 2026-08-27 | 0.3.1 | 4 | Answered the same day: two replies in Resolution Center (the field holds 4000 characters and the answers measure 5302), a 43 second 1920x1080 screen recording attached, and the Notes field updated with the addendum. Then resubmitted, because the metadata edit had moved the version to Ready for Review. Same build, no upload. |
 | 2026-08-27 | 0.3.1 | 4 | **Approved.** "Review of your submission has been completed. It is now eligible for distribution." Submitted 04:21 PDT, accepted the same day. Submission ID `c0dfeea1-544a-4452-8120-447c4732a7d4`, App Store URL `https://apps.apple.com/app/momentum-mascot/id6804925509`. |
+| 2026-08-31 | 0.3.2 | 5 | `UPLOAD SUCCEEDED with no errors, 1 warning` (90889 a third time). Delivery UUID `ce4b6ca0-e770-439d-b5e5-f24ac837811f`, 7207763 bytes. Reached `VALID`, minimum macOS 10.15. |
+| 2026-08-31 | 0.3.2 | 5 | **Submitted for review** at 08:03 +07, Submission ID `67103224-ab09-4462-9f99-b8db71caecf1`. No rejection and no questionnaire: the 2.1 answers were in the Notes field from the first submission of this version, which is what 0.3.1 taught. |
+| 2026-08-31 | 0.3.2 | 5 | **Approved and released**, `2026-08-31T17:03:34Z`. Sixteen hours from Submit, unattended. Verified without credentials from `https://itunes.apple.com/lookup?id=6804925509&entity=macSoftware`: version 0.3.2, six screenshots, release notes present, 4942018 bytes delivered against 7207763 uploaded. |
 
 **Submitting took six tries, none of them about the build.** After the build was attached,
 "Add for Review" refused five times over listing fields, all recorded above: contact information,
@@ -782,12 +811,43 @@ The review notes already on the listing did not prevent this, so budget for the 
 rather than hoping good notes make it unnecessary; and the seven answers belong in the Notes
 field from the first submission of every version, which is what Apple's closing line asks for.
 
+**0.3.2 passed on the first try, and the reason is a field rather than the app.** 0.3.1 took six
+attempts to submit and one rejection to approve; 0.3.2 took one of each. Nothing about the build
+was better. What changed is that the seven 2.1 answers were sitting in the Notes field before
+Submit was pressed, which is exactly what Apple's closing line on the 0.3.1 rejection asked for
+and what the paragraph below it predicted. Sixteen hours, no Resolution Center round trip.
+
+**The 90889 email arrives again on every version, and it still means nothing.** Apple mails the
+missing-provisioning-profile warning after a successful delivery, subject line about "one or more
+issues with a recent delivery". Build 4 got it and was approved; build 5 got it and was approved.
+`docs/app-store.md` section 5 has the TN3125 reading; the short version is that it is a TestFlight
+eligibility statement and this app uses no restricted entitlements.
+
+**Three listing defects were found by reading the API rather than the panel**, on the morning of
+submission, and all three would have shipped otherwise. `promotionalText` is not copied to a new
+version while `description`, `keywords`, `supportUrl` and `marketingUrl` all are, so the 0.3.2
+draft held zero characters where the live 0.3.1 held 162, and an empty promotional text is a legal
+listing that warns about nothing at submission. The live description carried 26 real line breaks
+from this document's own 90-column source wrapping. And this document had drifted from the live
+text by three commas typed straight into the panel. The lesson is at the top of the file: read the
+shipping copy back out of the API before every submission, because the panel will not tell you
+what it lost.
+
 **What was not done before submitting.** Task 18 step 2 asks for the full manual test list from
 spec section 9 against the exact build being submitted. It was not re-run against build 4. The
 private API gate was verified on build 4 itself, and the comeback path was exercised while
 staging the screenshots, but the rest of the list was last run against an earlier build. That is
 a real gap rather than an oversight worth hiding: if review rejects on function, this is the
 first thing to rule out, and the list runs before the next upload either way.
+
+**It did not run before build 5 either, and the reason is structural.** The only artifact that is
+both the shipped bits and launchable is the store copy, and the store copy does not exist until
+the version is approved, which is after the moment the check is supposed to protect. So this step
+is always retrospective by construction. What it can still do is catch a defect before anyone
+installs the update, which is why `tools/verify-store-copy.sh` runs the mechanical half against
+`/Applications` the day a version goes live and prints the by-eye half underneath it. Do not run
+it before installing from the store: a Developer ID or locally signed copy fails the provenance
+and sandbox checks by definition, and the script says so rather than pretending otherwise.
 
 **The upload is one run, not two.** Task 18 said to rehearse with `tools/release-mas.sh` and then
 re-run with `--upload`, which burns two build numbers, because the counter increments on every
