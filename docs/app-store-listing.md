@@ -693,7 +693,15 @@ version is live, one artifact is both the shipped bits and runnable, and it is t
 `/Applications/Momentum Mascot.app`. Two copies of the same bundle id then run side by side, and
 they do not fight over state: the sandboxed one reads the container, the unsandboxed one reads
 `~/.keepgoing/mascot/state.json`. Delete the local build and reinstall from the store to get the
-name back.
+name back, which was done for 0.3.2 and works.
+
+**Deleting the app does not delete the container.** Measured on 1 September 2026 while doing
+exactly that: the local build was removed, 0.3.2 installed fresh from the store, and the script
+found three tracked projects with three security-scoped bookmarks already there. macOS leaves
+`~/Library/Containers/<id>` behind when an app is dragged to the Trash, so a reinstall inherits
+the state rather than starting empty. Good for a user and worth knowing before treating a
+delete-and-reinstall as a clean-slate test: it is not one. `Data/.keepgoing` inside the container
+is the thing to remove for that, per correction 3 in the plan's execution log.
 
 Run against 0.3.1 build 4, on 27 August 2026, the day it went live:
 
@@ -710,6 +718,33 @@ bundle       version 0.3.1, build 4, x86_64 arm64, LSUIElement, developer-tools
 API check has only ever been run on a binary built here; this is the first time it has been run
 on the bits Apple delivered. And `x86_64 arm64` says the store did not thin the binary on the way
 through, which nothing in this repository had established either way.
+
+Run again against 0.3.2 build 5, on 1 September 2026, the day after it went live:
+
+```
+all mechanical checks passed.
+provenance   _MASReceipt present, Authority=Apple Mac OS Application Signing, signature verifies
+sandbox      all three entitlements present, state file in the container (4151 bytes)
+             3 tracked projects, 3 with a security-scoped bookmark
+private API  drawsBackground / fullScreenEnabled: 0, all four debug overrides absent
+bundle       version 0.3.2, build 5, x86_64 arm64, LSUIElement, developer-tools
+```
+
+**`build 5` rather than `0.3.2` in that last line is the check working.** `release-mas.sh:239`
+stamps `CFBundleVersion` with its own counter, so a copy reading `build 0.3.2` is a local build
+wearing the store's name. That is what was installed before this run, and reading the two fields
+apart is the cheapest way to tell the artifacts apart before trusting anything else the script
+says.
+
+**One thing on the by-eye list cannot be photographed, and it is not a gap in the tooling.** The
+popover shows the tracked project list, so a capture of it on this machine carries real project
+names. The version line added in 0.3.2 therefore has to be read off the screen by the person
+sitting at it: `strings` cannot confirm it either, because Tauri compresses the embedded frontend
+assets into the binary and none of `src/index.html` survives as a searchable string. Measured on
+the store copy: `id="version"`, `limezu.itch.io` and `Add Project` all return 0, which is the
+expected result rather than a failure. `getVersion` returns 2, and that is a trap worth naming:
+those are the Rust side's `core:app` command name, so they prove the command is compiled in and
+say nothing about whether the page calls it.
 
 ## What rode on 0.3.2, and what it cost
 
