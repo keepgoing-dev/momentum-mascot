@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Rebuilds the app and reinstalls it into /Applications, for the machine you are on.
+# Rebuilds the app and reinstalls it, for the machine you are on.
 #
 # This is the fast loop for testing your own build. It deliberately does NOT do the
 # universal build or the .dmg from README "Packaging it": those are for handing to other
@@ -23,6 +23,7 @@
 #
 #   tools/install-local.sh                     # rebuild + reinstall using art already on disk
 #   MASCOT_PACK=/path/to/pack tools/install-local.sh   # also recomposite the art first
+#   APP_DIR=/Applications tools/install-local.sh       # force the folder it installs into
 
 set -eu
 
@@ -45,14 +46,9 @@ fi
 (cd "$ROOT" && cargo tauri build --bundles app)
 
 SRC="$ROOT/src-tauri/target/release/bundle/macos/$APP.app"
-DST="/Applications/$APP.app"
 
-# Quit a running copy so replacing the bundle doesn't strand a live process.
-pkill -x "$APP" 2>/dev/null || true
-pkill -x "momentum-mascot" 2>/dev/null || true
-sleep 1
-
-rm -rf "$DST"
-ditto "$SRC" "$DST"
+# Quits a running copy, then installs. It picks the folder: /Applications normally, and
+# ~/Applications when the App Store copy is sitting in /Applications.
+DST=$("$ROOT/tools/replace-app.sh" "$SRC")
 
 echo "installed $DST"

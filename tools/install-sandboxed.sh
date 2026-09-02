@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # Builds the app with the STORE's entitlements, signs it so it will actually launch, and
-# installs it into /Applications. This is the build the manual test list of spec section 9 wants.
+# installs it. This is the build the manual test list of spec section 9 wants.
 #
 # It exists because neither sibling script can do this job:
 #
@@ -79,13 +79,7 @@ if ! codesign -d --entitlements - --xml "$APP" 2>/dev/null \
   exit 1
 fi
 
-pkill -x "$APP_NAME" 2>/dev/null || true
-pkill -x "momentum-mascot" 2>/dev/null || true
-sleep 1
-
-DST="/Applications/$APP_NAME.app"
-rm -rf "$DST"
-ditto "$APP" "$DST"
+DST=$("$ROOT/tools/replace-app.sh" "$APP")
 
 echo ""
 echo "installed $DST"

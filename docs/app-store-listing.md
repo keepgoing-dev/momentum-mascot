@@ -695,6 +695,18 @@ they do not fight over state: the sandboxed one reads the container, the unsandb
 `~/.keepgoing/mascot/state.json`. Delete the local build and reinstall from the store to get the
 name back, which was done for 0.3.2 and works.
 
+**The collision then happened in the other direction, and the local installers had to give
+way.** With 0.3.2 installed from the store, `install-local.sh` failed: it ended in `rm -rf
+/Applications/Momentum Mascot.app`, the store copy there is owned by `root`, and the removal was
+denied on every file inside it. `sudo` is the wrong answer. That copy is the only artifact that
+is both sandboxed and the exact shipped bits, `verify-store-copy.sh` defaults to reading it from
+that path, and putting it back is a redownload and a fresh set of bookmarks. So
+`tools/replace-app.sh` now owns the install step for both `install-local.sh` and
+`install-sandboxed.sh`: it looks for `Contents/_MASReceipt`, and when the store copy holds
+`/Applications` it installs to `~/Applications` instead and says so. `APP_DIR` forces a folder,
+and pointing it at a store copy is refused rather than escalated. Side by side is the same
+arrangement that already worked above, only with the names the other way round.
+
 **Deleting the app does not delete the container.** Measured on 1 September 2026 while doing
 exactly that: the local build was removed, 0.3.2 installed fresh from the store, and the script
 found three tracked projects with three security-scoped bookmarks already there. macOS leaves
