@@ -1,29 +1,33 @@
 //! The tray icon, which is plumbing (section 6.2).
 //!
-//! Its only jobs are opening the popover and holding Quit. It **does not encode state**: an
-//! earlier design shipped four full-colour icons because four states cannot be told apart as
-//! one-bit silhouettes at 16x16, and that requirement disappeared the moment the pet took
-//! over carrying state ambiently. With nothing to encode, the simpler and better-behaved
-//! option wins: a monochrome template image, which adapts to light and dark menu bars by
-//! itself rather than by our arranging it.
+//! Its only jobs are opening the popover, reaching support, and holding Quit. It **does not
+//! encode state**: an earlier design shipped four full-colour icons because four states cannot
+//! be told apart as one-bit silhouettes at 16x16, and that requirement disappeared the moment
+//! the pet took over carrying state ambiently. With nothing to encode, the simpler and
+//! better-behaved option wins: a monochrome template image, which adapts to light and dark menu
+//! bars by itself rather than by our arranging it.
 
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::AppHandle;
 
-use crate::app;
+use crate::{app, appkit};
 
 /// Derived from the pack at build time by `tools/build-app-assets.sh`, which is why it is not
 /// in version control (section 4.2).
 const TRAY_ICON: &[u8] = include_bytes!("../icons/tray.png");
 
+/// The landing page's contact footer, which is also the App Store Support URL (guideline 1.5).
+const SUPPORT_URL: &str = "https://keepgoing.dev/#support";
+
 pub fn setup(app: &AppHandle) -> tauri::Result<()> {
-    // This menu is the only place Quit lives, because there is no menu bar and no settings
-    // screen. Exactly two items, and adding a third is a spec change.
+    // This menu is the only place Quit and support live, because there is no menu bar and no
+    // settings screen. Items are a spec change (section 6.2), not a free addition.
     let open = MenuItem::with_id(app, "open", "Open", true, None::<&str>)?;
+    let support = MenuItem::with_id(app, "support", "Support", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &quit])?;
+    let menu = Menu::with_items(app, &[&open, &support, &quit])?;
 
     TrayIconBuilder::with_id("mascot")
         .icon(Image::from_bytes(TRAY_ICON)?)
@@ -32,6 +36,11 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "open" => app::show_popover(app, app::OpenedBy::Tray),
+            "support" => {
+                if !appkit::open_url(SUPPORT_URL) {
+                    eprintln!("could not open {SUPPORT_URL}");
+                }
+            }
             "quit" => app.exit(0),
             _ => {}
         })

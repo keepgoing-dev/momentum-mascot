@@ -330,13 +330,15 @@ The general lesson is the one that mattered here: **that gap came from reasoning
 
 ### 6.2 Tray icon
 
-The tray icon is plumbing. Its only jobs are opening the popover and holding Quit.
+The tray icon is plumbing. Its only jobs are opening the popover, reaching support, and holding Quit.
 
 - **A monochrome template image** on macOS, at 16x16, so it adapts to light and dark menu bars automatically. Template means macOS owns the colour: it renders the alpha channel in whatever the menu bar needs, including while the menu is highlighted.
 
 - **It is drawn rather than cropped, and it is the one piece of art here that is not from the pack.** The obvious move was to crop the character's own head off the idle sprite, on the reasonable theory that the thing in the menu bar should be the thing in the room. It rendered as a solid black blob: at 16px a filled silhouette has no internal structure left, because every internal edge in a sprite is a colour change rather than a hole, and a template image has only ink and no ink to work with. Extracting the outline colour instead gave structure and read as a burger. What works is a mark drawn **at** the size it is used rather than reduced to it: a capped head and shoulders with two eye holes, checked at 16, 18, 22 and 32px against both a light and a dark bar. **A menu bar template is a different register from pixel art**, which is the general lesson, and it has two useful consequences: nothing about the icon is covered by the pack's redistribution restriction, so it is committed, and the app therefore compiles on a machine with no licensed copy of the pack.
 - It **may** hint at state, but nothing depends on it doing so. This reverses an earlier decision to ship full-colour non-template icons, which existed only because four states could not be told apart as one-bit silhouettes at 16x16. With the pet carrying state ambiently, the icon no longer has to encode state at all, so the simpler and better-behaved option wins.
-- Primary click opens the popover. Right click opens a native context menu with exactly two items, **Open** and **Quit**. That menu is the only place Quit lives, since there is no menu bar and no settings screen.
+- Primary click opens the popover. Right click opens a native context menu with three items, **Open**, **Support** and **Quit**. That menu is the only place Quit lives, since there is no menu bar and no settings screen.
+
+> **Support is the third item, and it was added deliberately rather than casually**, because this line previously said two and meant it. The gap it closes is that nothing inside the app said where to ask for help: guideline 1.5 is satisfied by the Support URL field in App Store Connect, which only exists on the product page, and someone who installed the app months ago and hit a problem has no reason to go back there. The credit line (section 6.3) is where the other two obligations already live and it cannot take a fourth item at 352px, so the menu takes this one at no cost in pixels. It opens `https://keepgoing.dev/#support`, the contact footer on the landing page, which is the same address the Support URL field points at, so there is one destination to keep current rather than two. Not a `mailto:`, for the reason already recorded in the listing document: with no mail client configured the click does nothing at all, and with one it opens an empty message carrying neither the version nor the OS.
 
 ### 6.3 Popover
 
