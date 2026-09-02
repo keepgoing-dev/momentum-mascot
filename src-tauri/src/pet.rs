@@ -117,10 +117,61 @@ struct Bounds {
     margin: f64,
 }
 
-fn usable_bounds(win: &tauri::window::Window) -> Option<Bounds> {
-    let Some(mon) = win.current_monitor().ok().flatten() else {
-        return None;
-    };
+/// A display's physical extent, in the same top-down coordinates as `Bounds`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Rect {
+    left: f64,
+    top: f64,
+    right: f64,
+    bottom: f64,
+}
+
+impl Rect {
+    /// Squared distance from a point to the rect, and zero for a point inside it.
+    fn distance_to(&self, p: (f64, f64)) -> f64 {
+        let dx = (self.left - p.0).max(p.0 - self.right).max(0.0);
+        let dy = (self.top - p.1).max(p.1 - self.bottom).max(0.0);
+        dx * dx + dy * dy
+    }
+}
+
+fn rect_of(mon: &tauri::window::Monitor) -> Rect {
+    let p = mon.position();
+    let s = mon.size();
+    Rect {
+        left: p.x as f64,
+        top: p.y as f64,
+        right: (p.x + s.width as i32) as f64,
+        bottom: (p.y + s.height as i32) as f64,
+    }
+}
+
+/// Which display a position off the edge of every one of them belongs to: the least far.
+fn nearest_monitor(at: (f64, f64), screens: &[Rect]) -> Option<usize> {
+    screens
+        .iter()
+        .enumerate()
+        .min_by(|(_, a), (_, b)| a.distance_to(at).total_cmp(&b.distance_to(at)))
+        .map(|(i, _)| i)
+}
+
+/// The display the pet is on, or the nearest one when it is on none. `current_monitor` is
+/// `NSWindow.screen`, which is nil for a window overlapping no display, stranding a dragged pet.
+fn monitor_at(
+    win: &tauri::window::Window,
+    near: Option<(f64, f64)>,
+) -> Option<tauri::window::Monitor> {
+    if let Some(mon) = win.current_monitor().ok().flatten() {
+        return Some(mon);
+    }
+    let at = near?;
+    let monitors = win.available_monitors().ok()?;
+    let rects: Vec<Rect> = monitors.iter().map(rect_of).collect();
+    monitors.into_iter().nth(nearest_monitor(at, &rects)?)
+}
+
+fn usable_bounds(win: &tauri::window::Window, near: Option<(f64, f64)>) -> Option<Bounds> {
+    let mon = monitor_at(win, near)?;
     let scale = mon.scale_factor();
     let area = mon.work_area();
     let left = area.position.x as f64;
@@ -129,7 +180,7 @@ fn usable_bounds(win: &tauri::window::Window) -> Option<Bounds> {
     let mut bottom = (area.position.y + area.size.height as i32) as f64;
 
     #[cfg(target_os = "macos")]
-    if let Some((vr, vb)) = macos::visible_bottom_right(scale) {
+    if let Some((vr, vb)) = macos::visible_bottom_right(&mon) {
         right = right.min(vr);
         bottom = bottom.min(vb);
     }
@@ -192,7 +243,7 @@ fn nearest(current: (f64, f64), corners: &[(i32, i32); 4]) -> (i32, i32) {
 /// whole time and the measurement was lying. **Read the position from a delayed thread, or do
 /// not read it.**
 fn place(win: &tauri::window::Window, app: &AppHandle) -> tauri::Result<()> {
-    let Some(b) = usable_bounds(win) else {
+    let Some(b) = usable_bounds(win, None) else {
         return Ok(());
     };
     let corners = anchors(&b);
@@ -223,7 +274,7 @@ pub fn nearest_corner(
     win: &tauri::window::Window,
     current: (f64, f64),
 ) -> Option<(i32, i32)> {
-    let b = usable_bounds(win)?;
+    let b = usable_bounds(win, Some(current))?;
     Some(nearest(current, &anchors(&b)))
 }
 
@@ -393,17 +444,29 @@ mod macos {
     use objc2_app_kit::NSScreen;
     use objc2_foundation::MainThreadMarker;
 
-    /// The bottom-right of the main screen's `visibleFrame`, in Tauri's physical pixels.
+    /// The bottom-right of `mon`'s `visibleFrame`, in Tauri's physical pixels.
     ///
     /// AppKit measures from the bottom-left of the *primary* screen with y increasing
     /// upwards; Tauri measures from the top-left with y increasing downwards. The flip needs
     /// the primary screen's height, which is the first entry in `NSScreen.screens`.
-    pub fn visible_bottom_right(scale: f64) -> Option<(f64, f64)> {
+    ///
+    /// Matched to `mon` by origin, not by name: tao names every display `Monitor #<model>`.
+    pub fn visible_bottom_right(mon: &tauri::window::Monitor) -> Option<(f64, f64)> {
         let mtm = MainThreadMarker::new()?;
         let screens = NSScreen::screens(mtm);
         let primary_height = screens.iter().next()?.frame().size.height;
-        let visible = NSScreen::mainScreen(mtm)?.visibleFrame();
+        // tao scales `CGDisplayBounds` by the display's own backing scale, so every point
+        // below is scaled the same way and the comparison stays in tao's units.
+        let scale = mon.scale_factor();
+        let want = mon.position();
+        let screen = screens.iter().find(|s| {
+            let f = s.frame();
+            let left = f.origin.x * scale;
+            let top = (primary_height - (f.origin.y + f.size.height)) * scale;
+            (left - want.x as f64).abs() < 1.0 && (top - want.y as f64).abs() < 1.0
+        })?;
 
+        let visible = screen.visibleFrame();
         let right = visible.origin.x + visible.size.width;
         let bottom_from_top = primary_height - visible.origin.y;
         Some((right * scale, bottom_from_top * scale))
@@ -440,6 +503,43 @@ mod tests {
         assert_eq!(nearest((1900.0, 10.0), &c), (1836, 20));
         assert_eq!(nearest((10.0, 1050.0), &c), (20, 996));
         assert_eq!(nearest((1900.0, 1050.0), &c), (1836, 996));
+    }
+
+    /// A wide display at the origin with a narrower one below it, inset on both sides. The
+    /// inset is what leaves dead space between them for a pet to be stranded in.
+    fn two_screens() -> [Rect; 2] {
+        [
+            Rect {
+                left: 0.0,
+                top: 0.0,
+                right: 6720.0,
+                bottom: 2836.0,
+            },
+            Rect {
+                left: 1760.0,
+                top: 2836.0,
+                right: 4960.0,
+                bottom: 4836.0,
+            },
+        ]
+    }
+
+    #[test]
+    fn a_point_on_a_display_is_no_distance_from_it() {
+        let s = two_screens();
+        assert_eq!(s[0].distance_to((100.0, 100.0)), 0.0);
+        assert_eq!(s[1].distance_to((2000.0, 3000.0)), 0.0);
+        assert_eq!(nearest_monitor((100.0, 100.0), &s), Some(0));
+        assert_eq!(nearest_monitor((2000.0, 3000.0), &s), Some(1));
+    }
+
+    #[test]
+    fn a_pet_dragged_off_the_bottom_edge_belongs_to_the_display_it_left() {
+        let s = two_screens();
+        // Below the wide display's bottom edge, right of where the narrow one ends.
+        assert_eq!(nearest_monitor((6162.0, 2952.0), &s), Some(0));
+        // The mirror case, off the narrow display's own bottom edge.
+        assert_eq!(nearest_monitor((3000.0, 5000.0), &s), Some(1));
     }
 
     #[test]

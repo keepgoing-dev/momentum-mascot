@@ -14,7 +14,8 @@
 
 ## [Unreleased]
 
-- Nothing yet.
+- Fixed: the mascot no longer disappears when you drag it off the edge of a screen. A drag kept moving it after the pointer had stopped against the edge, and once it was clear of every display it had nowhere to snap back to, so it stayed there invisibly. Reopening the app was the only way to get it back. It now runs home to the nearest corner of the display it left. One screen is enough to have hit this; a second display was not needed.
+- Fixed: on more than one display, the mascot's corners are measured from the display it is actually on. They were read from whichever screen held the window you were working in, so a mascot on a second screen could run to a corner of the first one.
 
 
 ## 0.3.1 (2026-08-20)
