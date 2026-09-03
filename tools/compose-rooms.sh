@@ -486,6 +486,20 @@ frame_asleep() {
     -fill "$TINT_COLOUR" -colorize "$TINT_ASLEEP" PNG32:"$out"
 }
 
+plate_asleep_back() {
+  plate_hopper_back "$1" "$2"
+  magick "$2" -fill "$TINT_COLOUR" -colorize "$TINT_ASLEEP" PNG32:"$2"
+}
+
+# The sleeper does not move, so the Z can be baked into a front plate rather than tracked.
+plate_asleep_front() {
+  local i=$1 out=$2
+  magick -size ${W}x${H} xc:none \
+    "$(nth "$i" $Z_FRAMES)" \
+      -geometry "$(shift_pos "$SLEEP_OVERLAY_AT" "$SLEEP_EMOTE_DX" "$SLEEP_EMOTE_DY")" -composite \
+    -fill "$TINT_COLOUR" -colorize "$TINT_ASLEEP" PNG32:"$out"
+}
+
 frame_comeback() {
   local i=$1 out=$2
   local at; at=$(shift_pos "$CHAR_COMEBACK_AT" 0 "$(nth "$i" $HOP_COMEBACK)")
@@ -715,6 +729,13 @@ write_manifest() {  # write_manifest <out>
           { "sprite": "coffee-dozing", "dx": 12, "dy": -4, "frames": 6 },
           { "sprite": "dots-dozing", "dx": $EMOTE_DX, "dy": $EMOTE_DY, "frames": 2 }
         ]
+      }
+    },
+    "asleep": {
+      "room": {
+        "char": { "x": $(at_x "$SLEEP_OVERLAY_AT"), "y": $(at_y "$SLEEP_OVERLAY_AT"),
+                  "hop": [$(csv 0 0 0 0 0 0 0 0 0 0 0 0)], "range": "sleepAsleep" },
+        "overlays": []
       }
     },
     "comeback": {
