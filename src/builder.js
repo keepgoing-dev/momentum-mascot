@@ -9,7 +9,10 @@ import { bake } from "./baker.js";
 
 const CATS = ["skin", "eyes", "hair", "outfit", "accessory"];
 const TAB_LABEL = { skin: "SKIN", eyes: "EYES", hair: "HAIR", outfit: "WEAR", accessory: "EXTRA" };
-const SPLIT = { hair: "Hairstyle", outfit: "Outfit" };
+/** The split categories, and the one colour their style grid is drawn in. */
+const STYLE_COLOUR = { hair: "04", outfit: "01" };
+/** The style a category's colour row is drawn on, where colour does not depend on style. */
+const COLOUR_STYLE = { hair: "03" };
 
 const el = {
   room: document.getElementById("room"),
@@ -90,14 +93,17 @@ function swatch(cat, id, selected, label) {
 
 function renderTab() {
   const cat = tab;
-  const split = SPLIT[cat];
 
-  if (split) {
+  if (cat in STYLE_COLOUR) {
     const current = styleOf(build[cat]);
+    // Hair colour is one ramp every style shares, so its row is drawn on a single style and
+    // stops repainting when the style changes. Outfit colours are per-style and cannot be.
+    const ramp = COLOUR_STYLE[cat] ? coloursFor(cat, COLOUR_STYLE[cat]) : null;
     el.colours.hidden = false;
     el.colours.replaceChildren(
       ...coloursFor(cat, current).map((id) => {
-        const b = swatch(cat, id, id === build[cat], `colour ${colourOf(id)}`);
+        const shown = ramp?.find((r) => colourOf(r) === colourOf(id)) ?? id;
+        const b = swatch(cat, shown, id === build[cat], `colour ${colourOf(id)}`);
         b.addEventListener("click", () => {
           build[cat] = id;
           renderPreview();
@@ -112,7 +118,10 @@ function renderTab() {
         // Keep the chosen colour when switching style, falling back if that style lacks it.
         const same = coloursFor(cat, style);
         const wanted = same.find((id) => colourOf(id) === colourOf(build[cat])) ?? same[0];
-        const b = swatch(cat, wanted, style === current, `style ${style}`);
+        // Shown in the grid's own colour, not the chosen one: a shape listing that repaints on
+        // every colour click cannot be scanned, and hair 01 is the swatch body's own tone.
+        const shown = same.find((id) => colourOf(id) === STYLE_COLOUR[cat]) ?? same[0];
+        const b = swatch(cat, shown, style === current, `style ${style}`);
         b.addEventListener("click", () => {
           build[cat] = wanted;
           renderPreview();
