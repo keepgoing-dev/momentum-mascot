@@ -12,6 +12,7 @@ use tauri_plugin_dialog::DialogExt;
 
 use crate::app::{self, AppState};
 use crate::appkit;
+use crate::custom;
 use crate::scoped;
 use crate::store;
 
@@ -128,6 +129,57 @@ pub fn set_character(app: AppHandle, id: String) {
     app::publish(&app);
 }
 
+/// Write one of the nine built-mascot strips. Split from the command so the path resolution,
+/// which is the only part that can go wrong, is testable without an `AppHandle`.
+fn write_art_to(art_dir: &std::path::Path, name: &str, png: &[u8]) -> Result<(), String> {
+    let rel = custom::relative_art_path(name).ok_or_else(|| format!("bad art name: {name}"))?;
+    let path = art_dir.join(rel);
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&path, png).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn write_custom_art(app: AppHandle, name: String, png: Vec<u8>) -> Result<(), String> {
+    let dir = custom::dir(&app.state::<AppState>().store_path);
+    write_art_to(&dir, &name, &png)
+}
+
+#[tauri::command]
+pub fn read_custom_art(app: AppHandle, name: String) -> Result<Vec<u8>, String> {
+    let dir = custom::dir(&app.state::<AppState>().store_path);
+    let rel = custom::relative_art_path(&name).ok_or_else(|| format!("bad art name: {name}"))?;
+    std::fs::read(dir.join(rel)).map_err(|e| e.to_string())
+}
+
+/// Persist the build and select it. The art must already be written, because `has_art` is what
+/// decides whether the frontend renders the custom mascot or falls back.
+#[tauri::command]
+pub fn save_custom_character(
+    app: AppHandle,
+    body: String,
+    eyes: String,
+    outfit: String,
+    hair: String,
+    accessory: Option<String>,
+) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    {
+        let mut momentum = state.momentum.lock().unwrap();
+        momentum.state.custom_character = Some(store::CustomCharacter {
+            body,
+            eyes,
+            outfit,
+            hair,
+            accessory,
+        });
+        momentum.state.character_id = store::CUSTOM_ID.to_string();
+    }
+    app::publish(&app);
+    Ok(())
+}
+
 /// Share Status. The webview draws the 1200x630 card on a canvas and hands over the PNG
 /// bytes; this puts them on the clipboard as a real image rather than a file or a data URL,
 /// because a real image is the only thing that pastes into a chat app and a social composer
@@ -156,3 +208,25 @@ pub fn open_privacy_policy() {
 /// Kept next to the command that opens it, and it must stay in step with the URL in App Store
 /// Connect: guideline 5.1.1(i) asks for the policy in both places.
 pub const PRIVACY_POLICY_URL: &str = "https://keepgoing.dev/privacy";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn writing_art_under_a_rejected_name_is_an_error_not_a_write() {
+        let d = std::env::temp_dir().join(format!("mascot-write-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+
+        assert!(write_art_to(&d, "../escape", &[1, 2, 3]).is_err());
+        assert!(write_art_to(&d, "rooms/../../escape", &[1, 2, 3]).is_err());
+        assert!(!d.join("escape").exists());
+        assert!(!d.parent().unwrap().join("escape").exists());
+
+        assert!(write_art_to(&d, "rooms/awake", &[1, 2, 3]).is_ok());
+        assert_eq!(std::fs::read(d.join("rooms/awake.png")).unwrap(), vec![1, 2, 3]);
+
+        let _ = std::fs::remove_dir_all(&d);
+    }
+}
