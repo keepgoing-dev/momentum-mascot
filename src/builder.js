@@ -11,8 +11,8 @@ const CATS = ["skin", "eyes", "hair", "outfit", "accessory"];
 const TAB_LABEL = { skin: "SKIN", eyes: "EYES", hair: "HAIR", outfit: "WEAR", accessory: "EXTRA" };
 /** The split categories, and the one colour their style grid is drawn in. */
 const STYLE_COLOUR = { hair: "04", outfit: "01" };
-/** The style a category's colour row is drawn on, where colour does not depend on style. */
-const COLOUR_STYLE = { hair: "03" };
+/** Where a category's colour is a ramp every style shares, the swatches drawn for it. */
+const COLOUR_CHIPS = { hair: "hair-colour" };
 
 const el = {
   room: document.getElementById("room"),
@@ -96,14 +96,14 @@ function renderTab() {
 
   if (cat in STYLE_COLOUR) {
     const current = styleOf(build[cat]);
-    // Hair colour is one ramp every style shares, so its row is drawn on a single style and
-    // stops repainting when the style changes. Outfit colours are per-style and cannot be.
-    const ramp = COLOUR_STYLE[cat] ? coloursFor(cat, COLOUR_STYLE[cat]) : null;
+    // A flat chip, so the row reads as the colour picker it is and holds still when the style
+    // changes. Outfit colours are per-style, so that row stays a row of torsos.
+    const chip = COLOUR_CHIPS[cat];
     el.colours.hidden = false;
     el.colours.replaceChildren(
       ...coloursFor(cat, current).map((id) => {
-        const shown = ramp?.find((r) => colourOf(r) === colourOf(id)) ?? id;
-        const b = swatch(cat, shown, id === build[cat], `colour ${colourOf(id)}`);
+        const b = swatch(chip ?? cat, chip ? colourOf(id) : id, id === build[cat],
+          `colour ${colourOf(id)}`);
         b.addEventListener("click", () => {
           build[cat] = id;
           renderPreview();
