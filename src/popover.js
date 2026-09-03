@@ -288,6 +288,21 @@ document.addEventListener("contextmenu", (e) => e.preventDefault());
 
 buildCharacters();
 
+// Debug-only: bake a fixed build on load so the pixels can be checked against the shell
+// oracle without a click. tools/verify-bake.sh is the consumer.
+invoke("bake_probe").then(async (spec) => {
+  if (!spec) return;
+  const build = JSON.parse(spec);
+  const manifest = await fetch("assets/character-layout.json").then((r) => r.json());
+  const { bake } = await import("./baker.js");
+  const blobs = await bake(manifest, build);
+  for (const [name, blob] of blobs) {
+    const png = Array.from(new Uint8Array(await blob.arrayBuffer()));
+    await invoke("write_custom_art", { name, png });
+  }
+  console.log("bake probe wrote", blobs.size, "strips");
+});
+
 listen("mood", (event) => render(event.payload));
 
 // Only a refresh, deliberately. Resolving the comeback and rotating the quote belong to the

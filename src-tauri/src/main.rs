@@ -45,6 +45,7 @@ fn main() {
             commands::untrack,
             commands::toggle_operating,
             commands::cycle_character,
+            commands::bake_probe,
             commands::write_custom_art,
             commands::read_custom_art,
             commands::save_custom_character,

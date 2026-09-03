@@ -70,6 +70,7 @@ pub struct Snapshot {
     pub mood: Mood,
     pub quote: &'static str,
     pub character_id: String,
+    pub custom_character: Option<store::CustomCharacter>,
     pub projects: Vec<ProjectRow>,
 }
 
@@ -269,6 +270,7 @@ impl Momentum {
             mood,
             quote: copy::quote(mood, self.quote_turn),
             character_id: self.state.character_id.clone(),
+            custom_character: self.state.custom_character.clone(),
             projects: self
                 .state
                 .projects
