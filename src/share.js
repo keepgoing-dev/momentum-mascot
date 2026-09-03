@@ -153,6 +153,24 @@ function drawRight(ctx, text, right, y, unit, colour) {
   drawType(ctx, bitmap, right - bitmap.width * unit, y, unit);
 }
 
+/**
+ * A built mascot's room lives outside the bundle, so it comes back through the bridge as bytes.
+ * The card is otherwise unchanged: it still carries the room and the mood and nothing that
+ * could name a project.
+ */
+async function loadRoomStrip(characterId, mood) {
+  if (characterId !== "custom") {
+    return loadImage(`assets/rooms/${characterId}/${mood}.png`);
+  }
+  const png = await window.__TAURI__.core.invoke("read_custom_art", { name: `rooms/${mood}` });
+  const url = URL.createObjectURL(new Blob([new Uint8Array(png)], { type: "image/png" }));
+  try {
+    return await loadImage(url);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 function loadImage(src) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -184,7 +202,7 @@ export async function composeCard({ mood, quote, characterId }) {
 
   // The room at exactly 5x, from frame 0 of the state's strip. A 10:7 room in a 1.91:1 crop
   // gets a mat, never fractional scaling to fill.
-  const strip = await loadImage(`assets/rooms/${characterId}/${mood}.png`);
+  const strip = await loadRoomStrip(characterId, mood);
   const rw = 160 * CARD.scale;
   const rh = 112 * CARD.scale;
   ctx.fillStyle = CARD.mount;

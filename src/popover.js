@@ -2,6 +2,8 @@
 
 import { composeCard } from "./share.js";
 
+import * as builder from "./builder.js";
+
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 const { getVersion } = window.__TAURI__.app;
@@ -22,6 +24,7 @@ let current = null;
 // The three shipped characters. Kept in one place so the picker, the room, and the backend
 // all agree on what can be selected.
 const CHARACTERS = ["07", "12", "20"];
+const CUSTOM_ID = "custom";
 
 /**
  * Where the character actually is, per state, in room pixels at 2x.
@@ -51,7 +54,51 @@ function buildCharacters() {
       btn.addEventListener("click", () => invoke("set_character", { id }));
       return btn;
     }),
+    customButton(),
   );
+}
+
+/**
+ * The fourth slot. A dashed "+" until something is built, then the mascot's own head. Clicking
+ * it while it is already selected re-opens the builder, which is the only way back in to edit.
+ */
+function customButton() {
+  const built = Boolean(current?.custom_character);
+  const selected = current?.character_id === CUSTOM_ID;
+  const btn = document.createElement("button");
+  btn.className = built ? "char-btn" : "char-btn plus";
+  btn.dataset.id = CUSTOM_ID;
+  btn.type = "button";
+  btn.title = built ? "Your mascot" : "Build your own";
+  btn.setAttribute("aria-label", built ? "Use your built mascot" : "Build your own mascot");
+  if (built) {
+    btn.style.backgroundImage = `url("assets/swatches/skin/${current.custom_character.skin}.png")`;
+  } else {
+    btn.textContent = "+";
+  }
+  btn.addEventListener("click", () => {
+    if (!built || selected) openBuilder();
+    else invoke("set_character", { id: CUSTOM_ID });
+  });
+  return btn;
+}
+
+async function openBuilder() {
+  await builder.open(current?.custom_character ?? null, async (build, blobs) => {
+    if (!build) return;
+    for (const [name, blob] of blobs) {
+      const png = Array.from(new Uint8Array(await blob.arrayBuffer()));
+      await invoke("write_custom_art", { name, png });
+    }
+    // The UI category is "skin"; the stored field is "body", after the pack's own folder.
+    await invoke("save_custom_character", {
+      body: build.skin,
+      eyes: build.eyes,
+      outfit: build.outfit,
+      hair: build.hair,
+      accessory: build.accessory,
+    });
+  });
 }
 
 function updateCharacters(selectedId) {
@@ -63,9 +110,10 @@ function updateCharacters(selectedId) {
 
 function render(payload) {
   current = payload;
+  if (builder.isOpen()) return;
 
   room.dataset.mood = payload.mood;
-  room.style.backgroundImage = `url("assets/rooms/${payload.character_id}/${payload.mood}.png")`;
+  setRoomArt(payload);
 
   const at = CHARACTER_AT[payload.mood] ?? CHARACTER_AT.awake;
   Object.assign(charHit.style, {
@@ -88,6 +136,31 @@ function render(payload) {
   clockEl.textContent = `debug clock: ${payload.clock_scale}x`;
 
   fitWindow();
+}
+
+/**
+ * The room's art. A built mascot's strips live outside the bundle, so they come back through
+ * the bridge as bytes and become a blob URL, which the existing CSP already permits.
+ *
+ * Falling back when the art is not ready is spec section 5.4: a half-written cache must show a
+ * premade rather than a room with nobody in it.
+ */
+let roomUrl = null;
+async function setRoomArt(payload) {
+  const custom = payload.character_id === CUSTOM_ID;
+  const id = custom && !payload.custom_art_ready ? CHARACTERS[0] : payload.character_id;
+
+  if (roomUrl) {
+    URL.revokeObjectURL(roomUrl);
+    roomUrl = null;
+  }
+  if (id !== CUSTOM_ID) {
+    room.style.backgroundImage = `url("assets/rooms/${id}/${payload.mood}.png")`;
+    return;
+  }
+  const png = await invoke("read_custom_art", { name: `rooms/${payload.mood}` });
+  roomUrl = URL.createObjectURL(new Blob([new Uint8Array(png)], { type: "image/png" }));
+  room.style.backgroundImage = `url("${roomUrl}")`;
 }
 
 function row(project) {
