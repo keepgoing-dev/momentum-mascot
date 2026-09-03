@@ -9,10 +9,6 @@ import { bake } from "./baker.js";
 
 const CATS = ["skin", "eyes", "hair", "outfit", "accessory"];
 const TAB_LABEL = { skin: "SKIN", eyes: "EYES", hair: "HAIR", outfit: "WEAR", accessory: "EXTRA" };
-/** The split categories, and the one colour their style grid is drawn in. */
-const STYLE_COLOUR = { hair: "04", outfit: "01" };
-/** Where a category's colour is a ramp every style shares, the swatches drawn for it. */
-const COLOUR_CHIPS = { hair: "hair-colour" };
 
 const el = {
   room: document.getElementById("room"),
@@ -37,6 +33,15 @@ let onFinish = null;
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 const styleOf = (id) => id.split("_")[1];
 const colourOf = (id) => id.split("_")[2];
+
+/**
+ * The style x colour categories: the grid's fixed colour, and the colour row's chips, drawn
+ * flat so the two rows are not one listing shown twice.
+ */
+const SPLIT = {
+  hair: { gridColour: "04", chips: "hair-colour", chip: colourOf },
+  outfit: { gridColour: "01", chips: "outfit-colour", chip: (id) => id },
+};
 
 /** The ids of one category that share a style, in colour order. */
 function coloursFor(cat, style) {
@@ -93,17 +98,16 @@ function swatch(cat, id, selected, label) {
 
 function renderTab() {
   const cat = tab;
+  const split = SPLIT[cat];
 
-  if (cat in STYLE_COLOUR) {
+  if (split) {
     const current = styleOf(build[cat]);
-    // A flat chip, so the row reads as the colour picker it is and holds still when the style
-    // changes. Outfit colours are per-style, so that row stays a row of torsos.
-    const chip = COLOUR_CHIPS[cat];
+    const row = coloursFor(cat, current);
+    const at = row.indexOf(build[cat]);
     el.colours.hidden = false;
     el.colours.replaceChildren(
-      ...coloursFor(cat, current).map((id) => {
-        const b = swatch(chip ?? cat, chip ? colourOf(id) : id, id === build[cat],
-          `colour ${colourOf(id)}`);
+      ...row.map((id) => {
+        const b = swatch(split.chips, split.chip(id), id === build[cat], `colour ${colourOf(id)}`);
         b.addEventListener("click", () => {
           build[cat] = id;
           renderPreview();
@@ -115,12 +119,13 @@ function renderTab() {
     el.grid.replaceChildren(
       ...stylesFor(cat).map((rep) => {
         const style = styleOf(rep);
-        // Keep the chosen colour when switching style, falling back if that style lacks it.
         const same = coloursFor(cat, style);
-        const wanted = same.find((id) => colourOf(id) === colourOf(build[cat])) ?? same[0];
+        // Hold the colour row's position, clamped: five outfits ship three colourways where the
+        // rest ship four, and falling back to the first one reads as a shuffle.
+        const wanted = same[Math.min(at, same.length - 1)];
         // Shown in the grid's own colour, not the chosen one: a shape listing that repaints on
         // every colour click cannot be scanned, and hair 01 is the swatch body's own tone.
-        const shown = same.find((id) => colourOf(id) === STYLE_COLOUR[cat]) ?? same[0];
+        const shown = same.find((id) => colourOf(id) === split.gridColour) ?? same[0];
         const b = swatch(cat, shown, style === current, `style ${style}`);
         b.addEventListener("click", () => {
           build[cat] = wanted;
