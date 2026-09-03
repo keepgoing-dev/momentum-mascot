@@ -141,22 +141,60 @@ hair_shades() {  # hair_shades <colour>: its hair shades, lightest first
     sort -rn | awk '{print $2}'
 }
 
+chip() {  # chip <out> <shade>...: a flat swatch, one band per shade in the order given
+  local out=$1; shift
+  local n=$# i=0 lo hi s
+  local args=(-size 16x16 xc:none)
+  for s in "$@"; do
+    lo=$((i * 16 / n)); hi=$((((i + 1) * 16 / n) - 1))
+    args+=(-fill "$s" -draw "rectangle 0,$lo 15,$hi")
+    i=$((i + 1))
+  done
+  magick "${args[@]}" PNG32:"$out"
+}
+
 # One chip per colour, not per style: a hair colour is a ramp every style shares, and the
 # builder's colour row is a colour picker rather than a second listing of heads.
 swatch_hair_colours() {  # swatch_hair_colours <out-dir>
-  local out=$1 c shades n i lo hi args
+  local c
+  mkdir -p "$1"
+  for c in $HAIR_COLOURS; do chip "$1/$c.png" $(hair_shades "$c"); done
+}
+
+# The sprite outline, which every garment shares and so is never a colourway's own colour.
+OUTLINE="#3A3A50FF #46465EFF"
+
+outfit_band() {  # outfit_band <style> <colour>: opaque torso colours, count then rgba then hex
+  magick "$G/Outfits/16x16/Outfit_$1_$2.png" -crop "16x16+48+16" +repage \
+    -format %c histogram:info:- | tr -d ':' | awk '$3 ~ /FF$/ {print $1, $2, $3}'
+}
+
+outfit_colours() {  # outfit_colours <style>: the colourways that style actually ships
+  local c
+  for c in $OUTFIT_COLOURS; do
+    if [ -f "$G/Outfits/16x16/Outfit_$1_$c.png" ]; then echo "$c"; fi
+  done
+}
+
+outfit_shades() {  # outfit_shades <style> <colour> <skip>: three busiest colours, lightest first
+  outfit_band "$1" "$2" | awk -v skip="$3" '!index(skip, $3)' | sort -rn | head -3 |
+    awk '{ split($2, p, /[(),]/)
+           printf "%.1f %s\n", 0.299 * p[2] + 0.587 * p[3] + 0.114 * p[4], $3 }' |
+    sort -rn | awk '{print $2}'
+}
+
+# Outfit colours are per-style palettes rather than one shared ramp, so a chip is derived from
+# the garment: whatever all of a style's colourways hold is its shading, not its colour.
+swatch_outfit_colours() {  # swatch_outfit_colours <out-dir>
+  local out=$1 st c cs skip
   mkdir -p "$out"
-  for c in $HAIR_COLOURS; do
-    shades=$(hair_shades "$c")
-    n=$(echo "$shades" | wc -w)
-    args=(-size 16x16 xc:none)
-    i=0
-    for s in $shades; do
-      lo=$((i * 16 / n)); hi=$((((i + 1) * 16 / n) - 1))
-      args+=(-fill "$s" -draw "rectangle 0,$lo 15,$hi")
-      i=$((i + 1))
+  for st in $OUTFIT_STYLES; do
+    cs=$(outfit_colours "$st")
+    skip=$(for c in $cs; do outfit_band "$st" "$c" | awk '{print $3}'; done | sort | uniq -c |
+      awk -v n="$(echo "$cs" | wc -w)" '$1 == n {print $2}' | tr '\n' ' ')
+    for c in $cs; do
+      chip "$out/Outfit_${st}_${c}.png" $(outfit_shades "$st" "$c" "$skip $OUTLINE")
     done
-    magick "${args[@]}" PNG32:"$out/$c.png"
   done
 }
 
@@ -204,6 +242,7 @@ for st in $OUTFIT_STYLES; do for c in $OUTFIT_COLOURS; do
   [ -f "$f" ] || { echo "  missing $id" >&2; continue; }
   emit outfit "$id" "$f" 0 torso; outfit_ids+=("$id")
 done; done
+swatch_outfit_colours "$OUT/swatches/outfit-colour"
 
 acc_ids=()
 for a in $ACCESSORIES; do
