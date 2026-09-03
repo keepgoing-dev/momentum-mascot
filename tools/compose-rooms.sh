@@ -332,6 +332,9 @@ emote_pos() {  # emote_pos +x+y  ->  +x+y shifted to sit above a character
 
 # shift_pos cannot express a negative offset, because it splits the string on '+'. The pet
 # needs them, so the pet works in plain integers and formats at the point of use.
+at_x() { local a=${1%+*}; printf '%d' "${a#+}"; }
+at_y() { printf '%d' "${1##*+}"; }
+
 geom() {  # geom <x> <y>  ->  +x+y, with either sign
   printf '%+d%+d' "$1" "$2"
 }
@@ -417,6 +420,23 @@ frame_awake() {  # frame_awake <i> <out>
     "$(nth "$i" $SEATED_FRAMES)"   -geometry "$CHAR_AWAKE_AT"  -composite \
     "$DESK"                        -geometry "$DESK_AT"        -composite \
     "$(nth "$i" $COMPUTER_FRAMES)" -geometry "$COMPUTER_AT"    -composite \
+    PNG32:"$out"
+}
+
+# The plates a built mascot composites between. Awake is the one state where the
+# desk lands on top of the character, so it is the one state with a front plate.
+plate_awake_back() {  # plate_awake_back <i> <out>
+  local i=$1 out=$2
+  magick "$WORK/base.png" \
+    "$(nth "$i" $CAT_FRAMES)" -geometry "$CAT_AT" -composite \
+    PNG32:"$out"
+}
+
+plate_awake_front() {
+  local i=$1 out=$2
+  magick -size ${W}x${H} xc:none \
+    "$DESK"                        -geometry "$DESK_AT"     -composite \
+    "$(nth "$i" $COMPUTER_FRAMES)" -geometry "$COMPUTER_AT" -composite \
     PNG32:"$out"
 }
 
@@ -630,6 +650,77 @@ if [ -n "$APP_OUT" ]; then
   magick $runstrip +append PNG32:"$APP_OUT/pet/$CHAR/run.png"
   magick -delay $((100 / $(pet_fps_for run))) -loop 0 $runstrip \
     -filter point -resize "$((ZOOM * 100))%" -layers optimize "$OUT/pet-run.gif"
+fi
+
+# ---------------------------------------------------------------- plates and manifest
+# Character-less plates and the machine-readable half of this script, for the built mascot
+# (docs/superpowers/specs/2026-09-03-mascot-builder-design.md). Emitted once per build rather
+# than once per character, because neither output carries a character.
+
+csv() { printf '%s' "$*" | tr ' ' ','; }
+
+write_manifest() {  # write_manifest <out>
+  cat > "$1" <<JSON
+{
+  "frames": $FRAMES,
+  "room": { "w": $W, "h": $H },
+  "pet":  { "w": $PET_W, "h": $PET_H },
+  "layerStrip": {
+    "frame": { "w": 16, "h": 32 },
+    "ranges": {
+      "idle": [0, 1], "run": [1, 7], "seated": [7, 13], "sleep": [13, 19],
+      "idleDozing": [19, 20], "sleepAsleep": [20, 26], "idleComeback": [26, 27]
+    }
+  },
+  "states": {
+    "awake": {
+      "room": {
+        "char": { "x": $(at_x "$CHAR_AWAKE_AT"), "y": $(at_y "$CHAR_AWAKE_AT"),
+                  "hop": [$(csv 0 0 0 0 0 0 0 0 0 0 0 0)], "range": "seated" },
+        "overlays": []
+      },
+      "pet": {
+        "char": { "x": $PET_CHAR_X, "y": $PET_CHAR_Y,
+                  "hop": [$(csv $PET_BREATH)], "range": "seated", "frame": 0 },
+        "overlays": []
+      }
+    }
+  }
+}
+JSON
+}
+
+emit_plate() {  # emit_plate <state> <back|front>
+  local s=$1 half=$2 strip="" i=0
+  while [ $i -lt $FRAMES ]; do
+    "plate_${s}_${half}" "$i" "$WORK/plate-$s-$half-$i.png"
+    strip="$strip $WORK/plate-$s-$half-$i.png"
+    i=$((i + 1))
+  done
+  magick $strip +append PNG32:"$APP_OUT/plates/$s-$half.png"
+}
+
+if [ -n "$APP_OUT" ] && [ -n "${MASCOT_EMIT_PLATES:-}" ]; then
+  mkdir -p "$APP_OUT/plates"
+  for s in "${STATES[@]}"; do
+    for half in back front; do
+      declare -F "plate_${s}_${half}" >/dev/null && emit_plate "$s" "$half"
+    done
+  done
+  write_manifest "$APP_OUT/character-layout.json"
+  echo "  plates and manifest"
+fi
+
+# Every premade cut into the same strip layout a built mascot uses, so the reassembly check
+# tests what ships rather than a different arrangement of it.
+if [ -n "$APP_OUT" ]; then
+  mkdir -p "$APP_OUT/layers/premade"
+  magick \
+    "$(nth 0 $IDLE_FRAMES)" $RUN_FRAMES $SEATED_FRAMES $SLEEP_FRAMES \
+    \( "$(nth 0 $IDLE_FRAMES)" -fill "$TINT_COLOUR" -colorize "$TINT_DOZING" \) \
+    \( $SLEEP_FRAMES -fill "$TINT_COLOUR" -colorize "$TINT_ASLEEP" \) \
+    \( "$(nth 0 $IDLE_FRAMES)" -modulate "$COMEBACK_MODULATE" \) \
+    +append PNG32:"$APP_OUT/layers/premade/$CHAR.png"
 fi
 
 # ---------------------------------------------------------------- contact sheets

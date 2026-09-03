@@ -36,12 +36,16 @@ CHARACTERS="07 12 20"
 REVIEW_OUT="${MASCOT_OUT:-$ROOT/docs/mockups}"
 
 echo "composing app assets for characters: $CHARACTERS"
+# The plates and the manifest carry no character, so only the first pass emits them.
+emit_plates=1
 for char in $CHARACTERS; do
   echo "character $char"
   MASCOT_CHAR="$char" \
   MASCOT_OUT="$REVIEW_OUT" \
   MASCOT_APP_OUT="$APP_ASSETS" \
+  MASCOT_EMIT_PLATES="$emit_plates" \
     "$ROOT/tools/compose-rooms.sh"
+  emit_plates=""
 done
 
 # ---------------------------------------------------------------- the tray icon
