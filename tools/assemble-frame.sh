@@ -44,8 +44,10 @@ while [ "$o" -lt "$count" ]; do
   dx=$(q ".states.\"$state\".room.overlays[$o].dx")
   dy=$(q ".states.\"$state\".room.overlays[$o].dy")
   nf=$(q ".states.\"$state\".room.overlays[$o].frames")
-  ow=$(magick identify -format '%h' "$A/shared/$sp.png")
-  magick "$A/shared/$sp.png" -crop "${ow}x${ow}+$(( (i % nf) * ow ))+0" +repage PNG32:"$W/o$o.png"
+  # Overlays are not all square: the coffee is 16x32, the emotes 16x16.
+  osz=$(magick identify -format '%w %h' "$A/shared/$sp.png")
+  ow=$(( ${osz% *} / nf )); oh=${osz#* }
+  magick "$A/shared/$sp.png" -crop "${ow}x${oh}+$(( (i % nf) * ow ))+0" +repage PNG32:"$W/o$o.png"
   args+=("$W/o$o.png" -geometry "+$((cx + dx))+$((y + dy))" -composite)
   o=$((o + 1))
 done

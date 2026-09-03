@@ -440,6 +440,28 @@ plate_awake_front() {
     PNG32:"$out"
 }
 
+# Dozing, asleep and comeback put the desk BEHIND the character, so it belongs to their
+# back plate. The tint goes on the plate for the same reason it goes on the layer strips:
+# the baker only ever does source-over.
+plate_hopper_back() {  # plate_hopper_back <i> <out>
+  local i=$1 out=$2
+  magick "$WORK/base.png" \
+    "$(nth "$i" $CAT_FRAMES)"      -geometry "$CAT_AT"      -composite \
+    "$DESK"                        -geometry "$DESK_AT"     -composite \
+    "$(nth "$i" $COMPUTER_FRAMES)" -geometry "$COMPUTER_AT" -composite \
+    PNG32:"$out"
+}
+
+plate_dozing_back() {
+  plate_hopper_back "$1" "$2"
+  magick "$2" -fill "$TINT_COLOUR" -colorize "$TINT_DOZING" PNG32:"$2"
+}
+
+plate_comeback_back() {
+  plate_hopper_back "$1" "$2"
+  magick "$2" -modulate "$COMEBACK_MODULATE" PNG32:"$2"
+}
+
 frame_dozing() {  # away from the desk with a coffee, not standing next to it
   local i=$1 out=$2
   local at; at=$(shift_pos "$CHAR_DOZING_AT" 0 "$(nth "$i" $HOP_DOZING)")
@@ -684,6 +706,27 @@ write_manifest() {  # write_manifest <out>
                   "hop": [$(csv $PET_BREATH)], "range": "seated", "frame": 0 },
         "overlays": []
       }
+    },
+    "dozing": {
+      "room": {
+        "char": { "x": $(at_x "$CHAR_DOZING_AT"), "y": $(at_y "$CHAR_DOZING_AT"),
+                  "hop": [$(csv $HOP_DOZING)], "range": "idleDozing", "frame": 0 },
+        "overlays": [
+          { "sprite": "coffee-dozing", "dx": 12, "dy": -4, "frames": 6 },
+          { "sprite": "dots-dozing", "dx": $EMOTE_DX, "dy": $EMOTE_DY, "frames": 2 }
+        ]
+      }
+    },
+    "comeback": {
+      "room": {
+        "char": { "x": $(at_x "$CHAR_COMEBACK_AT"), "y": $(at_y "$CHAR_COMEBACK_AT"),
+                  "hop": [$(csv $HOP_COMEBACK)], "range": "idleComeback", "frame": 0 },
+        "overlays": [
+          { "sprite": "bang-comeback", "dx": $EMOTE_DX, "dy": $EMOTE_DY, "frames": 2 },
+          { "sprite": "spark-comeback", "dx": -9, "dy": -4, "frames": 2 },
+          { "sprite": "spark-comeback", "dx": 21, "dy": -4, "frames": 2 }
+        ]
+      }
     }
   }
 }
@@ -700,8 +743,31 @@ emit_plate() {  # emit_plate <state> <back|front>
   magick $strip +append PNG32:"$APP_OUT/plates/$s-$half.png"
 }
 
+emit_shared() {
+  mkdir -p "$APP_OUT/shared"
+  magick $COFFEE_FRAMES +append PNG32:"$APP_OUT/shared/coffee.png"
+  magick $DOTS_FRAMES   +append PNG32:"$APP_OUT/shared/dots.png"
+  magick $BANG_FRAMES   +append PNG32:"$APP_OUT/shared/bang.png"
+  magick $SPARK_FRAMES  +append PNG32:"$APP_OUT/shared/spark.png"
+  magick $Z_FRAMES      +append PNG32:"$APP_OUT/shared/z.png"
+  magick "$BLANKET"     +append PNG32:"$APP_OUT/shared/blanket.png"
+
+  # One pre-tinted copy per consuming state, because the baker tints nothing.
+  magick "$APP_OUT/shared/coffee.png" -fill "$TINT_COLOUR" -colorize "$TINT_DOZING" \
+    PNG32:"$APP_OUT/shared/coffee-dozing.png"
+  magick "$APP_OUT/shared/dots.png" -fill "$TINT_COLOUR" -colorize "$TINT_DOZING" \
+    PNG32:"$APP_OUT/shared/dots-dozing.png"
+  magick "$APP_OUT/shared/z.png" -fill "$TINT_COLOUR" -colorize "$TINT_ASLEEP" \
+    PNG32:"$APP_OUT/shared/z-asleep.png"
+  magick "$APP_OUT/shared/bang.png" -modulate "$COMEBACK_MODULATE" \
+    PNG32:"$APP_OUT/shared/bang-comeback.png"
+  magick "$APP_OUT/shared/spark.png" -modulate "$COMEBACK_MODULATE" \
+    PNG32:"$APP_OUT/shared/spark-comeback.png"
+}
+
 if [ -n "$APP_OUT" ] && [ -n "${MASCOT_EMIT_PLATES:-}" ]; then
   mkdir -p "$APP_OUT/plates"
+  emit_shared
   for s in "${STATES[@]}"; do
     for half in back front; do
       declare -F "plate_${s}_${half}" >/dev/null && emit_plate "$s" "$half"
