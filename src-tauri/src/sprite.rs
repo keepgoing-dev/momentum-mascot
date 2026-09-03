@@ -94,8 +94,10 @@ pub fn relative_path(character_id: &str, mood: &str) -> PathBuf {
 /// Separate from `relative_path` so the layout is testable without an `AppHandle`.
 pub fn resolve_path(app: &tauri::AppHandle, character_id: &str, mood: &str) -> Option<PathBuf> {
     use tauri::Manager;
+    // AppState's path, not store::default_path(), so the debug state override that
+    // tools/drive-states.sh sets is honoured here too.
     if character_id == crate::store::CUSTOM_ID {
-        let art = crate::custom::dir(&crate::store::default_path());
+        let art = crate::custom::dir(&app.state::<crate::app::AppState>().store_path);
         return crate::custom::relative_art_path(&format!("pet/{mood}")).map(|r| art.join(r));
     }
     let dir = app.path().resource_dir().ok()?;
