@@ -39,3 +39,6 @@ tools/.mas-build
 # A Mac App Store provisioning profile, if one is ever embedded. Not required (TN3125), and it
 # carries the team's identifiers, so it is not committed.
 tools/embedded.provisionprofile
+
+# Superpowers brainstorming mockups
+.superpowers/
