@@ -109,12 +109,26 @@ REF_BODY="$G/Bodies/16x16/Body_04.png"
 REF_EYES="$G/Eyes/16x16/Eyes_01.png"
 REF_HAIR="$G/Hairstyles/16x16/Hairstyle_03_03.png"
 
+# An eye is two pixels, a brow over an iris, and only the iris colour changes between the
+# seven. Cropped at 16px they are the same picture, so the swatch draws that colour big.
+swatch_eyes() {  # swatch_eyes <out> <sheet>
+  local ground brow iris
+  ground=$(magick "$REF_BODY" -format '%[pixel:p{53,16}]' info:)
+  brow=$(magick "$2" -format '%[pixel:p{53,20}]' info:)
+  iris=$(magick "$2" -format '%[pixel:p{53,21}]' info:)
+  magick -size 16x16 "xc:$ground" \
+    -fill "$brow" -draw "rectangle 2,5 6,6 rectangle 9,5 13,6" \
+    -fill "$iris" -draw "rectangle 2,7 6,10 rectangle 9,7 13,10" \
+    PNG32:"$1"
+}
+
 emit() {  # emit <category> <id> <sheet> <with-blanket> <swatch-mode>
   local cat=$1 id=$2 sheet=$3 blanket=$4 mode=$5
   mkdir -p "$OUT/layers/$cat" "$OUT/swatches/$cat"
   strip_for "$sheet" "$OUT/layers/$cat/$id.png" "$blanket"
   case "$mode" in
     face)  swatch "$OUT/swatches/$cat/$id.png" 7 "$sheet" "$REF_EYES" ;;
+    eyes)  swatch_eyes "$OUT/swatches/$cat/$id.png" "$sheet" ;;
     head)  swatch "$OUT/swatches/$cat/$id.png" 6 "$REF_BODY" "$REF_EYES" "$sheet" ;;
     torso) swatch "$OUT/swatches/$cat/$id.png" 16 "$REF_BODY" "$sheet" ;;
     hatted) swatch "$OUT/swatches/$cat/$id.png" 6 "$REF_BODY" "$REF_EYES" "$REF_HAIR" "$sheet" ;;
@@ -136,7 +150,7 @@ json_list() {  # json_list <name> <item>...
 echo "composing layers into $OUT/layers"
 
 skin_ids=(); for b in $SKIN; do emit skin "$b" "$G/Bodies/16x16/$b.png" 1 face; skin_ids+=("$b"); done
-eyes_ids=(); for e in $EYES; do emit eyes "$e" "$G/Eyes/16x16/$e.png" 0 head; eyes_ids+=("$e"); done
+eyes_ids=(); for e in $EYES; do emit eyes "$e" "$G/Eyes/16x16/$e.png" 0 eyes; eyes_ids+=("$e"); done
 
 hair_ids=()
 for st in $HAIR_STYLES; do for c in $HAIR_COLOURS; do
