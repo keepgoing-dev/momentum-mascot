@@ -352,8 +352,12 @@ body {
   margin-top: 10px;
 }
 
+/* The 2px padding is room for the selected swatch's outline, which is drawn outside its box
+   and is otherwise clipped by this scroll container. Height and margin absorb it. */
 .swatch-grid {
-  height: 112px;
+  height: 116px;
+  margin-top: 8px;
+  padding: 2px;
   overflow-y: auto;
   align-content: flex-start;
 }
