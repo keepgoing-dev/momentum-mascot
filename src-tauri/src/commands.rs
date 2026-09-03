@@ -101,8 +101,8 @@ pub fn toggle_operating(app: AppHandle, id: String) -> Option<bool> {
     new_state
 }
 
-/// Clicking the character cycles to the next of the three. This is the original selection
-/// mechanism, kept alongside the visible picker so the room itself still responds to a click.
+/// Clicking the character cycles to the next one. This is the original selection mechanism,
+/// kept alongside the visible picker so the room itself still responds to a click.
 #[tauri::command]
 pub fn cycle_character(app: AppHandle) {
     app.state::<AppState>()
@@ -114,12 +114,14 @@ pub fn cycle_character(app: AppHandle) {
 }
 
 /// The visible character picker sets the mascot directly. Unknown ids are ignored rather than
-/// relaxed, because the only valid characters are the three shipped ones.
+/// relaxed: the valid ids are the three shipped premades, plus "custom" once a build exists.
 #[tauri::command]
 pub fn set_character(app: AppHandle, id: String) {
     let state = app.state::<AppState>();
     let mut momentum = state.momentum.lock().unwrap();
-    if store::CHARACTERS.contains(&id.as_str()) {
+    let known = store::CHARACTERS.contains(&id.as_str())
+        || (id == store::CUSTOM_ID && momentum.state.custom_character.is_some());
+    if known {
         momentum.state.character_id = id;
     }
     drop(momentum);

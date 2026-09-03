@@ -144,6 +144,20 @@ pub fn from_json(text: &str) -> StateFile {
         })
         .unwrap_or_default();
 
+    // Parsed before character_id, which is only allowed to be CUSTOM_ID when this is Some.
+    // All four required layers or nothing: a half-written build must show the picker its "+"
+    // again rather than a mascot missing its face.
+    let custom = root.get("custom_character").and_then(|v| {
+        let f = |k: &str| v.get(k).and_then(Value::as_str).map(str::to_string);
+        Some(CustomCharacter {
+            body: f("body")?,
+            eyes: f("eyes")?,
+            outfit: f("outfit")?,
+            hair: f("hair")?,
+            accessory: f("accessory"),
+        })
+    });
+
     StateFile {
         last_displayed_state: root
             .get("last_displayed_state")
@@ -153,21 +167,10 @@ pub fn from_json(text: &str) -> StateFile {
         character_id: root
             .get("character_id")
             .and_then(Value::as_str)
-            .filter(|id| CHARACTERS.contains(id))
+            .filter(|id| CHARACTERS.contains(id) || (*id == CUSTOM_ID && custom.is_some()))
             .unwrap_or(CHARACTERS[0])
             .to_string(),
-        // All four required layers or nothing. A half-written build must show the picker its
-        // "+" again rather than a mascot missing its face.
-        custom_character: root.get("custom_character").and_then(|v| {
-            let f = |k: &str| v.get(k).and_then(Value::as_str).map(str::to_string);
-            Some(CustomCharacter {
-                body: f("body")?,
-                eyes: f("eyes")?,
-                outfit: f("outfit")?,
-                hair: f("hair")?,
-                accessory: f("accessory"),
-            })
-        }),
+        custom_character: custom.clone(),
         pet_position: root.get("pet_position").and_then(|v| {
             let x = v.get("x")?.as_i64()? as i32;
             let y = v.get("y")?.as_i64()? as i32;
@@ -361,6 +364,21 @@ fn civil_from_days(z: i64) -> (i64, i64, i64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_unknown_character_id_still_falls_back() {
+        assert_eq!(from_json(r#"{"version":"3.2","character_id":"custom"}"#).character_id, "07");
+        assert_eq!(from_json(r#"{"version":"3.2","character_id":"nonsense"}"#).character_id, "07");
+    }
+
+    #[test]
+    fn custom_is_kept_when_the_build_is_present() {
+        let s = from_json(
+            r#"{"version":"3.2","character_id":"custom","custom_character":
+                {"body":"Body_01","eyes":"Eyes_01","outfit":"Outfit_01_01","hair":"Hairstyle_05_02"}}"#,
+        );
+        assert_eq!(s.character_id, "custom");
+    }
 
     #[test]
     fn custom_character_round_trips() {
