@@ -705,7 +705,8 @@ write_manifest() {  # write_manifest <out>
     "frame": { "w": 16, "h": 32 },
     "ranges": {
       "idle": [0, 1], "run": [1, 7], "seated": [7, 13], "sleep": [13, 19],
-      "idleDozing": [19, 20], "sleepAsleep": [20, 26], "idleComeback": [26, 27]
+      "idleDozing": [19, 20], "sleepAsleep": [20, 26], "idleComeback": [26, 27],
+      "blanket": [27, 28]
     }
   },
   "states": {
@@ -729,6 +730,13 @@ write_manifest() {  # write_manifest <out>
           { "sprite": "coffee-dozing", "dx": 12, "dy": -4, "frames": 6 },
           { "sprite": "dots-dozing", "dx": $EMOTE_DX, "dy": $EMOTE_DY, "frames": 2 }
         ]
+      },
+      "pet": {
+        "char": { "x": $PET_CHAR_X, "y": $PET_CHAR_Y,
+                  "hop": [$(csv $PET_BREATH)], "range": "idle", "frame": 0 },
+        "overlays": [
+          { "sprite": "dots", "dx": $PET_EMOTE_DX, "dy": $PET_EMOTE_DY, "frames": 2 }
+        ]
       }
     },
     "asleep": {
@@ -736,6 +744,14 @@ write_manifest() {  # write_manifest <out>
         "char": { "x": $(at_x "$SLEEP_OVERLAY_AT"), "y": $(at_y "$SLEEP_OVERLAY_AT"),
                   "hop": [$(csv 0 0 0 0 0 0 0 0 0 0 0 0)], "range": "sleepAsleep" },
         "overlays": []
+      },
+      "pet": {
+        "char": { "x": $PET_CHAR_X, "y": $PET_SLEEP_Y,
+                  "hop": [$(csv 0 0 0 0 0 0 0 0 0 0 0 0)], "range": "sleep" },
+        "blanketDy": $PET_BLANKET_DY,
+        "overlays": [
+          { "sprite": "z", "dx": $PET_EMOTE_DX, "dy": $PET_EMOTE_DY, "frames": 2 }
+        ]
       }
     },
     "comeback": {
@@ -747,6 +763,21 @@ write_manifest() {  # write_manifest <out>
           { "sprite": "spark-comeback", "dx": -9, "dy": -4, "frames": 2 },
           { "sprite": "spark-comeback", "dx": 21, "dy": -4, "frames": 2 }
         ]
+      },
+      "pet": {
+        "char": { "x": $PET_CHAR_X, "y": $PET_CHAR_Y,
+                  "hop": [$(csv $HOP_COMEBACK)], "range": "idle", "frame": 0 },
+        "overlays": [
+          { "sprite": "bang", "dx": $PET_EMOTE_DX, "dy": $PET_EMOTE_DY, "frames": 2 },
+          { "sprite": "spark", "dx": $PET_SPARK_DX, "dy": $PET_SPARK_DY, "frames": 2 }
+        ]
+      }
+    },
+    "run": {
+      "pet": {
+        "char": { "x": $PET_RUN_X, "y": $PET_CHAR_Y,
+                  "hop": [$(csv 0 0 0 0 0 0 0 0 0 0 0 0)], "range": "run" },
+        "overlays": []
       }
     }
   }
@@ -771,7 +802,6 @@ emit_shared() {
   magick $BANG_FRAMES   +append PNG32:"$APP_OUT/shared/bang.png"
   magick $SPARK_FRAMES  +append PNG32:"$APP_OUT/shared/spark.png"
   magick $Z_FRAMES      +append PNG32:"$APP_OUT/shared/z.png"
-  magick "$BLANKET"     +append PNG32:"$APP_OUT/shared/blanket.png"
 
   # One pre-tinted copy per consuming state, because the baker tints nothing.
   magick "$APP_OUT/shared/coffee.png" -fill "$TINT_COLOUR" -colorize "$TINT_DOZING" \
@@ -807,6 +837,7 @@ if [ -n "$APP_OUT" ]; then
     \( "$(nth 0 $IDLE_FRAMES)" -fill "$TINT_COLOUR" -colorize "$TINT_DOZING" \) \
     \( $SLEEP_FRAMES -fill "$TINT_COLOUR" -colorize "$TINT_ASLEEP" \) \
     \( "$(nth 0 $IDLE_FRAMES)" -modulate "$COMEBACK_MODULATE" \) \
+    \( "$BLANKET" -background none -gravity NorthWest -extent 16x32 \) \
     +append PNG32:"$APP_OUT/layers/premade/$CHAR.png"
 fi
 
