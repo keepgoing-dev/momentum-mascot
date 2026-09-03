@@ -37,12 +37,25 @@ pub struct MoodPayload {
     pub mood: crate::mood::Mood,
     pub quote: String,
     pub character_id: String,
+    pub custom_character: Option<CustomCharacterDto>,
+    /// Whether the nine built-mascot strips are on disk. The id alone cannot say, so the
+    /// popover falls back to a premade rather than painting a room with nobody in it.
+    pub custom_art_ready: bool,
     pub projects: Vec<ProjectDto>,
     /// Only ever anything but 1.0 in a debug build with the demo clock running. The pet uses
     /// it for nothing; it is here so the popover can show that the clock is scaled, because
     /// a recording made against a scaled clock should say so on screen while it is being
     /// made rather than in a caption afterwards.
     pub clock_scale: f64,
+}
+
+#[derive(Serialize, Clone)]
+pub struct CustomCharacterDto {
+    pub skin: String,
+    pub eyes: String,
+    pub outfit: String,
+    pub hair: String,
+    pub accessory: Option<String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -89,6 +102,15 @@ pub fn publish(app: &AppHandle) {
             mood: snap.mood,
             quote: snap.quote.to_string(),
             character_id: snap.character_id,
+            custom_character: snap.custom_character.map(|c| CustomCharacterDto {
+                skin: c.body,
+                eyes: c.eyes,
+                outfit: c.outfit,
+                hair: c.hair,
+                accessory: c.accessory,
+            }),
+            // Whether the nine strips are actually on disk, which the id alone cannot say.
+            custom_art_ready: crate::custom::has_art(&crate::custom::dir(&state.store_path)),
             projects: snap
                 .projects
                 .into_iter()

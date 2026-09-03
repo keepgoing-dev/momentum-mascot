@@ -180,6 +180,21 @@ pub fn save_custom_character(
     Ok(())
 }
 
+/// Debug-only bake probe, gated the same way `MASCOT_PROBE_FRAMES` and the demo clock are: a
+/// submitted binary carries neither the variable nor the path it would write to.
+///
+/// Returns the five layer ids to bake on load, so tools/verify-bake.sh can compare the baker's
+/// pixels against the shell oracle without anyone clicking anything.
+#[tauri::command]
+pub fn bake_probe() -> Option<String> {
+    #[cfg(debug_assertions)]
+    {
+        return std::env::var("MASCOT_BAKE_PROBE").ok();
+    }
+    #[cfg(not(debug_assertions))]
+    None
+}
+
 /// Share Status. The webview draws the 1200x630 card on a canvas and hands over the PNG
 /// bytes; this puts them on the clipboard as a real image rather than a file or a data URL,
 /// because a real image is the only thing that pastes into a chat app and a social composer
