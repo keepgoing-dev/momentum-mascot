@@ -107,7 +107,8 @@ swatch() {  # swatch <out> <y> <sheet>...
 
 REF_BODY="$G/Bodies/16x16/Body_04.png"
 REF_EYES="$G/Eyes/16x16/Eyes_01.png"
-REF_HAIR="$G/Hairstyles/16x16/Hairstyle_03_03.png"
+REF_HAIR_STYLE=03
+REF_HAIR="$G/Hairstyles/16x16/Hairstyle_${REF_HAIR_STYLE}_03.png"
 
 # An eye is two pixels, a brow over an iris, and only the iris colour changes between the
 # seven. Cropped at 16px they are the same picture, so the swatch draws that colour big.
@@ -120,6 +121,43 @@ swatch_eyes() {  # swatch_eyes <out> <sheet>
     -fill "$brow" -draw "rectangle 2,5 6,6 rectangle 9,5 13,6" \
     -fill "$iris" -draw "rectangle 2,7 6,10 rectangle 9,7 13,10" \
     PNG32:"$1"
+}
+
+hair_band() {  # hair_band <colour>: the reference style's head band, one line per colour in it
+  magick "$G/Hairstyles/16x16/Hairstyle_${REF_HAIR_STYLE}_$1.png" -crop "16x16+48+6" +repage \
+    -unique-colors txt:- | tail -n +2
+}
+
+# Whatever the head band holds in all seven colours is the outline and the drop shadow, so what
+# is left is the hair itself.
+HAIR_SHARED=$(for c in $HAIR_COLOURS; do hair_band "$c" | awk '{print $3}'; done | sort | uniq -c |
+  awk -v n="$(echo "$HAIR_COLOURS" | wc -w)" '$1 == n {print $2}' | tr '\n' ' ')
+
+hair_shades() {  # hair_shades <colour>: its hair shades, lightest first
+  hair_band "$1" | awk -v skip="$HAIR_SHARED" '
+    { if (index(skip, $3)) next
+      split($2, p, /[(),]/)
+      printf "%.1f %s\n", 0.299 * p[2] + 0.587 * p[3] + 0.114 * p[4], $3 }' |
+    sort -rn | awk '{print $2}'
+}
+
+# One chip per colour, not per style: a hair colour is a ramp every style shares, and the
+# builder's colour row is a colour picker rather than a second listing of heads.
+swatch_hair_colours() {  # swatch_hair_colours <out-dir>
+  local out=$1 c shades n i lo hi args
+  mkdir -p "$out"
+  for c in $HAIR_COLOURS; do
+    shades=$(hair_shades "$c")
+    n=$(echo "$shades" | wc -w)
+    args=(-size 16x16 xc:none)
+    i=0
+    for s in $shades; do
+      lo=$((i * 16 / n)); hi=$((((i + 1) * 16 / n) - 1))
+      args+=(-fill "$s" -draw "rectangle 0,$lo 15,$hi")
+      i=$((i + 1))
+    done
+    magick "${args[@]}" PNG32:"$out/$c.png"
+  done
 }
 
 emit() {  # emit <category> <id> <sheet> <with-blanket> <swatch-mode>
@@ -158,6 +196,7 @@ for st in $HAIR_STYLES; do for c in $HAIR_COLOURS; do
   [ -f "$f" ] || { echo "  missing $id" >&2; continue; }
   emit hair "$id" "$f" 0 head; hair_ids+=("$id")
 done; done
+swatch_hair_colours "$OUT/swatches/hair-colour"
 
 outfit_ids=()
 for st in $OUTFIT_STYLES; do for c in $OUTFIT_COLOURS; do
