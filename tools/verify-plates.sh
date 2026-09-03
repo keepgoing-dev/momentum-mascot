@@ -15,7 +15,9 @@ MANIFEST="$A/character-layout.json"
 q() { jq -r "$1" "$MANIFEST"; }
 
 FRAMES=$(q '.frames')
-STATES=${*:-$(q '.states | keys[]' | tr '\n' ' ')}
+# Not the manifest's own keys: a verifier that takes its expectations from the artefact it
+# is checking cannot notice an artefact that is missing something.
+STATES=${*:-awake dozing asleep comeback run}
 WORK=$(mktemp -d -t verify-plates)
 trap 'rm -rf "$WORK"' EXIT
 
