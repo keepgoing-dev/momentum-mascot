@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+#
+# Cuts the curated Character Generator palette into the strips the builder composites from.
+#
+# One strip per layer variant, 448x32, 28 frames, in exactly the layout
+# tools/compose-rooms.sh writes for the premades, so the baker treats built and shipped
+# characters identically. Frames 19, 20-25 and 26 are pre-tinted because the baker only ever
+# does source-over (spec section 4.5).
+#
+# The palette itself is docs/asset-picks.md's "Generator palette" section; the lists below are
+# the executable half of it.
+#
+# Usage:  MASCOT_PACK=... tools/compose-layers.sh <out-dir>
+
+set -euo pipefail
+
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+. "$ROOT/tools/lib/tints.sh"
+
+PACK="${MASCOT_PACK:-$HOME/Workspace/OneQode/projects/repos/oneqode-pixel-assets/moderninteriors-win}"
+G="$PACK/2_Characters/Character_Generator"
+OUT="${1:-$ROOT/src/assets}"
+[ -d "$G" ] || { echo "asset pack not found: $G" >&2; exit 1; }
+
+WORK=$(mktemp -d -t compose-layers)
+trap 'rm -rf "$WORK"' EXIT
+
+# ---------------------------------------------------------------- the palette
+# Skin and eyes ship whole: sixteen files, and both are identity.
+# seq -w pads to the width of the largest value, which is one digit here, so -f is required.
+SKIN=$(seq -f 'Body_%02g' 1 9)
+EYES=$(seq -f 'Eyes_%02g' 1 7)
+
+# Hair and outfit are style x colour. Styles are curated for distinctness at 16px; colours
+# ship whole, because hair colour is identity in the same way skin tone is. Styles 27-29 are
+# excluded: they render stylised cyan and do not respond to the colour axis at all.
+HAIR_STYLES="01 02 03 04 05 08 09 10 11 13 15 18 22 26"
+HAIR_COLOURS="01 02 03 04 05 06 07"
+OUTFIT_STYLES="01 02 03 04 07 08 11 12 13 16 17 19 21"
+OUTFIT_COLOURS="01 02 03 04"
+
+# One representative per everyday family. The novelty half of the pack is deliberately absent:
+# no zombie brain, party cone, dino snapback, balaclava, police hat, ladybug or bee.
+ACCESSORIES="Accessory_15_Glasses_05 Accessory_16_Monocle_01 Accessory_11_Beanie_02
+Accessory_04_Snapback_05 Accessory_13_Beard_01 Accessory_12_Mustache_01
+Accessory_03_Backpack_01 Accessory_14_Gloves_01"
+
+# ---------------------------------------------------------------- crops
+IDLE="16x32+48+0"
+RUN_XS="192 208 224 240 256 272"
+SEATED_XS="48 64 80 96 112 128"
+SLEEP_XS="0 16 32 48 64 80"
+BLANKET="16x16+192+112"
+
+cut_at() {  # cut_at <sheet> <geom> <out>
+  magick "$1" -crop "$2" +repage PNG32:"$3"
+}
+
+cut_row() {  # cut_row <sheet> <y> <name> <x>...
+  local sheet=$1 y=$2 name=$3; shift 3
+  local n=0
+  for x in "$@"; do
+    cut_at "$sheet" "16x32+$x+$y" "$WORK/$name-$n.png"
+    n=$((n + 1))
+  done
+}
+
+# 28 frames: idle, run x6, seated x6, sleep x6, then the three tinted room frames and the
+# blanket. Categories other than skin contribute nothing to the blanket frame, which is
+# correct: the body is what supplies it, exactly as the premade sheets do.
+strip_for() {  # strip_for <sheet> <out> <with-blanket:0|1>
+  local sheet=$1 out=$2 with_blanket=$3
+
+  cut_at "$sheet" "$IDLE" "$WORK/idle.png"
+  cut_row "$sheet" 32 run $RUN_XS
+  cut_row "$sheet" 192 seated $SEATED_XS
+  cut_row "$sheet" 96 sleep $SLEEP_XS
+
+  local run=() seated=() slp=()
+  for n in 0 1 2 3 4 5; do
+    run+=("$WORK/run-$n.png"); seated+=("$WORK/seated-$n.png"); slp+=("$WORK/sleep-$n.png")
+  done
+
+  if [ "$with_blanket" = 1 ]; then
+    magick "$sheet" -crop "$BLANKET" +repage \
+      -background none -gravity NorthWest -extent 16x32 PNG32:"$WORK/blanket.png"
+  else
+    magick -size 16x32 xc:none PNG32:"$WORK/blanket.png"
+  fi
+
+  magick \
+    "$WORK/idle.png" "${run[@]}" "${seated[@]}" "${slp[@]}" \
+    \( "$WORK/idle.png" -fill "$TINT_COLOUR" -colorize "$TINT_DOZING" \) \
+    \( "${slp[@]}" -fill "$TINT_COLOUR" -colorize "$TINT_ASLEEP" \) \
+    \( "$WORK/idle.png" -modulate "$COMEBACK_MODULATE" \) \
+    "$WORK/blanket.png" \
+    +append PNG32:"$out"
+}
+
+# The head band, per spec section 2.3. Skin shows the face and so carries no hair.
+swatch() {  # swatch <out> <y> <sheet>...
+  local out=$1 y=$2; shift 2
+  local args=(-size 16x16 xc:none)
+  for s in "$@"; do args+=(\( "$s" -crop "16x16+48+$y" +repage \) -composite); done
+  magick "${args[@]}" PNG32:"$out"
+}
+
+REF_BODY="$G/Bodies/16x16/Body_04.png"
+REF_EYES="$G/Eyes/16x16/Eyes_01.png"
+REF_HAIR="$G/Hairstyles/16x16/Hairstyle_03_03.png"
+
+emit() {  # emit <category> <id> <sheet> <with-blanket> <swatch-mode>
+  local cat=$1 id=$2 sheet=$3 blanket=$4 mode=$5
+  mkdir -p "$OUT/layers/$cat" "$OUT/swatches/$cat"
+  strip_for "$sheet" "$OUT/layers/$cat/$id.png" "$blanket"
+  case "$mode" in
+    face)  swatch "$OUT/swatches/$cat/$id.png" 7 "$sheet" "$REF_EYES" ;;
+    head)  swatch "$OUT/swatches/$cat/$id.png" 6 "$REF_BODY" "$REF_EYES" "$sheet" ;;
+    torso) swatch "$OUT/swatches/$cat/$id.png" 16 "$REF_BODY" "$sheet" ;;
+    hatted) swatch "$OUT/swatches/$cat/$id.png" 6 "$REF_BODY" "$REF_EYES" "$REF_HAIR" "$sheet" ;;
+  esac
+}
+
+json_list() {  # json_list <name> <item>...
+  local name=$1; shift
+  printf '  "%s": [' "$name"
+  local first=1
+  for i in "$@"; do
+    [ $first = 1 ] || printf ', '
+    printf '"%s"' "$i"
+    first=0
+  done
+  printf ']'
+}
+
+echo "composing layers into $OUT/layers"
+
+skin_ids=(); for b in $SKIN; do emit skin "$b" "$G/Bodies/16x16/$b.png" 1 face; skin_ids+=("$b"); done
+eyes_ids=(); for e in $EYES; do emit eyes "$e" "$G/Eyes/16x16/$e.png" 0 head; eyes_ids+=("$e"); done
+
+hair_ids=()
+for st in $HAIR_STYLES; do for c in $HAIR_COLOURS; do
+  id="Hairstyle_${st}_${c}"; f="$G/Hairstyles/16x16/$id.png"
+  [ -f "$f" ] || { echo "  missing $id" >&2; continue; }
+  emit hair "$id" "$f" 0 head; hair_ids+=("$id")
+done; done
+
+outfit_ids=()
+for st in $OUTFIT_STYLES; do for c in $OUTFIT_COLOURS; do
+  id="Outfit_${st}_${c}"; f="$G/Outfits/16x16/$id.png"
+  [ -f "$f" ] || { echo "  missing $id" >&2; continue; }
+  emit outfit "$id" "$f" 0 torso; outfit_ids+=("$id")
+done; done
+
+acc_ids=()
+for a in $ACCESSORIES; do
+  f="$G/Accessories/16x16/$a.png"
+  [ -f "$f" ] || { echo "  missing $a" >&2; continue; }
+  emit accessory "$a" "$f" 0 hatted; acc_ids+=("$a")
+done
+
+{
+  printf '{\n'
+  json_list skin "${skin_ids[@]}"; printf ',\n'
+  json_list eyes "${eyes_ids[@]}"; printf ',\n'
+  json_list hair "${hair_ids[@]}"; printf ',\n'
+  json_list hairStyles $HAIR_STYLES; printf ',\n'
+  json_list hairColours $HAIR_COLOURS; printf ',\n'
+  json_list outfit "${outfit_ids[@]}"; printf ',\n'
+  json_list outfitStyles $OUTFIT_STYLES; printf ',\n'
+  json_list outfitColours $OUTFIT_COLOURS; printf ',\n'
+  json_list accessory "${acc_ids[@]}"; printf '\n}\n'
+} > "$OUT/layers/index.json"
+
+echo "  skin ${#skin_ids[@]}, eyes ${#eyes_ids[@]}, hair ${#hair_ids[@]}, outfit ${#outfit_ids[@]}, accessory ${#acc_ids[@]}"

@@ -312,10 +312,7 @@ HOP_COMEBACK="0 -1 -2 -2 -1 0 0 -1 -2 -2 -1 0"
 # A flat colour applied over the finished frame, not redrawn art. Retuning a
 # mood is one number here.
 
-TINT_COLOUR="#3050a0"
-TINT_DOZING=10
-TINT_ASLEEP=34
-COMEBACK_MODULATE="113,120"   # brightness,saturation
+. "$(dirname "$0")/lib/tints.sh"
 
 # ================================================================== helpers
 
@@ -714,6 +711,7 @@ write_manifest() {  # write_manifest <out>
       "room": {
         "char": { "x": $(at_x "$CHAR_AWAKE_AT"), "y": $(at_y "$CHAR_AWAKE_AT"),
                   "hop": [$(csv 0 0 0 0 0 0 0 0 0 0 0 0)], "range": "seated" },
+        "front": true,
         "overlays": []
       },
       "pet": {
@@ -743,6 +741,7 @@ write_manifest() {  # write_manifest <out>
       "room": {
         "char": { "x": $(at_x "$SLEEP_OVERLAY_AT"), "y": $(at_y "$SLEEP_OVERLAY_AT"),
                   "hop": [$(csv 0 0 0 0 0 0 0 0 0 0 0 0)], "range": "sleepAsleep" },
+        "front": true,
         "overlays": []
       },
       "pet": {

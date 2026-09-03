@@ -48,6 +48,10 @@ for char in $CHARACTERS; do
   emit_plates=""
 done
 
+# ---------------------------------------------------------------- the builder's layers
+# The curated generator palette, cut into the same strip layout the premades use.
+"$ROOT/tools/compose-layers.sh" "$APP_ASSETS" | sed 's/^/  /'
+
 # ---------------------------------------------------------------- the tray icon
 # A monochrome template image (section 6.2), drawn rather than cropped and committed rather
 # than generated fresh, for the reasons in make-icons.sh. Re-run here anyway so that one

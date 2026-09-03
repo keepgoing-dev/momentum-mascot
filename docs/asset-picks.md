@@ -457,3 +457,53 @@ pixel art.**
 - **The card is a still of a room that moves.** Every state is a 12-frame loop and the card takes
   frame 0. Whether the comeback in particular should travel as an animation is spec section 17
   question 4, deliberately not answered in Phase 2.
+
+## Generator palette
+
+The curated subset the built-mascot builder offers, from
+`2_Characters/Character_Generator/`. `tools/compose-layers.sh` is the executable version of
+this section; the lists there and the table here are kept in step.
+
+Hair and outfit are **style by colour**, not one flat list. The pack ships 29 hair styles in 7
+colours and 33 outfit styles in 4, and flattening that would mean you could have a bob, or you
+could have black hair, but only in the combinations someone happened to pick. The stored id
+encodes both (`Hairstyle_11_03`), so the state schema carries one string per layer either way.
+
+| Category | Shipped | Of | Rule |
+|---|---|---|---|
+| skin | 9 | 9 | every body; identity, and there are only nine |
+| eyes | 7 | 7 | every eye colour |
+| hair | 14 styles x 7 colours | 29 x 7 | styles curated for distinctness at 16px |
+| outfit | 13 styles x 4 colours | 33 x 4 | everyday clothing |
+| accessory | 8 plus none | 19 families | one representative per everyday family |
+
+**Hair styles 27, 28 and 29 are excluded.** They render stylised cyan and do not respond to the
+colour axis, so in a style-by-colour picker they would be the only entries whose colour swatches
+did nothing.
+
+**Excluded accessory families, on tone.** `Zombie_Brain`, `Party_Cone`, `Dino_Snapback`,
+`Bataclava`, `Policeman_Hat`, `Ladybug`, `Bee`. The app's voice is quiet and sincere; a party
+cone is a different product. `Glasses` is the single most identifying item available to a
+developer audience and is not optional.
+
+### The strip layout
+
+Each variant is one 448x32 PNG of 28 frames, identical in layout to what
+`compose-rooms.sh` writes for a premade, so the baker cannot tell a built character from a
+shipped one:
+
+| Frames | Contents | Tint |
+|---|---|---|
+| 0 | idle | none |
+| 1-6 | run | none |
+| 7-12 | seated | none |
+| 13-18 | sleep | none |
+| 19 | idle | `-colorize 10`, the dozing room |
+| 20-25 | sleep | `-colorize 34`, the asleep room |
+| 26 | idle | `-modulate 113,120`, the comeback room |
+| 27 | blanket | none, and **only the body supplies it** |
+
+Frames 0-18 are untinted because no pet frame is tinted, the awake room is untinted, and the
+builder preview is untinted. The tints come from `tools/lib/tints.sh`, which the room
+compositor sources too: a built mascot pre-tinted with different numbers from its own room
+would not match it.
