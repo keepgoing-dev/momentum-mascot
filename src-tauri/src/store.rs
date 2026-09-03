@@ -18,7 +18,7 @@ use serde_json::{json, Map, Value};
 
 use crate::mood::Rest;
 
-pub const SCHEMA_VERSION: &str = "3.2";
+pub const SCHEMA_VERSION: &str = "3.3";
 pub const CHARACTERS: [&str; 3] = ["07", "12", "20"];
 
 /// The id a built mascot is selected by. Deliberately not a member of `CHARACTERS`, which
@@ -47,6 +47,17 @@ pub struct Project {
     pub bookmark: Option<String>,
 }
 
+/// Where the pet sits, as an anchor rather than a coordinate: an absolute position only means
+/// anything under the display arrangement that produced it. Section 13 has the why.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PetAnchor {
+    /// An index into the four corners in reading order: top-left, top-right, bottom-left,
+    /// bottom-right.
+    Corner(u8),
+    /// A pre-3.3 absolute top-left, resolved to a corner the first time bounds are known.
+    Legacy(i32, i32),
+}
+
 /// The five generator layers a built mascot is composited from, in the pack's stacking order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CustomCharacter {
@@ -61,7 +72,7 @@ pub struct CustomCharacter {
 pub struct StateFile {
     pub last_displayed_state: Option<Rest>,
     pub character_id: String,
-    pub pet_position: Option<(i32, i32)>,
+    pub pet_anchor: Option<PetAnchor>,
     pub custom_character: Option<CustomCharacter>,
     pub projects: Vec<Project>,
 }
@@ -71,7 +82,7 @@ impl Default for StateFile {
         Self {
             last_displayed_state: None,
             character_id: CHARACTERS[0].to_string(),
-            pet_position: None,
+            pet_anchor: None,
             custom_character: None,
             projects: Vec::new(),
         }
@@ -171,11 +182,17 @@ pub fn from_json(text: &str) -> StateFile {
             .unwrap_or(CHARACTERS[0])
             .to_string(),
         custom_character: custom.clone(),
-        pet_position: root.get("pet_position").and_then(|v| {
-            let x = v.get("x")?.as_i64()? as i32;
-            let y = v.get("y")?.as_i64()? as i32;
-            Some((x, y))
-        }),
+        pet_anchor: root
+            .get("pet_corner")
+            .and_then(Value::as_u64)
+            .filter(|i| *i < 4)
+            .map(|i| PetAnchor::Corner(i as u8))
+            .or_else(|| {
+                let v = root.get("pet_position")?;
+                let x = v.get("x")?.as_i64()? as i32;
+                let y = v.get("y")?.as_i64()? as i32;
+                Some(PetAnchor::Legacy(x, y))
+            }),
         // Per element, so one malformed entry costs that entry rather than the whole list.
         projects: root
             .get("tracked_projects")
@@ -256,13 +273,15 @@ fn to_json(state: &StateFile) -> Value {
             })
             .unwrap_or(Value::Null),
     );
-    root.insert(
-        "pet_position".into(),
-        state
-            .pet_position
-            .map(|(x, y)| json!({ "x": x, "y": y }))
-            .unwrap_or(Value::Null),
-    );
+    // A Legacy anchor is written back in its own shape: it is only resolved once bounds are
+    // known, and a headless write before that must not throw the position away.
+    let (corner, position) = match state.pet_anchor {
+        Some(PetAnchor::Corner(i)) => (json!(i), Value::Null),
+        Some(PetAnchor::Legacy(x, y)) => (Value::Null, json!({ "x": x, "y": y })),
+        None => (Value::Null, Value::Null),
+    };
+    root.insert("pet_corner".into(), corner);
+    root.insert("pet_position".into(), position);
     root.insert(
         "tracked_projects".into(),
         Value::Array(
@@ -490,11 +509,34 @@ mod tests {
     }
 
     #[test]
+    fn a_legacy_position_survives_until_bounds_can_resolve_it() {
+        let legacy = from_json(r#"{"pet_position": {"x": 1516, "y": 1334}}"#).pet_anchor;
+        assert_eq!(legacy, Some(PetAnchor::Legacy(1516, 1334)));
+
+        let state = StateFile {
+            pet_anchor: legacy,
+            ..StateFile::default()
+        };
+        let back = from_json(&serde_json::to_string(&to_json(&state)).unwrap());
+        assert_eq!(back.pet_anchor, legacy, "a write before placement keeps it");
+    }
+
+    #[test]
+    fn a_corner_wins_over_a_stale_position_and_a_bad_one_is_dropped() {
+        assert_eq!(
+            from_json(r#"{"pet_corner": 1, "pet_position": {"x": 9, "y": 9}}"#).pet_anchor,
+            Some(PetAnchor::Corner(1))
+        );
+        assert_eq!(from_json(r#"{"pet_corner": 4}"#).pet_anchor, None);
+        assert_eq!(from_json(r#"{"pet_corner": "bottom right"}"#).pet_anchor, None);
+    }
+
+    #[test]
     fn a_round_trip_keeps_everything() {
         let state = StateFile {
             last_displayed_state: Some(Rest::Asleep),
             character_id: "20".into(),
-            pet_position: Some((1780, 940)),
+            pet_anchor: Some(PetAnchor::Corner(2)),
             custom_character: Some(CustomCharacter {
                 body: "Body_06".into(),
                 eyes: "Eyes_04".into(),
@@ -516,7 +558,7 @@ mod tests {
         let back = from_json(&serde_json::to_string(&to_json(&state)).unwrap());
         assert_eq!(back.last_displayed_state, Some(Rest::Asleep));
         assert_eq!(back.character_id, "20");
-        assert_eq!(back.pet_position, Some((1780, 940)));
+        assert_eq!(back.pet_anchor, Some(PetAnchor::Corner(2)));
         assert_eq!(back.projects, state.projects);
     }
 
@@ -636,11 +678,11 @@ mod tests {
     }
 
     #[test]
-    fn writers_declare_schema_3_2() {
+    fn writers_declare_schema_3_3() {
         // A file written with bookmarks is meaningfully different from one without, and the
         // reader has to keep accepting both.
         let text = serde_json::to_string(&to_json(&StateFile::default())).unwrap();
-        assert!(text.contains(r#""version":"3.2""#), "got: {text}");
+        assert!(text.contains(r#""version":"3.3""#), "got: {text}");
     }
 
     #[test]

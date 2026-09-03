@@ -29,6 +29,9 @@ uuid = { version = "1", features = ["v4"] }
 # tauri's own macOS runtime, so the typed NSScreen access below costs nothing extra.
 objc2 = "0.6"
 objc2-app-kit = "0.3"
+# Already in the lock as a transitive dependency of objc2-app-kit, so naming it adds a
+# dependency edge and no package. It is what `addObserverForName:...:usingBlock:` needs.
+block2 = "0.6"
 objc2-foundation = "0.3"
 # Core Animation, for the pet's sprite layer. Already in Cargo.lock at 0.3.2 as a transitive
 # dependency of objc2-app-kit.

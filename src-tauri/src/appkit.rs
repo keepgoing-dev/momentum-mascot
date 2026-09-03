@@ -196,3 +196,25 @@ pub fn open_url(url: &str) -> bool {
 pub fn open_url(_url: &str) -> bool {
     false
 }
+
+/// Run `f` on the main thread whenever the display arrangement changes: a monitor plugged or
+/// unplugged, a lid closed, a resolution change, a wake from sleep. Never removed.
+#[cfg(target_os = "macos")]
+pub fn observe_screen_changes<F: Fn() + 'static>(f: F) {
+    use objc2_app_kit::NSApplicationDidChangeScreenParametersNotification;
+    use objc2_foundation::{NSNotification, NSNotificationCenter, NSOperationQueue};
+
+    let block = block2::RcBlock::new(move |_: std::ptr::NonNull<NSNotification>| f());
+    let observer = unsafe {
+        NSNotificationCenter::defaultCenter().addObserverForName_object_queue_usingBlock(
+            Some(NSApplicationDidChangeScreenParametersNotification),
+            None,
+            Some(&NSOperationQueue::mainQueue()),
+            &block,
+        )
+    };
+    std::mem::forget(observer);
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn observe_screen_changes<F: Fn() + 'static>(_f: F) {}
