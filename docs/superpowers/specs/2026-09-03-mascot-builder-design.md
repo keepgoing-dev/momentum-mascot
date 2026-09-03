@@ -525,10 +525,21 @@ premades stay there; layer strips are read by the webview and live under `src/as
    **pixel-identical** to the currently shipped `rooms/<id>/<mood>.png`, for all three premades
    and all four states. `magick compare -metric AE` must report 0.
 
-   This is the most valuable test in the plan and it is achievable exactly, because the premades
-   are binary-alpha (section 4.5). It proves in one assertion that the plate split, the hop
-   arrays, the overlay deltas and the pre-tinting are all faithful to the compositor. If it
-   passes for twelve frames across four states and three characters, the manifest is complete.
+   This is the most valuable test in the plan. It proves in one assertion that the plate split,
+   the hop arrays, the overlay deltas and the pre-tinting are all faithful to the compositor. If
+   it passes for twelve frames across four states and three characters, the manifest is complete.
+
+   **Amended during implementation.** Exact AE of 0 holds for awake and comeback but not for
+   dozing, which lands 65 differing pixels per strip at a maximum per-channel delta of **1**.
+   The cause is rounding, not structure: `-colorize` quantises to integer quantum, so tinting
+   the sprites and tinting the finished frame disagree by one at antialiased pixels. Section
+   4.5's proof that colorize commutes with source-over is correct in exact arithmetic and
+   one-quantum lossy in ImageMagick's.
+
+   The bar is therefore **AE of 0, or every differing pixel at a maximum per-channel delta of
+   1**. A delta of 1 in 255 is not representable as a visible difference. Anything above 1 is a
+   real defect and fails. Awake stays exactly 0, which is what keeps the check meaningful:
+   an untinted state has no rounding excuse available to it.
 
    Run it against the pet strips too: the same reassembly against `pet/<id>/<mood>.png`.
 
