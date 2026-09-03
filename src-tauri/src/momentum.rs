@@ -301,11 +301,15 @@ impl Momentum {
     }
 
     pub fn cycle_character(&mut self) -> String {
-        let i = store::CHARACTERS
+        let mut order: Vec<&str> = store::CHARACTERS.to_vec();
+        if self.state.custom_character.is_some() {
+            order.push(store::CUSTOM_ID);
+        }
+        let i = order
             .iter()
             .position(|c| *c == self.state.character_id)
             .unwrap_or(0);
-        self.state.character_id = store::CHARACTERS[(i + 1) % store::CHARACTERS.len()].to_string();
+        self.state.character_id = order[(i + 1) % order.len()].to_string();
         self.state.character_id.clone()
     }
 
@@ -711,6 +715,22 @@ mod tests {
         assert_eq!(m.state.character_id, "07");
         assert_eq!(m.cycle_character(), "12");
         assert_eq!(m.cycle_character(), "20");
+        assert_eq!(m.cycle_character(), "07");
+    }
+
+    #[test]
+    fn the_cycle_is_four_long_with_a_built_mascot() {
+        let mut m = with(vec![], None);
+        m.state.custom_character = Some(store::CustomCharacter {
+            body: "Body_01".into(),
+            eyes: "Eyes_01".into(),
+            outfit: "Outfit_01_01".into(),
+            hair: "Hairstyle_05_02".into(),
+            accessory: None,
+        });
+        assert_eq!(m.cycle_character(), "12");
+        assert_eq!(m.cycle_character(), "20");
+        assert_eq!(m.cycle_character(), "custom");
         assert_eq!(m.cycle_character(), "07");
     }
 
