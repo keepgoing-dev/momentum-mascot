@@ -25,6 +25,7 @@ use std::time::Duration;
 use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition};
 
 use crate::app::{AppState, PET};
+use crate::store::PetAnchor;
 
 /// The pet's size in **logical** pixels, which is the same unit `pet.html` draws in.
 ///
@@ -89,6 +90,13 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     }
 
     win.show()?;
+
+    #[cfg(target_os = "macos")]
+    {
+        let handle = app.clone();
+        crate::appkit::observe_screen_changes(move || replace(&handle));
+    }
+
     Ok(())
 }
 
@@ -208,31 +216,34 @@ fn anchors(b: &Bounds) -> [(i32, i32); 4] {
     ]
 }
 
-/// Whether a saved top-left still lies on a connected display. A position that does not (an
-/// unplugged monitor, a resolution change) falls back to the bottom-right default rather than
-/// leaving the pet off screen, which is the contract in section 13.
-fn within_bounds(x: f64, y: f64, b: &Bounds) -> bool {
-    x >= b.left && y >= b.top && x + b.extent <= b.right && y + b.extent <= b.bottom
-}
-
 /// The corner nearest to a position, by squared distance. All four corners are on screen by
 /// construction, so "nearest" is the only rule and there is no edge case to be wrong in.
-fn nearest(current: (f64, f64), corners: &[(i32, i32); 4]) -> (i32, i32) {
-    let mut best = corners[0];
+fn nearest_index(current: (f64, f64), corners: &[(i32, i32); 4]) -> usize {
+    let mut best = 0;
     let mut best_d = f64::INFINITY;
-    for &(x, y) in corners {
+    for (i, &(x, y)) in corners.iter().enumerate() {
         let d = (x as f64 - current.0).powi(2) + (y as f64 - current.1).powi(2);
         if d < best_d {
             best_d = d;
-            best = (x, y);
+            best = i;
         }
     }
     best
 }
 
-/// The saved corner, if there is one and it still lies on a connected display, otherwise the
-/// bottom-right default. This is the whole persistence story: placement reads the one field
-/// and asks no questions of the geometry it does not need.
+/// An anchor against a set of corners: where the pet goes, and which corner that was. The
+/// index is what a `Legacy` anchor is upgraded to once bounds exist to resolve it.
+fn resolve(anchor: Option<PetAnchor>, corners: &[(i32, i32); 4]) -> ((i32, i32), u8) {
+    let i = match anchor {
+        Some(PetAnchor::Corner(i)) if (i as usize) < corners.len() => i as usize,
+        Some(PetAnchor::Legacy(x, y)) => nearest_index((x as f64, y as f64), corners),
+        _ => 3,
+    };
+    (corners[i], i as u8)
+}
+
+/// The saved corner against the live bounds, or the bottom-right default. Absolute pixels are
+/// derived here and never stored, which is the whole point: see section 13.
 ///
 /// **`outer_position()` read straight after `set_position` returns the OLD position**, and
 /// anyone checking this function's work needs to know that before they start. It reports the
@@ -243,24 +254,37 @@ fn nearest(current: (f64, f64), corners: &[(i32, i32); 4]) -> (i32, i32) {
 /// whole time and the measurement was lying. **Read the position from a delayed thread, or do
 /// not read it.**
 fn place(win: &tauri::window::Window, app: &AppHandle) -> tauri::Result<()> {
-    let Some(b) = usable_bounds(win, None) else {
+    // Its own position as the fallback hint: once a display is unplugged the window overlaps
+    // none, `current_monitor` is nil, and without this `usable_bounds` gives up on the pet.
+    let at = win
+        .outer_position()
+        .ok()
+        .map(|p| (p.x as f64, p.y as f64));
+    let Some(b) = usable_bounds(win, at) else {
         return Ok(());
     };
     let corners = anchors(&b);
 
-    let saved = app
-        .state::<AppState>()
-        .momentum
-        .lock()
-        .unwrap()
-        .state
-        .pet_position;
-    let target = saved
-        .filter(|&(x, y)| within_bounds(x as f64, y as f64, &b))
-        .unwrap_or(corners[3]);
+    let state = app.state::<AppState>();
+    let (target, _) = {
+        let mut momentum = state.momentum.lock().unwrap();
+        let resolved = resolve(momentum.state.pet_anchor, &corners);
+        momentum.state.pet_anchor = Some(PetAnchor::Corner(resolved.1));
+        resolved
+    };
 
     win.set_position(PhysicalPosition::new(target.0, target.1))?;
     Ok(())
+}
+
+/// Put the pet back on its corner after the displays changed underneath it. `place` otherwise
+/// runs only at creation, so an unplugged screen would strand the window where it used to be.
+pub fn replace(app: &AppHandle) {
+    if let Some(win) = app.get_window(PET) {
+        if let Err(e) = place(&win, app) {
+            eprintln!("could not re-place the pet after a display change: {e}");
+        }
+    }
 }
 
 /// The corner nearest `current`, without moving the window.
@@ -273,9 +297,11 @@ fn place(win: &tauri::window::Window, app: &AppHandle) -> tauri::Result<()> {
 pub fn nearest_corner(
     win: &tauri::window::Window,
     current: (f64, f64),
-) -> Option<(i32, i32)> {
+) -> Option<((i32, i32), u8)> {
     let b = usable_bounds(win, Some(current))?;
-    Some(nearest(current, &anchors(&b)))
+    let corners = anchors(&b);
+    let i = nearest_index(current, &corners);
+    Some((corners[i], i as u8))
 }
 
 /// Bumped whenever a glide starts or is cancelled. A running glide checks it against the value
@@ -424,13 +450,13 @@ pub fn move_to(app: &AppHandle, to: (f64, f64)) {
 /// the view can face the run that way. This is `commands::snap_pet` minus the command wrapper.
 pub fn on_drag_end(app: &AppHandle, at: (f64, f64)) -> Option<(i32, i32)> {
     let win = app.get_window(PET)?;
-    let target = nearest_corner(&win, at)?;
+    let (target, corner) = nearest_corner(&win, at)?;
     glide_to(app, &win, at, target);
 
     let state = app.state::<AppState>();
     let to_save = {
         let mut momentum = state.momentum.lock().unwrap();
-        momentum.state.pet_position = Some(target);
+        momentum.state.pet_anchor = Some(PetAnchor::Corner(corner));
         momentum.state.clone()
     };
     if let Err(e) = crate::store::save(&state.store_path, &to_save) {
@@ -499,10 +525,63 @@ mod tests {
     #[test]
     fn the_nearest_corner_is_chosen_by_distance() {
         let c = anchors(&b());
-        assert_eq!(nearest((10.0, 10.0), &c), (20, 20));
-        assert_eq!(nearest((1900.0, 10.0), &c), (1836, 20));
-        assert_eq!(nearest((10.0, 1050.0), &c), (20, 996));
-        assert_eq!(nearest((1900.0, 1050.0), &c), (1836, 996));
+        assert_eq!(nearest_index((10.0, 10.0), &c), 0);
+        assert_eq!(nearest_index((1900.0, 10.0), &c), 1);
+        assert_eq!(nearest_index((10.0, 1050.0), &c), 2);
+        assert_eq!(nearest_index((1900.0, 1050.0), &c), 3);
+    }
+
+    fn screen(left: f64, top: f64, right: f64, bottom: f64) -> Bounds {
+        Bounds {
+            left,
+            top,
+            right,
+            bottom,
+            extent: 64.0,
+            margin: 20.0,
+        }
+    }
+
+    /// The lid-closed case, in the arrangement it was measured in: a laptop bottom-aligned with
+    /// an ultrawide, then unplugged. No bounds check catches it; the stale point is on screen.
+    #[test]
+    fn a_corner_outlives_the_display_it_was_chosen_on() {
+        let laptop = screen(88.0, 436.0, 1600.0, 1418.0);
+        let dell = screen(0.0, 0.0, 3360.0, 1418.0);
+        let stale = anchors(&laptop)[3];
+
+        assert_eq!(stale, (1516, 1334), "the position the pet was found at");
+        assert!(
+            stale.0 as f64 >= dell.left && (stale.0 as f64) + dell.extent <= dell.right,
+            "still over the surviving display, so no off-screen check could catch it"
+        );
+        assert_ne!(stale, anchors(&dell)[3]);
+
+        assert_eq!(
+            resolve(Some(PetAnchor::Corner(3)), &anchors(&dell)),
+            ((3276, 1334), 3)
+        );
+    }
+
+    #[test]
+    fn an_anchor_resolves_to_a_corner_and_the_index_it_landed_on() {
+        let c = anchors(&b());
+        assert_eq!(
+            resolve(None, &c),
+            ((1836, 996), 3),
+            "the default is bottom right"
+        );
+        assert_eq!(resolve(Some(PetAnchor::Corner(0)), &c), ((20, 20), 0));
+        assert_eq!(
+            resolve(Some(PetAnchor::Corner(9)), &c),
+            ((1836, 996), 3),
+            "out of range"
+        );
+        assert_eq!(
+            resolve(Some(PetAnchor::Legacy(10, 1050)), &c),
+            ((20, 996), 2),
+            "a pre-3.3 absolute position takes the corner nearest it"
+        );
     }
 
     /// A wide display at the origin with a narrower one below it, inset on both sides. The
@@ -540,22 +619,5 @@ mod tests {
         assert_eq!(nearest_monitor((6162.0, 2952.0), &s), Some(0));
         // The mirror case, off the narrow display's own bottom edge.
         assert_eq!(nearest_monitor((3000.0, 5000.0), &s), Some(1));
-    }
-
-    #[test]
-    fn an_off_screen_position_falls_back_rather_than_leaving_the_pet_stranded() {
-        let b = b();
-        assert!(within_bounds(0.0, 0.0, &b));
-        assert!(
-            within_bounds(1856.0, 1016.0, &b),
-            "the far corner is the far edge"
-        );
-        assert!(!within_bounds(-1.0, 0.0, &b));
-        assert!(!within_bounds(0.0, -1.0, &b));
-        assert!(
-            !within_bounds(1857.0, 0.0, &b),
-            "an extent poking past the right edge"
-        );
-        assert!(!within_bounds(0.0, 1017.0, &b));
     }
 }

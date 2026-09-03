@@ -309,7 +309,7 @@ The pet is the surface that makes the art worth making, because it is the only o
 The primary ambient surface, and the primary way into the app.
 
 - **A 64x64 always-on-top window**, being the 32x32 character rendered at 2x. **The character only, never the room**, which is the same register split as the tray icon: the pet is the character, the popover is the scene.
-- **Bottom-right by default, draggable between the four corners.** A drag is the only repositioning there is: the pet is moved by dragging it, and it snaps to the nearest of the four screen corners on release, never left where it was dropped. Free placement is deliberately not offered — the pet earns its keep by being ambient and *predictable*, and a pet dropped over content is a nuisance that gets quit. The corner choice is persisted in `state.json` (section 13), so it survives a restart with no schema change.
+- **Bottom-right by default, draggable between the four corners.** A drag is the only repositioning there is: the pet is moved by dragging it, and it snaps to the nearest of the four screen corners on release, never left where it was dropped. Free placement is deliberately not offered — the pet earns its keep by being ambient and *predictable*, and a pet dropped over content is a nuisance that gets quit. The corner choice is persisted in `state.json` as `pet_corner` (section 13), so it survives a restart. It is re-derived against the live display bounds whenever the arrangement changes, so unplugging a monitor or closing a laptop lid moves the pet to the same corner of a display that still exists rather than stranding it where the old one used to be.
 - **The bottom-right inset must clear the Dock explicitly.** `Monitor::work_area()` is not enough: on the author's display it returned a rect that reserved the menu bar and **not** the Dock band, so a pet placed relative to it sits underneath the Dock, which draws at window level 20. Placement uses the work area **plus** a Dock-aware inset. This is a tested finding (`spikes/always-on-top/RESULTS.md`), and it cost real time to diagnose because every AppKit property reported the window healthy while it was hidden.
 - **A macOS-only `NSPanel` conversion is required** for the pet to be visible over fullscreen applications. Section 11, wall 1 has the recipe; section 10.3 accounts for it as the design's one platform-specific exception.
 - **The pet's webview disables text selection, the context menu, and dragging.** Use `-webkit-user-select: none`, because plain `user-select` is not honoured in the WKWebView the pet renders in. Found by clicking the spike: the character is a picture, and picture-like things that highlight blue on click read as broken.
@@ -683,7 +683,7 @@ This is deliberately its own phase rather than a task inside Phase 3. It is the 
   "version": "3.0",
   "last_displayed_state": "asleep",
   "character_id": "07",
-  "pet_position": { "x": 1780, "y": 940 },
+  "pet_corner": 3,
   "tracked_projects": [
     {
       "id": "a1b2c3d4-e5f6-7890",
@@ -701,7 +701,9 @@ This is deliberately its own phase rather than a task inside Phase 3. It is the 
 - `version` allows a future migration. This release reads `"3.0"` and treats older files as best-effort, filling missing new fields with sane defaults.
 - `last_displayed_state` is `awake`, `dozing`, or `asleep`. It exists solely so comeback detection survives a restart, and is never used as the current state.
 - `character_id` is one of the three shipped characters. Missing, unknown, or malformed values fall back to the first character rather than erroring, per the resilient-parsing contract in section 8.3. A future release that ships more characters must not break on a value it does not recognise.
-- `pet_position` is the desktop pet's top-left corner, in physical pixels. It starts unset, which places the pet bottom-right by default, and is written whenever the pet is dragged to a corner (section 6.1). A missing value, or one that falls outside the current display bounds (an unplugged monitor, a resolution change), resets to the bottom-right default rather than leaving the pet off screen.
+- `pet_corner` is which of the four corners the pet sits in, as an index in reading order: `0` top-left, `1` top-right, `2` bottom-left, `3` bottom-right. It starts unset, which is bottom-right, and is written whenever the pet is dragged to a corner (section 6.1). Missing, out of range, or malformed values fall back to bottom-right, per the resilient-parsing contract in section 8.3.
+
+  The absolute position is derived from the corner against the live display bounds every time the pet is placed, and never stored. Schema 3.2 and earlier stored `pet_position`, a top-left in physical pixels, which is only meaningful under the display arrangement that produced it: closing a laptop lid renumbers the global coordinate space, so a pet anchored to the bottom-right of the screen that went away kept coordinates pointing into the middle of the screen that stayed. A bounds check cannot catch that, because the stale point is usually still over a surviving display. A `pet_position` from an older file is read once and resolved to the corner nearest it, then written back as `pet_corner`.
 - `last_commit_at` is nullable, for a repository with no commits yet, and is subject to the monotonicity rule in section 9.2.
 - `last_active_at` is nullable, records the last non-ignored working-tree file change, and is subject to the same monotonicity rule.
 - `operating` is a boolean defaulting to `false`. When `true`, the project is excluded from mood evaluation and shown with an `operating` label in the project list.
