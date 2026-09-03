@@ -16,6 +16,7 @@ mod appkit;
 mod clock;
 mod commands;
 mod copy;
+mod custom;
 mod momentum;
 mod mood;
 mod pet;

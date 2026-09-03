@@ -94,6 +94,10 @@ pub fn relative_path(character_id: &str, mood: &str) -> PathBuf {
 /// Separate from `relative_path` so the layout is testable without an `AppHandle`.
 pub fn resolve_path(app: &tauri::AppHandle, character_id: &str, mood: &str) -> Option<PathBuf> {
     use tauri::Manager;
+    if character_id == crate::store::CUSTOM_ID {
+        let art = crate::custom::dir(&crate::store::default_path());
+        return crate::custom::relative_art_path(&format!("pet/{mood}")).map(|r| art.join(r));
+    }
     let dir = app.path().resource_dir().ok()?;
     Some(dir.join(relative_path(character_id, mood)))
 }
