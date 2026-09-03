@@ -480,7 +480,7 @@ no way to express one rather than a rule about remembering not to" survives this
 - emits `character-layout.json` (section 5.2)
 
 New `tools/compose-layers.sh`:
-- crops the curated palette to **432x32 strips, 27 frames**, laid out as:
+- crops the curated palette to **448x32 strips, 28 frames**, laid out as:
 
   | Frames | Contents | Tint |
   |---|---|---|
@@ -491,6 +491,7 @@ New `tools/compose-layers.sh`:
   | 19 | idle | `-colorize 10` (dozing room) |
   | 20-25 | sleep | `-colorize 34` (asleep room) |
   | 26 | idle | `-modulate 113,120` (comeback room) |
+  | 27 | blanket (16x16, top-left of the cell) | none |
 
   Frames 0-18 are untinted because **every pet frame is untinted** - `frame_pet_*` applies no
   colour operation at all - and because awake's room is untinted and the builder preview is
@@ -501,10 +502,18 @@ New `tools/compose-layers.sh`:
 
 - output `src/assets/layers/<category>/<id>.png`
 - emits the swatch crops the builder's grid uses (section 6.2)
-- emits the shared sprites the baker places but that are not per-layer: coffee, the four emote
-  pairs, and the sleep blanket. The blanket is generic art rather than per-character
-  (`asset-picks.md` calls `192,96` "a generic overlay for any bed"), so it ships once; the plan
-  verifies it is byte-identical across the sheets in the palette rather than assuming it.
+- emits the shared sprites the baker places but that are not per-layer: coffee and the four
+  emote pairs.
+
+**The blanket is not one of them, and this was measured rather than assumed.**
+`asset-picks.md` calls `192,96` "a generic overlay for any bed", which is true of its role and
+false of its pixels: the crop differs on all three premade sheets and on every body in the
+palette. Shipping one copy made `pet/12/asleep` and `pet/20/asleep` fail reassembly at a max
+delta of 27 while `pet/07` passed, because 07 happened to be the sheet that wrote it.
+
+The blanket therefore rides in the layer strip as **frame 27**, taken from the body layer, and
+the strip is 28 frames at 448x32 rather than 27 at 432x32. For a built mascot the body is what
+supplies it, which is the same relationship the premade sheets have to their own.
 
 `tools/build-app-assets.sh` calls both. `CHARACTERS="07 12 20"` at line 31 is untouched.
 

@@ -692,10 +692,15 @@ swatch() {  # swatch <out> <sheet>...
 }
 ```
 
-- [ ] **Step 5: Verify the blanket is generic**
+- [ ] **Step 5: Emit the blanket as frame 27, per body**
 
-Spec section 9 requires this be checked rather than assumed. Assert the blanket crop is
-byte-identical across every body sheet in the palette:
+**Answered during Task 4: the blanket is not generic.** Its crop differs on all three premade
+sheets and on every body sampled, which made `pet/12/asleep` and `pet/20/asleep` fail reassembly
+at a max delta of 27 while `pet/07` passed. It is frame 27 of the layer strip, taken from the
+body layer, padded to the 16x32 cell with `-background none -gravity NorthWest -extent 16x32`.
+
+The check below is kept as a regression guard, inverted: it now asserts the blankets **differ**,
+so that a future pack update quietly making them uniform does not go unnoticed.
 
 ```bash
 ref=""; for b in $SKIN_SHEETS; do
