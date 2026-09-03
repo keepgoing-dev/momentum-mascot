@@ -283,3 +283,130 @@ body {
 .credit .linkish:hover {
   color: var(--cream);
 }
+
+/* ---------------------------------------------------------------- the builder */
+
+/* The preview sits over the room, not beside it: the room is the reward, and building your
+   mascot while they stand in it is the point of doing this here rather than in a window. */
+.preview {
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+  background-size: 3840px 224px;
+  animation: room 2s steps(12) infinite;
+}
+
+/* The builder pose, centred at +72+56 in room pixels (spec 4.3), doubled. One frame, not
+   twelve: the idle sprite is a single cell and the room's own animation carries the motion. */
+.preview .layer {
+  position: absolute;
+  left: 144px;
+  top: 112px;
+  width: 32px;
+  height: 64px;
+  background-repeat: no-repeat;
+  background-size: 896px 64px;
+  background-position: 0 0;
+  image-rendering: pixelated;
+}
+
+.builder {
+  margin-top: 12px;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.tabs button {
+  flex: 1;
+  padding: 6px 0;
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  background: var(--mat);
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tabs button[aria-selected="true"] {
+  color: var(--panel);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.swatch-row,
+.swatch-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.swatch-grid {
+  height: 112px;
+  overflow-y: auto;
+  align-content: flex-start;
+}
+
+.swatch {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background-color: var(--mat);
+  background-size: 32px 32px;
+  background-repeat: no-repeat;
+  outline: 2px solid var(--edge);
+  image-rendering: pixelated;
+  cursor: pointer;
+}
+
+.swatch[aria-pressed="true"] {
+  outline-color: var(--accent);
+}
+
+.swatch.none {
+  font-size: 9px;
+  color: var(--muted);
+}
+
+.builder-acts {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.builder-acts button {
+  flex: 1;
+  padding: 9px 0;
+  font: inherit;
+  font-size: 11px;
+  color: var(--cream);
+  background: var(--mat);
+  border: 1px solid var(--edge);
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.builder-acts button.primary {
+  color: var(--panel);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* The empty slot before anything is built. Dashed so it reads as an invitation rather than
+   as a fourth character whose art failed to load. */
+.char-btn.plus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  font-size: 17px;
+  line-height: 1;
+  outline-style: dashed;
+}

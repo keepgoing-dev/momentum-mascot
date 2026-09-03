@@ -18,10 +18,25 @@
              around the room, because clicking the bed to change who is asleep in it is not the
              same gesture. -->
         <button id="charHit" class="char-hit" title="Click to switch character"></button>
+        <!-- The builder's live preview: the untinted back plate with the character stacked on
+             top, centred so the whole body is clear of the lamp and the desk. -->
+        <div id="preview" class="preview" hidden></div>
       </div>
 
       <!-- A visible picker so the character switch is discoverable. Three heads, one row. -->
       <div class="characters" id="characters"></div>
+
+      <!-- The builder. Replaces everything below the room, and the room becomes its preview. -->
+      <section id="builder" class="builder" hidden>
+        <div class="tabs" id="builderTabs"></div>
+        <div class="swatch-row" id="builderColours" hidden></div>
+        <div class="swatch-grid" id="builderGrid"></div>
+        <div class="builder-acts">
+          <button id="builderCancel" type="button">Cancel</button>
+          <button id="builderShuffle" type="button">Shuffle</button>
+          <button id="builderDone" type="button" class="primary">Done</button>
+        </div>
+      </section>
 
       <!-- 2. The quote. Departure Mono at 11px, which is its native cell. -->
       <p id="quote" class="quote type"></p>
