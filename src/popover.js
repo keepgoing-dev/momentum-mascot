@@ -85,19 +85,25 @@ function customButton() {
 
 async function openBuilder() {
   await builder.open(current?.custom_character ?? null, async (build, blobs) => {
-    if (!build) return;
-    for (const [name, blob] of blobs) {
-      const png = Array.from(new Uint8Array(await blob.arrayBuffer()));
-      await invoke("write_custom_art", { name, png });
+    // The builder hid the empty-state line, and only a render knows whether it belongs back.
+    // It has closed by the time this runs, so the render is not dropped.
+    try {
+      if (!build) return;
+      for (const [name, blob] of blobs) {
+        const png = Array.from(new Uint8Array(await blob.arrayBuffer()));
+        await invoke("write_custom_art", { name, png });
+      }
+      // The UI category is "skin"; the stored field is "body", after the pack's own folder.
+      await invoke("save_custom_character", {
+        body: build.skin,
+        eyes: build.eyes,
+        outfit: build.outfit,
+        hair: build.hair,
+        accessory: build.accessory,
+      });
+    } finally {
+      invoke("refresh");
     }
-    // The UI category is "skin"; the stored field is "body", after the pack's own folder.
-    await invoke("save_custom_character", {
-      body: build.skin,
-      eyes: build.eyes,
-      outfit: build.outfit,
-      hair: build.hair,
-      accessory: build.accessory,
-    });
   });
 }
 
@@ -134,8 +140,6 @@ function render(payload) {
   // made against a scaled clock should say so on screen while it is being made.
   clockEl.hidden = payload.clock_scale === 1;
   clockEl.textContent = `debug clock: ${payload.clock_scale}x`;
-
-  fitWindow();
 }
 
 /**
@@ -228,10 +232,13 @@ async function fitWindow() {
   }
 }
 
+// Observed rather than called from each place that changes the height: the builder replaces
+// everything below the room, and a call missed there clips the window.
+new ResizeObserver(fitWindow).observe(document.querySelector(".panel"));
+
 function showError(message) {
   errorEl.textContent = message;
   errorEl.hidden = !message;
-  fitWindow();
 }
 
 addButton.addEventListener("click", async () => {

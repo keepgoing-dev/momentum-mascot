@@ -219,8 +219,10 @@ el.done.addEventListener("click", async () => {
   el.done.disabled = true;
   try {
     const blobs = await bake(manifest, build);
-    onFinish?.(build, blobs);
+    // Closed before the callback, as cancel does: the callback re-renders, and a render is
+    // dropped while the builder is still open.
     close();
+    await onFinish?.(build, blobs);
   } finally {
     el.done.disabled = false;
   }
