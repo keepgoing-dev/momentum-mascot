@@ -18,8 +18,12 @@ use serde_json::{json, Map, Value};
 
 use crate::mood::Rest;
 
-pub const SCHEMA_VERSION: &str = "3.1";
+pub const SCHEMA_VERSION: &str = "3.2";
 pub const CHARACTERS: [&str; 3] = ["07", "12", "20"];
+
+/// The id a built mascot is selected by. Deliberately not a member of `CHARACTERS`, which
+/// means "the shipped premades" at every use.
+pub const CUSTOM_ID: &str = "custom";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Project {
@@ -43,11 +47,22 @@ pub struct Project {
     pub bookmark: Option<String>,
 }
 
+/// The five generator layers a built mascot is composited from, in the pack's stacking order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CustomCharacter {
+    pub body: String,
+    pub eyes: String,
+    pub outfit: String,
+    pub hair: String,
+    pub accessory: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct StateFile {
     pub last_displayed_state: Option<Rest>,
     pub character_id: String,
     pub pet_position: Option<(i32, i32)>,
+    pub custom_character: Option<CustomCharacter>,
     pub projects: Vec<Project>,
 }
 
@@ -57,6 +72,7 @@ impl Default for StateFile {
             last_displayed_state: None,
             character_id: CHARACTERS[0].to_string(),
             pet_position: None,
+            custom_character: None,
             projects: Vec::new(),
         }
     }
@@ -140,6 +156,18 @@ pub fn from_json(text: &str) -> StateFile {
             .filter(|id| CHARACTERS.contains(id))
             .unwrap_or(CHARACTERS[0])
             .to_string(),
+        // All four required layers or nothing. A half-written build must show the picker its
+        // "+" again rather than a mascot missing its face.
+        custom_character: root.get("custom_character").and_then(|v| {
+            let f = |k: &str| v.get(k).and_then(Value::as_str).map(str::to_string);
+            Some(CustomCharacter {
+                body: f("body")?,
+                eyes: f("eyes")?,
+                outfit: f("outfit")?,
+                hair: f("hair")?,
+                accessory: f("accessory"),
+            })
+        }),
         pet_position: root.get("pet_position").and_then(|v| {
             let x = v.get("x")?.as_i64()? as i32;
             let y = v.get("y")?.as_i64()? as i32;
@@ -212,6 +240,19 @@ fn to_json(state: &StateFile) -> Value {
             .unwrap_or(Value::Null),
     );
     root.insert("character_id".into(), json!(state.character_id));
+    root.insert(
+        "custom_character".into(),
+        state
+            .custom_character
+            .as_ref()
+            .map(|c| {
+                json!({
+                    "body": c.body, "eyes": c.eyes, "outfit": c.outfit,
+                    "hair": c.hair, "accessory": c.accessory,
+                })
+            })
+            .unwrap_or(Value::Null),
+    );
     root.insert(
         "pet_position".into(),
         state
@@ -322,6 +363,40 @@ mod tests {
     use super::*;
 
     #[test]
+    fn custom_character_round_trips() {
+        let mut state = StateFile::default();
+        state.custom_character = Some(CustomCharacter {
+            body: "Body_03".into(),
+            eyes: "Eyes_02".into(),
+            outfit: "Outfit_11_04".into(),
+            hair: "Hairstyle_11_03".into(),
+            accessory: Some("Accessory_15_Glasses_05".into()),
+        });
+        let text = serde_json::to_string(&to_json(&state)).unwrap();
+        assert_eq!(from_json(&text).custom_character, state.custom_character);
+    }
+
+    #[test]
+    fn custom_character_accessory_is_optional() {
+        let mut state = StateFile::default();
+        state.custom_character = Some(CustomCharacter {
+            body: "Body_01".into(),
+            eyes: "Eyes_01".into(),
+            outfit: "Outfit_01_01".into(),
+            hair: "Hairstyle_05_02".into(),
+            accessory: None,
+        });
+        let text = serde_json::to_string(&to_json(&state)).unwrap();
+        assert_eq!(from_json(&text).custom_character.unwrap().accessory, None);
+    }
+
+    #[test]
+    fn a_partial_custom_character_is_dropped_not_defaulted() {
+        let s = from_json(r#"{"version":"3.2","custom_character":{"body":"Body_01"}}"#);
+        assert_eq!(s.custom_character, None);
+    }
+
+    #[test]
     fn every_broken_file_shape_loads() {
         // Section 14's list, verbatim. None of these may panic and none may lose the app.
         for text in [
@@ -402,6 +477,13 @@ mod tests {
             last_displayed_state: Some(Rest::Asleep),
             character_id: "20".into(),
             pet_position: Some((1780, 940)),
+            custom_character: Some(CustomCharacter {
+                body: "Body_06".into(),
+                eyes: "Eyes_04".into(),
+                outfit: "Outfit_25_01".into(),
+                hair: "Hairstyle_29_03".into(),
+                accessory: Some("Accessory_11_Beanie_02".into()),
+            }),
             projects: vec![Project {
                 id: "a1b2".into(),
                 path: PathBuf::from("/Users/someone/Projects/thing"),
@@ -536,11 +618,11 @@ mod tests {
     }
 
     #[test]
-    fn writers_declare_schema_3_1() {
+    fn writers_declare_schema_3_2() {
         // A file written with bookmarks is meaningfully different from one without, and the
         // reader has to keep accepting both.
         let text = serde_json::to_string(&to_json(&StateFile::default())).unwrap();
-        assert!(text.contains(r#""version":"3.1""#), "got: {text}");
+        assert!(text.contains(r#""version":"3.2""#), "got: {text}");
     }
 
     #[test]
