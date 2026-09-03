@@ -9,6 +9,12 @@ body {
   background: var(--panel);
 }
 
+/* Class rules below set `display`, which outranks the browser's own `[hidden]` rule and would
+   otherwise leave the character row, the buttons and the colour row on screen in the builder. */
+[hidden] {
+  display: none !important;
+}
+
 .panel {
   width: 352px;
   padding: 16px;
