@@ -464,10 +464,11 @@ The curated subset the built-mascot builder offers, from
 `2_Characters/Character_Generator/`. `tools/compose-layers.sh` is the executable version of
 this section; the lists there and the table here are kept in step.
 
-Hair and outfit are **style by colour**, not one flat list. The pack ships 29 hair styles in 7
-colours and 33 outfit styles in 4, and flattening that would mean you could have a bob, or you
-could have black hair, but only in the combinations someone happened to pick. The stored id
-encodes both (`Hairstyle_11_03`), so the state schema carries one string per layer either way.
+Hair, outfit and accessory are **style by colour**, not one flat list. The pack ships 29 hair
+styles in 7 colours, 33 outfit styles in 4, and every accessory family in 3 to 10, and
+flattening that would mean you could have a bob, or you could have black hair, but only in the
+combinations someone happened to pick. The stored id encodes both (`Hairstyle_11_03`,
+`Accessory_15_Glasses_05`), so the state schema carries one string per layer either way.
 
 | Category | Shipped | Of | Rule |
 |---|---|---|---|
@@ -475,7 +476,7 @@ encodes both (`Hairstyle_11_03`), so the state schema carries one string per lay
 | eyes | 7 | 7 | every eye colour |
 | hair | 14 styles x 7 colours | 29 x 7 | styles curated for distinctness at 16px |
 | outfit | 13 styles x 4 colours | 33 x 4 | everyday clothing |
-| accessory | 8 plus none | 19 families | one representative per everyday family |
+| accessory | 8 families x 3-8 colours, plus none | 19 families | one everyday family per entry |
 
 **Hair styles 27, 28 and 29 are excluded.** They render stylised cyan and do not respond to the
 colour axis, so in a style-by-colour picker they would be the only entries whose colour swatches
@@ -485,6 +486,17 @@ did nothing.
 `Bataclava`, `Policeman_Hat`, `Ladybug`, `Bee`. The app's voice is quiet and sincere; a party
 cone is a different product. `Glasses` is the single most identifying item available to a
 developer audience and is not optional.
+
+**Accessory colours ship whole bar two.** `Backpack` is the one family with more than eight,
+and eight is what one row of the colour picker holds; `Backpack_04` and `Backpack_10` are the
+second green and the second blue, which a 4px strap cannot tell from the first. `Beard` and
+`Mustache` colour along the hair ramp rather than decoratively, so their colour row is a
+facial-hair colour picker.
+
+**Accessory swatches crop at two rows.** A 16px swatch spans y6-21 or y12-27 of the 32px idle
+frame, and accessories run from a beanie at y8 to a pair of gloves at y26, so no single crop
+holds them all. `Snapback` and `Beanie` take the higher crop, everything else the lower one,
+and both draw the accessory over the reference body, eyes, hair and outfit.
 
 ### The strip layout
 
