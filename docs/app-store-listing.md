@@ -692,9 +692,21 @@ one screen that shows what the builder actually is. `SKIN` and `EYES` are a sing
 before shooting so a swatch carries the selected outline; an untouched builder photographs as a
 grid of heads with nothing happening to them.
 
-**The room above it is the preview, and it has to have somebody in it.** That is the argument
-for the whole feature and it is the half of the frame a thumbnail can read: at gallery size the
-swatch grid is texture, and the character in the room is the only thing with a shape.
+**The top of the panel is the preview, and it is not the room.** `builder.js:209` hides the room
+and swaps in the untinted `awake-back` plate with the character centred, so there is no blue wash
+and nothing in front of them. It fills the room's own box (`popover.css:297`, `inset: 0`), and the
+quote, the project rows, the buttons and the character strip all hide with it. So the panel
+geometry is identical to shots 1 and 3 to 5 and only what is inside it differs.
+
+**Build something with contrast in it.** The preview is the half of the frame a thumbnail can
+read: at 640px the swatch grid is texture and the character is the only thing with a shape. A
+strong hair colour and glasses read at gallery size; a subtle build does not.
+
+**There is no zoomed version of this shot, or of any of them.** 2560x1600 is exactly 1280x800 of
+logical space on a 2x display, and the popover is 352x540 logical, so the panel is always
+704x1080 physical: 27.5% of the frame's width and 67.5% of its height. The only thing a crop
+chooses is where the window sits, never how large the panel is inside it. Getting closer would
+mean scaling, and nothing in `store-shots.sh` scales a screenshot.
 
 **Check that `popover` cropped it and did not fall back.** The crop finds the panel by masking
 its background colour and taking the connected component 704 physical pixels wide, and the
