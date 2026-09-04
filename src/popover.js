@@ -59,28 +59,58 @@ function buildCharacters() {
 }
 
 /**
- * The fourth slot. A dashed "+" until something is built, then the mascot's own head. Clicking
- * it while it is already selected re-opens the builder, which is the only way back in to edit.
+ * The fourth slot. A dashed "+" until something is built, then the mascot itself. Clicking it
+ * while it is already selected re-opens the builder, which is the only way back in to edit.
+ *
+ * Built once and repainted from `render()`: the page loads before the first mood arrives, so
+ * whether anything is built is not yet known here.
  */
 function customButton() {
-  const built = Boolean(current?.custom_character);
-  const selected = current?.character_id === CUSTOM_ID;
   const btn = document.createElement("button");
-  btn.className = built ? "char-btn" : "char-btn plus";
+  btn.className = "char-btn plus";
   btn.dataset.id = CUSTOM_ID;
   btn.type = "button";
-  btn.title = built ? "Your mascot" : "Build your own";
-  btn.setAttribute("aria-label", built ? "Use your built mascot" : "Build your own mascot");
-  if (built) {
-    btn.style.backgroundImage = `url("assets/swatches/skin/${current.custom_character.skin}.png")`;
-  } else {
-    btn.textContent = "+";
-  }
+  btn.textContent = "+";
   btn.addEventListener("click", () => {
-    if (!built || selected) openBuilder();
+    if (!current?.custom_character || current.character_id === CUSTOM_ID) openBuilder();
     else invoke("set_character", { id: CUSTOM_ID });
   });
   return btn;
+}
+
+/**
+ * The tile's picture: the mascot's own dozing strip, which is the asset and the first-frame
+ * crop the three premades already use. Re-read only when the build changes, because this runs
+ * on every publish.
+ */
+let customArt = { key: null, url: null };
+async function paintCustom(btn) {
+  const build = current?.custom_character ?? null;
+  btn.classList.toggle("plus", !build);
+  btn.textContent = build ? "" : "+";
+  btn.title = build ? "Your mascot (click again to edit)" : "Build your own";
+  btn.setAttribute("aria-label", build ? "Use your built mascot" : "Build your own mascot");
+
+  const key = build && JSON.stringify([build, current.custom_art_ready]);
+  if (key === customArt.key) return;
+  if (customArt.url) URL.revokeObjectURL(customArt.url);
+  customArt = { key, url: null };
+
+  if (!build) {
+    btn.classList.remove("flat");
+    btn.style.backgroundImage = "";
+    return;
+  }
+  // Section 5.4 again: a half-written cache shows the body rather than claiming nothing is built.
+  if (!current.custom_art_ready) {
+    btn.classList.add("flat");
+    btn.style.backgroundImage = `url("assets/swatches/skin/${build.skin}.png")`;
+    return;
+  }
+  const png = await invoke("read_custom_art", { name: "pet/dozing" });
+  customArt.url = URL.createObjectURL(new Blob([new Uint8Array(png)], { type: "image/png" }));
+  btn.classList.remove("flat");
+  btn.style.backgroundImage = `url("${customArt.url}")`;
 }
 
 async function openBuilder() {
@@ -111,6 +141,7 @@ function updateCharacters(selectedId) {
   for (const btn of charsEl.children) {
     btn.classList.toggle("selected", btn.dataset.id === selectedId);
     btn.setAttribute("aria-pressed", btn.dataset.id === selectedId ? "true" : "false");
+    if (btn.dataset.id === CUSTOM_ID) paintCustom(btn);
   }
 }
 
