@@ -39,11 +39,18 @@ HAIR_COLOURS="01 02 03 04 05 06 07"
 OUTFIT_STYLES="01 02 03 04 07 08 11 12 13 16 17 19 21"
 OUTFIT_COLOURS="01 02 03 04"
 
-# One representative per everyday family. The novelty half of the pack is deliberately absent:
-# no zombie brain, party cone, dino snapback, balaclava, police hat, ladybug or bee.
-ACCESSORIES="Accessory_15_Glasses_05 Accessory_16_Monocle_01 Accessory_11_Beanie_02
-Accessory_04_Snapback_05 Accessory_13_Beard_01 Accessory_12_Mustache_01
-Accessory_03_Backpack_01 Accessory_14_Gloves_01"
+# One everyday family per entry, colours whole. The novelty half of the pack is deliberately
+# absent: no zombie brain, party cone, dino snapback, balaclava, police hat, ladybug or bee.
+ACCESSORY_FAMILIES="03_Backpack 04_Snapback 11_Beanie 12_Mustache
+13_Beard 14_Gloves 15_Glasses 16_Monocle"
+
+# Eight is what one row of the colour picker holds. Backpack ships ten, and a 4px strap cannot
+# tell the second green from the first, nor the second blue.
+ACCESSORY_SKIP="Accessory_03_Backpack_04 Accessory_03_Backpack_10"
+
+# A 16px swatch spans y6-21 or y12-27, and no single crop holds both a beanie at y8 and a pair
+# of gloves at y26.
+ACCESSORY_HATS="04_Snapback 11_Beanie"
 
 # ---------------------------------------------------------------- crops
 IDLE="16x32+48+0"
@@ -109,6 +116,7 @@ REF_BODY="$G/Bodies/16x16/Body_04.png"
 REF_EYES="$G/Eyes/16x16/Eyes_01.png"
 REF_HAIR_STYLE=03
 REF_HAIR="$G/Hairstyles/16x16/Hairstyle_${REF_HAIR_STYLE}_03.png"
+REF_OUTFIT="$G/Outfits/16x16/Outfit_01_01.png"
 
 # An eye is two pixels, a brow over an iris, and only the iris colour changes between the
 # seven. Cropped at 16px they are the same picture, so the swatch draws that colour big.
@@ -176,8 +184,8 @@ outfit_colours() {  # outfit_colours <style>: the colourways that style actually
   done
 }
 
-outfit_shades() {  # outfit_shades <style> <colour> <skip>: three busiest colours, lightest first
-  outfit_band "$1" "$2" | awk -v skip="$3" '!index(skip, $3)' | sort -rn | head -3 |
+shades() {  # shades <skip>: the three busiest colours of the band on stdin, lightest first
+  awk -v skip="$1" '!index(skip, $3)' | sort -rn | head -3 |
     awk '{ split($2, p, /[(),]/)
            printf "%.1f %s\n", 0.299 * p[2] + 0.587 * p[3] + 0.114 * p[4], $3 }' |
     sort -rn | awk '{print $2}'
@@ -193,7 +201,39 @@ swatch_outfit_colours() {  # swatch_outfit_colours <out-dir>
     skip=$(for c in $cs; do outfit_band "$st" "$c" | awk '{print $3}'; done | sort | uniq -c |
       awk -v n="$(echo "$cs" | wc -w)" '$1 == n {print $2}' | tr '\n' ' ')
     for c in $cs; do
-      chip "$out/Outfit_${st}_${c}.png" $(outfit_shades "$st" "$c" "$skip $OUTLINE")
+      chip "$out/Outfit_${st}_${c}.png" $(outfit_band "$st" "$c" | shades "$skip $OUTLINE")
+    done
+  done
+}
+
+accessory_band() {  # accessory_band <id>: its opaque colours, count then rgba then hex
+  magick "$G/Accessories/16x16/$1.png" -crop "16x32+48+0" +repage \
+    -format %c histogram:info:- | tr -d ':' | awk '$3 ~ /FF$/ {print $1, $2, $3}'
+}
+
+accessory_colours() {  # accessory_colours <family>: the colours that family offers
+  local f id
+  for f in "$G/Accessories/16x16/Accessory_$1_"*.png; do
+    id=$(basename "$f" .png)
+    case " $ACCESSORY_SKIP " in *" $id "*) continue ;; esac
+    echo "${id##*_}"
+  done
+}
+
+# Accessory colours are per-family palettes like outfits, not one shared ramp, so the chip is
+# derived from the sprite: what all of a family's colours hold is its outline and shading.
+swatch_accessory_colours() {  # swatch_accessory_colours <out-dir>
+  local out=$1 fam c cs skip s
+  mkdir -p "$out"
+  for fam in $ACCESSORY_FAMILIES; do
+    cs=$(accessory_colours "$fam")
+    skip=$(for c in $cs; do accessory_band "Accessory_${fam}_$c" | awk '{print $3}'; done |
+      sort | uniq -c | awk -v n="$(echo "$cs" | wc -w)" '$1 == n {print $2}' | tr '\n' ' ')
+    for c in $cs; do
+      s=$(accessory_band "Accessory_${fam}_$c" | shades "$skip $OUTLINE")
+      # Glasses 06 is the untinted pair: nothing is its own, so it wears the family's shading.
+      [ -n "$s" ] || s=$(accessory_band "Accessory_${fam}_$c" | shades "$OUTLINE")
+      chip "$out/Accessory_${fam}_${c}.png" $s
     done
   done
 }
@@ -207,7 +247,10 @@ emit() {  # emit <category> <id> <sheet> <with-blanket> <swatch-mode>
     eyes)  swatch_eyes "$OUT/swatches/$cat/$id.png" "$sheet" ;;
     head)  swatch "$OUT/swatches/$cat/$id.png" 6 "$REF_BODY" "$REF_EYES" "$sheet" ;;
     torso) swatch "$OUT/swatches/$cat/$id.png" 16 "$REF_BODY" "$sheet" ;;
-    hatted) swatch "$OUT/swatches/$cat/$id.png" 6 "$REF_BODY" "$REF_EYES" "$REF_HAIR" "$sheet" ;;
+    hatted) swatch "$OUT/swatches/$cat/$id.png" 6 "$REF_BODY" "$REF_EYES" "$REF_HAIR" \
+              "$REF_OUTFIT" "$sheet" ;;
+    worn)  swatch "$OUT/swatches/$cat/$id.png" 12 "$REF_BODY" "$REF_EYES" "$REF_HAIR" \
+              "$REF_OUTFIT" "$sheet" ;;
   esac
 }
 
@@ -245,11 +288,15 @@ done; done
 swatch_outfit_colours "$OUT/swatches/outfit-colour"
 
 acc_ids=()
-for a in $ACCESSORIES; do
-  f="$G/Accessories/16x16/$a.png"
-  [ -f "$f" ] || { echo "  missing $a" >&2; continue; }
-  emit accessory "$a" "$f" 0 hatted; acc_ids+=("$a")
+for fam in $ACCESSORY_FAMILIES; do
+  case " $ACCESSORY_HATS " in *" $fam "*) mode=hatted ;; *) mode=worn ;; esac
+  for c in $(accessory_colours "$fam"); do
+    id="Accessory_${fam}_${c}"; f="$G/Accessories/16x16/$id.png"
+    [ -f "$f" ] || { echo "  missing $id" >&2; continue; }
+    emit accessory "$id" "$f" 0 "$mode"; acc_ids+=("$id")
+  done
 done
+swatch_accessory_colours "$OUT/swatches/accessory-colour"
 
 {
   printf '{\n'
