@@ -83,7 +83,7 @@ function customButton() {
  * crop the three premades already use. Re-read only when the build changes, because this runs
  * on every publish.
  */
-let customArt = { key: null, url: null };
+let customArt = { key: null, url: null, gen: 0 };
 async function paintCustom(btn) {
   const build = current?.custom_character ?? null;
   btn.classList.toggle("plus", !build);
@@ -94,7 +94,8 @@ async function paintCustom(btn) {
   const key = build && JSON.stringify([build, current.custom_art_ready]);
   if (key === customArt.key) return;
   if (customArt.url) URL.revokeObjectURL(customArt.url);
-  customArt = { key, url: null };
+  const gen = customArt.gen + 1;
+  customArt = { key, url: null, gen };
 
   if (!build) {
     btn.classList.remove("flat");
@@ -107,34 +108,47 @@ async function paintCustom(btn) {
     btn.style.backgroundImage = `url("assets/swatches/skin/${build.skin}.png")`;
     return;
   }
-  const png = await invoke("read_custom_art", { name: "pet/dozing" });
-  customArt.url = URL.createObjectURL(new Blob([new Uint8Array(png)], { type: "image/png" }));
+  const png = await invoke("read_custom_art", { name: "pet/dozing" }).catch(() => null);
+  const url = png && URL.createObjectURL(new Blob([new Uint8Array(png)], { type: "image/png" }));
+  // A read that a newer build has overtaken must not repaint the tile or keep its URL alive.
+  if (gen !== customArt.gen) {
+    if (url) URL.revokeObjectURL(url);
+    return;
+  }
+  if (!url) {
+    btn.classList.add("flat");
+    btn.style.backgroundImage = `url("assets/swatches/skin/${build.skin}.png")`;
+    return;
+  }
+  customArt.url = url;
   btn.classList.remove("flat");
-  btn.style.backgroundImage = `url("${customArt.url}")`;
+  btn.style.backgroundImage = `url("${url}")`;
 }
 
 async function openBuilder() {
-  await builder.open(current?.custom_character ?? null, async (build, blobs) => {
-    // The builder hid the empty-state line, and only a render knows whether it belongs back.
-    // It has closed by the time this runs, so the render is not dropped.
-    try {
-      if (!build) return;
-      for (const [name, blob] of blobs) {
-        const png = Array.from(new Uint8Array(await blob.arrayBuffer()));
-        await invoke("write_custom_art", { name, png });
+  await builder
+    .open(current?.custom_character ?? null, async (build, blobs) => {
+      // The builder hid the empty-state line, and only a render knows whether it belongs back.
+      // It has closed by the time this runs, so the render is not dropped.
+      try {
+        if (!build) return;
+        for (const [name, blob] of blobs) {
+          const png = Array.from(new Uint8Array(await blob.arrayBuffer()));
+          await invoke("write_custom_art", { name, png });
+        }
+        // The UI category is "skin"; the stored field is "body", after the pack's own folder.
+        await invoke("save_custom_character", {
+          body: build.skin,
+          eyes: build.eyes,
+          outfit: build.outfit,
+          hair: build.hair,
+          accessory: build.accessory,
+        });
+      } finally {
+        invoke("refresh");
       }
-      // The UI category is "skin"; the stored field is "body", after the pack's own folder.
-      await invoke("save_custom_character", {
-        body: build.skin,
-        eyes: build.eyes,
-        outfit: build.outfit,
-        hair: build.hair,
-        accessory: build.accessory,
-      });
-    } finally {
-      invoke("refresh");
-    }
-  });
+    })
+    .catch((e) => showError(`Couldn't open the builder: ${e}`));
 }
 
 function updateCharacters(selectedId) {
@@ -181,21 +195,41 @@ function render(payload) {
  * premade rather than a room with nobody in it.
  */
 let roomUrl = null;
-async function setRoomArt(payload) {
-  const custom = payload.character_id === CUSTOM_ID;
-  const id = custom && !payload.custom_art_ready ? CHARACTERS[0] : payload.character_id;
+let roomGen = 0;
 
-  if (roomUrl) {
-    URL.revokeObjectURL(roomUrl);
-    roomUrl = null;
-  }
-  if (id !== CUSTOM_ID) {
-    room.style.backgroundImage = `url("assets/rooms/${id}/${payload.mood}.png")`;
+/** The character whose art is actually on disk, which the share card needs as much as the room. */
+function artCharacter(payload) {
+  return payload.character_id === CUSTOM_ID && !payload.custom_art_ready
+    ? CHARACTERS[0]
+    : payload.character_id;
+}
+
+/** Paints `url` unless a later call has overtaken this one, and revokes whatever it replaces. */
+function applyRoomArt(gen, url, owned) {
+  if (gen !== roomGen) {
+    if (owned) URL.revokeObjectURL(url);
     return;
   }
-  const png = await invoke("read_custom_art", { name: `rooms/${payload.mood}` });
-  roomUrl = URL.createObjectURL(new Blob([new Uint8Array(png)], { type: "image/png" }));
-  room.style.backgroundImage = `url("${roomUrl}")`;
+  room.style.backgroundImage = `url("${url}")`;
+  if (roomUrl) URL.revokeObjectURL(roomUrl);
+  roomUrl = owned ? url : null;
+}
+
+async function setRoomArt(payload) {
+  const id = artCharacter(payload);
+  const gen = ++roomGen;
+
+  if (id !== CUSTOM_ID) {
+    applyRoomArt(gen, `assets/rooms/${id}/${payload.mood}.png`, false);
+    return;
+  }
+  const png = await invoke("read_custom_art", { name: `rooms/${payload.mood}` }).catch(() => null);
+  if (!png) {
+    applyRoomArt(gen, `assets/rooms/${CHARACTERS[0]}/${payload.mood}.png`, false);
+    return;
+  }
+  const blob = new Blob([new Uint8Array(png)], { type: "image/png" });
+  applyRoomArt(gen, URL.createObjectURL(blob), true);
 }
 
 function row(project) {
@@ -292,7 +326,7 @@ shareButton.addEventListener("click", async () => {
     const png = await composeCard({
       mood: current.mood,
       quote: current.quote,
-      characterId: current.character_id,
+      characterId: artCharacter(current),
     });
     await invoke("copy_share_card", { png: Array.from(png) });
     shareButton.textContent = "Art copied";
