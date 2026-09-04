@@ -37,5 +37,10 @@ panels in one document would all be driven by whichever `getElementById` returne
 the screenshot would quietly show one state four times. That was found by looking at exactly
 that mistake.
 
+`?custom=none|ready|pending` drives the picker's fourth slot: empty, built, or built with a
+half-written cache. `read_custom_art` is stubbed with real premade strips, which are the shape a
+bake produces, so the tile, its selection outline and the not-ready fallback are all checkable
+without building a mascot first.
+
 The stub implements only what `popover.js` reaches for. If that list grows, the popover has
 grown a dependency on the backend that it probably should not have.

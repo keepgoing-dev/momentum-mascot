@@ -36,11 +36,25 @@
       // grown a dependency on the backend that it probably should not have.
       const calls = [];
       let emit = () => {};
+      // A built mascot's art comes back as bytes, so the stub hands back real strips of the
+      // right shape: a premade's room and pet, which is what a bake produces.
+      const ART = { rooms: "assets/rooms/07", pet: "assets/pet/12" };
+      async function readArt(name) {
+        const [kind, mood] = name.split("/");
+        const buf = await (await fetch(`${ART[kind]}/${mood}.png`)).arrayBuffer();
+        return Array.from(new Uint8Array(buf));
+      }
       window.__TAURI__ = {
-        core: { invoke: async (cmd, args) => void calls.push([cmd, args]) },
+        core: {
+          invoke: async (cmd, args) => {
+            calls.push([cmd, args]);
+            if (cmd === "read_custom_art") return readArt(args.name);
+          },
+        },
         event: { listen: async (_name, cb) => void (emit = cb) },
         window: { getCurrentWindow: () => ({ setSize: async () => {} }) },
         dpi: { LogicalSize: class {} },
+        app: { getVersion: async () => "0.0.0" },
       };
       window.CALLS = calls;
     </script>
@@ -70,8 +84,19 @@
       // One state per load. popover.js binds to element ids, so four panels in one document
       // would all be driven by whichever the first `getElementById` happened to return, and
       // the screenshot would quietly show one state four times.
-      const wanted = new URLSearchParams(location.search).get("state") ?? "awake";
+      const params = new URLSearchParams(location.search);
+      const wanted = params.get("state") ?? "awake";
       const state = STATES.find((s) => s.mood === wanted) ?? STATES[0];
+
+      // The fourth picker slot: empty, built, or built with a half-written cache.
+      const custom = params.get("custom") ?? "none";
+      const BUILD = {
+        skin: "Body_03",
+        eyes: "Eyes_01",
+        hair: "Hairstyle_03_07",
+        outfit: "Outfit_21_04",
+        accessory: "Accessory_04_Snapback_02",
+      };
 
       const shot = document.createElement("div");
       shot.className = "shot";
@@ -85,7 +110,9 @@
         payload: {
           mood: state.mood,
           quote: state.quote,
-          character_id: "07",
+          character_id: custom === "none" ? "07" : "custom",
+          custom_character: custom === "none" ? null : BUILD,
+          custom_art_ready: custom === "ready",
           projects: state.mood === "awake" ? [] : PROJECTS,
           clock_scale: state.mood === "comeback" ? 360 : 1,
         },

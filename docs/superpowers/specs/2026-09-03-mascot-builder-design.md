@@ -404,10 +404,26 @@ It randomises all five categories at once.
 
 ### 6.4 Entering and leaving
 
-The picker's fourth button is a dashed `+` while no custom mascot exists, and the mascot's head
+The picker's fourth button is a dashed `+` while no custom mascot exists, and the mascot itself
 once one does. Clicking it when empty opens the builder; clicking it when filled selects the
-custom mascot, and clicking it *again while selected* re-opens the builder to edit. Four buttons
-at 32px with 12px gaps is 152px in a 320px column; the ceiling before the row wraps is seven.
+custom mascot, and clicking it *again while selected* re-opens the builder to edit. That last
+move is otherwise undiscoverable, so the tooltip says it. Four buttons at 32px with 12px gaps is
+152px in a 320px column; the ceiling before the row wraps is seven.
+
+**The tile is the baked `pet/dozing` strip, not a head swatch.** A head swatch was the original
+plan and it is the wrong picture twice over: `assets/swatches/skin/*.png` is the body alone, so
+it shows none of the hair, outfit or accessory that make the build yours, and nine skin tones
+means two entirely different mascots can produce the same tile. The pet strip is already 384x32,
+which is exactly the asset shape and first-frame crop `.char-btn` uses for the three premades, so
+the custom slot becomes their peer rather than a differently-drawn fourth thing. It arrives as
+bytes over `read_custom_art` and becomes a blob URL, the same path `setRoomArt` already takes.
+
+The head swatch survives as the fallback for `custom_art_ready === false`, at its own
+`background-size`, because section 5.4's rule applies here too: a half-written cache shows a face
+rather than reverting to a `+` that claims nothing was ever built.
+
+The button is created once and repainted from `render()`. It has to be: the page loads before the
+first mood payload arrives, so at construction time nothing yet knows whether a build exists.
 
 Cancel restores the previously selected character and discards the in-progress build. Done bakes,
 selects the custom mascot, and returns to the panel.

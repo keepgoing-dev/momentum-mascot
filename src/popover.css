@@ -409,6 +409,11 @@ body {
   border-color: var(--accent);
 }
 
+/* The fallback face is one 16x16 sprite, not a 12-frame strip. */
+.char-btn.flat {
+  background-size: 32px 32px;
+}
+
 /* The empty slot before anything is built. Dashed so it reads as an invitation rather than
    as a fourth character whose art failed to load. */
 .char-btn.plus {
