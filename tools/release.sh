@@ -167,6 +167,9 @@ sed -i '' "s/^version = \"$CURRENT\"/version = \"$VERSION\"/" src-tauri/Cargo.to
 # failure mode being fixed here.
 sed -i '' "s|Latest release: v[0-9][0-9.]*|Latest release: v$VERSION|" site/index.html
 
+# The same page says it a second time in JSON-LD, where it had drifted a release behind again.
+sed -i '' "s|\"softwareVersion\": \"[0-9][0-9.]*\"|\"softwareVersion\": \"$VERSION\"|" site/index.html
+
 # Keep Cargo.lock in sync.
 cargo update --manifest-path src-tauri/Cargo.toml -p momentum-mascot >/dev/null
 

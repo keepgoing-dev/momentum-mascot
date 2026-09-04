@@ -16,6 +16,8 @@ in it will ever tell you how long it has been since you last committed.
   each: when you last actually committed. Not messages, not diffs, not branch names.
 - Shows the mood as a **64x64 desktop pet** in the corner of your screen, and as a full
   **animated room** in a popover from the menu bar.
+- Ships three characters and a **builder** for making your own: a skin tone, eyes, a hairstyle
+  and its colour, an outfit and its colour, and one accessory, composited at runtime.
 - Copies a 1200x630 **share card** to your clipboard, carrying the room and the mood and
   nothing identifying at all.
 

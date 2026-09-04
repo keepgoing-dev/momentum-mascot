@@ -85,17 +85,19 @@ app with no window. This addendum goes below them and covers only what a reviewe
 by clicking: what it was tested on, who it is for, how to reach the states, and what is licensed
 from whom.
 
-**The pair lands at 3998 characters against a 4000 limit, which is not a comfortable fit.** The
+**The pair lands at 3886 characters against a 4000 limit, which is not a comfortable fit.** The
 limit on this field is assumed rather than measured: 4000 is what Reply to App Review states, and
-the Notes field is treated the same here. If it turns out to be smaller, or if the review notes
-above are ever edited longer, **drop the TARGET AUDIENCE AND VALUE paragraph first** (about 310
-characters). It is the one thing here that also exists in the Description, which a reviewer can
-read on the same page.
+the Notes field is treated the same here.
+
+**TARGET AUDIENCE AND VALUE was dropped for 0.4.0, and the rewritten THIRD-PARTY MATERIAL is why.**
+The pair stood at 3998 on 0.3.2 with 319 characters of audience copy in it. The third-party
+paragraph had to grow by 207 to stay true (below), which put it at 4205, and the audience
+paragraph was already named here as the first thing to go: it is the one answer that also exists
+in the Description, on the page the reviewer is already reading. If more room is ever needed after
+that, the next cut is the REGIONAL DIFFERENCES line.
 
 ```
 TESTED ON: MacBook Pro (Mac16,8), Apple M4 Pro, macOS 26.5.2 (25F84). Universal binary (arm64 and x86_64), minimum deployment target macOS 10.15.
-
-TARGET AUDIENCE AND VALUE: working developers with unfinished side projects, which go quiet for weeks when a day job gets busy. Existing tools answer that with streaks and reminders; this app has none, and never states how long it has been. The character waits, and the celebration when a commit arrives is the point.
 
 SEEING ALL FOUR STATES: the thresholds are 24 and 72 hours, so backdate a commit. In Terminal:
 
@@ -109,7 +111,7 @@ EXTERNAL SERVICES: none, as above: no data provider, authentication service, pay
 
 REGIONAL DIFFERENCES: none. No region-gated features or content, and no localization (English only).
 
-THIRD-PARTY MATERIAL: the rooms, furniture and characters are derived from "Modern Interiors" by LimeZu (limezu.itch.io), a commercial asset pack purchased under its full-version licence, which permits use and editing in any commercial project and forbids reselling or distributing the asset itself. The art ships composited into the application with no way to extract the source sheets, so this is use rather than redistribution. The required credit is shown in the popover and in the copyright field; receipt and licence text available on request. The typeface is Departure Mono by Helena Zhang under the SIL Open Font License 1.1, which permits bundling, and its licence text ships in the bundle.
+THIRD-PARTY MATERIAL: the rooms, furniture and characters are derived from "Modern Interiors" by LimeZu (limezu.itch.io), a commercial asset pack purchased under its full-version licence, which permits use and editing in any commercial project and forbids reselling or distributing the asset itself. The art ships inside the application as its own resources: composited rooms, plus the curated character layers the in-app mascot builder composites at runtime. That is a derived subset cut to this app's frame geometry rather than the pack as sold, and the app offers no way to export any of it, so this is use rather than redistribution. The required credit is shown in the popover and in the copyright field; receipt and licence text available on request. The typeface is Departure Mono by Helena Zhang under the SIL Open Font License 1.1, which permits bundling, and its licence text ships in the bundle.
 
 Not a regulated industry: no health, financial or personal data, and nothing collected.
 ```
@@ -125,6 +127,17 @@ question is which device models and operating systems the app was tested on, and
 list has one row on it. The universal-binary and deployment-target lines are added because
 "tested on an M4 Pro" invites the follow-up about Intel and 10.15, and stating what the binary
 supports is better than being asked.
+
+**Point 7 was rewritten for 0.4.0 because 0.3.2's wording stopped being true.** It said the art
+ships "composited into the application with no way to extract the source sheets". The mascot
+builder composites at runtime, so `src/assets/layers/` and `src/assets/swatches/` now ship as
+PNG files in the bundle's Resources, and anyone who opens the app in Finder can copy them out.
+The old sentence would have been a false statement to App Review about the one subject the
+questionnaire asks about by name, and it would have been falsifiable in about four clicks. The
+replacement says what is actually in there and rests the "use rather than redistribution"
+conclusion on the two facts that survive: it is a curated derived subset cut to this app's frame
+geometry, and the app offers no export. The full reasoning, including where it is weakest, is in
+`docs/app-store-licence-check.md` under the 0.4.0 addendum.
 
 **Point 4 is the part worth writing carefully.** A reviewer on a fresh Mac has no git
 repositories, and an app whose entire behaviour is a function of commit age shows them a

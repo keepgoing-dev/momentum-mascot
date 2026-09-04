@@ -19,7 +19,7 @@ wrap it again on top.
 |---|---|
 | Name | Momentum Mascot |
 | Subtitle | A pixel pet for side projects |
-| Version | 0.3.1 |
+| Version | 0.4.0 |
 | Price | Free |
 | Primary category | Developer Tools |
 | Secondary category | none |
@@ -67,12 +67,12 @@ changes, change both.
 For the side projects you keep coming back to. A pixel character who waits instead of nagging: no streaks, no scores, and never a word about how long it has been.
 ```
 
-**It does not carry across to a new version, and it is empty on 0.3.2.** Measured on 31 August
-2026: the live 0.3.1 localization holds all 162 characters and the 0.3.2 draft holds zero. App
+**It does not carry across to a new version, so every draft starts empty.** Measured on 31 August
+2026: the live 0.3.1 localization held all 162 characters and the 0.3.2 draft held zero. App
 Store Connect copies the description and the keywords into a new version and does not copy this,
-so shipping 0.3.2 as it stands would delete the line from the listing rather than change it.
+so shipping a version as it stands deletes the line from the listing rather than changing it.
 Nothing warns about that at submission, because an empty promotional text is a legal listing.
-Re-enter it on every version.
+Re-enter it on every version, 0.4.0 included, and read it back rather than trusting the panel.
 
 **This is the only field in the listing that can change without a new build.** Apple's own
 description of it: it informs visitors of current features "without requiring an updated
@@ -94,7 +94,7 @@ whether the app is approved. One `DESKTOP` set went up with 0.3.2 on 31 August 2
 
 **The argument for making one is in the spec**, written about the share card and
 truer of the listing: "A still frame cannot show a transition, and this product *is* a
-transition." The listing is where a stranger decides, and none of the six screenshots can show
+transition." The listing is where a stranger decides, and no screenshot at any count can show
 a character getting out of bed.
 
 One measured constraint for whoever does it. `tools/drive-states.sh` is the obvious recording
@@ -190,7 +190,7 @@ WHAT YOU GET
 
 - A 64x64 desktop pet in the corner of your screen, visible over fullscreen apps, draggable to any corner.
 - A full animated room in a popover, opened from the mascot or the menu bar icon, with the character and a line of copy that never scolds you.
-- Three characters to choose from.
+- Three characters to choose from, or build your own: a skin tone, eyes, a hairstyle and its colour, an outfit and its colour, and one accessory. The mascot you build lives everywhere a premade does, including the desktop pet and the share card.
 - A 1200x630 share card copied to your clipboard, carrying the room and the mood and nothing that identifies a project.
 - Operating mode, for projects that run without commits: they keep their place in your list, and the mascot ignores them.
 
@@ -205,7 +205,17 @@ No network requests. No accounts, no sign-in, no telemetry, no cloud, no sync. E
 Art by LimeZu (limezu.itch.io). Type: Departure Mono, OFL 1.1.
 ```
 
-"Three characters" is checked against `store::CHARACTERS`, which is `07`, `12` and `20`.
+"Three characters" is checked against `store::CHARACTERS`, which is `07`, `12` and `20`. The
+builder's own counts are checked against `src/assets/layers/index.json`, which is the shipped
+palette rather than the pack's full library: 9 skin tones, 7 eyes, 14 hairstyles in 7 colours,
+13 outfits in 4 colours and 42 accessories.
+
+**The build-your-own clause is the 0.4.0 correction, and it goes in this bullet rather than in
+a new one.** It is the reason for the version and it is what the seventh screenshot shows, so
+the pull is to give it its own line near the top of WHAT YOU GET. That would separate it from
+the sentence it modifies: a reader who meets "build your own" before "three characters to
+choose from" has to hold an open question through the rest of the list. One bullet says the
+whole thing once.
 
 **This block is the live 0.3.1 text, not the draft it was written from.** Three commas were
 typed straight into App Store Connect at submission (`off,`, `silence,`, `list,`) and never
@@ -230,7 +240,44 @@ mascot is the primary way in (spec 6.1), and since 0.3.2 the panel hangs off whi
 two was clicked rather than always off the icon. A description that names only the menu bar
 sends the reader to the wrong corner of their own screen.
 
-## What's New in This Version, for 0.3.2
+## What's New in This Version, for 0.4.0
+
+**Required on every version after the first**, per-version, and frozen at upload. Unlike
+Promotional Text, which is the one field above that can change at any time.
+
+```
+Build your own mascot.
+
+The character picker has a fourth slot, marked +. Open it and you get a builder inside the popover: a skin tone, eyes, a hairstyle and its colour, an outfit and its colour, and one accessory. Nine skin tones, seven pairs of eyes, fourteen hairstyles in seven colours, thirteen outfits in four colours, and forty-two accessories. There is a Shuffle button for when nothing in particular comes to mind.
+
+The room is the preview, so you are looking at your mascot in the place they are going to live rather than at a form. Once you are done they are a character like any of the three that ship with the app: they are in the room, they are the pet on your desktop, they are on the share card, and clicking the character cycles through them along with the rest.
+
+Also in this version:
+
+- The mascot no longer disappears when you drag it off the edge of a screen. It used to keep moving after the pointer had stopped against the edge, and once it was clear of every display it stayed there invisibly, with reopening the app the only way to get it back. It now runs home to the nearest corner of the display it left.
+- On more than one display, the mascot's corners are measured from the display it is actually on, so a mascot on a second screen no longer runs to a corner of the first one.
+- The menu bar icon's right-click menu has a Support item. Nothing inside the app said where to report a bug or ask for help.
+```
+
+1433 characters against a limit of 4000.
+
+**The builder gets three paragraphs and the fixes get three bullets, which is the opposite of
+the 0.3.2 split.** That version led with three watcher fixes sharing one paragraph, because
+they were one fault to a user and the feature work in it was small. Here the proportion
+inverts: the drag fix matters to anyone who hit it, but it is a repair, and a repair does not
+need the top of a field that a stranger reads to decide whether to update.
+
+**The counts are spelled out rather than written as digits**, against this file's habit
+elsewhere, because the field renders as one prose block on the product page and a run of
+numerals in the middle of it reads as a spec sheet. The digits stay in `CHANGELOG.md`, where
+the reader is looking for exactly that.
+
+**"They" for the mascot, throughout.** The app has three premades and a builder with nine skin
+tones in it, and the whole point of the feature is that the character is whoever the user
+decided they are. Every other field in this listing already avoids gendering them, and this is
+the first one where a person is choosing.
+
+## What's New, for 0.3.2, kept as the record
 
 **Required, and new.** 0.3.1 was the first submission, so this field did not exist yet; every
 version after the first refuses to submit without it. It is per-version and frozen at upload,
@@ -424,14 +471,27 @@ explain it, not to remove it and not to leave it unmentioned.
 
 ## Screenshots
 
-2560x1600, six of them, in this order:
+2560x1600. Six through 0.3.2, seven from 0.4.0, in this order:
 
 1. The popover in **comeback**, which is the moment the whole product exists for.
-2. The popover open with the room in the **awake** state, showing three tracked projects.
-3. The popover in **dozing**.
-4. The popover in **asleep**.
-5. The pet on a desktop, over a real wallpaper.
-6. The share card at full size.
+2. The **builder** open, mid-choice. New in 0.4.0.
+3. The popover open with the room in the **awake** state, showing three tracked projects.
+4. The popover in **dozing**.
+5. The popover in **asleep**.
+6. The pet on a desktop, over a real wallpaper.
+7. The share card at full size.
+
+**The builder takes slot 2, and the argument is the thumbnail strip rather than the feature.**
+It is the reason for 0.4.0, so the pull is towards slot 1, and slot 1 is not available: comeback
+is the moment the product exists for and it was moved there deliberately in 0.3.2. What settles
+slot 2 over slot 3 is that shots 1, 3, 4 and 5 are the same panel in front of the same wallpaper,
+four rooms apart. A stranger scrolling the gallery sees the first two or three at thumbnail size,
+and putting the builder second is the only placement where the second thing they see is not a
+near-copy of the first.
+
+**Renumber the existing files when the builder shot is taken.** `2-awake` through `6-card` each
+move up one. The names are a note to the person uploading and nothing else, per the paragraph
+below, but a set where two files claim slot 2 is exactly how the 0.3.1 order went wrong.
 
 **The listing went live with this order wrong, and the file names did not prevent it.** The
 shots are numbered `1-comeback` through `6-card` in `docs/store-shots/`, which is the order
@@ -443,8 +503,9 @@ gallery actually shows, shot 5 is a photograph of water with a speck in one corn
 whole argument below arriving as a consequence.
 
 **Apple's limit is ten and its minimum is one.** The App Store Connect panel reads "Drag up to
-3 app previews and 10 screenshots here", so ten is a ceiling and not a target. Six is the number
-that earns its place; past that each addition dilutes the ones before it.
+3 app previews and 10 screenshots here", so ten is a ceiling and not a target. Six was the number
+that earned its place through 0.3.2, and the builder is the first addition since that pays for
+the dilution: it is a screen the other six cannot imply, rather than a seventh angle on them.
 
 **The pet used to be first, and shooting it is what changed the order.** The old note called it
 "the product's face". The pet is 64x64, so 128 physical pixels inside a 2560x1600 frame, which
@@ -540,7 +601,7 @@ KEEPGOING_CLOCK_SCALE    0        fullScreenEnabled  0
 KEEPGOING_MASCOT_STATE   0
 ```
 
-### The five commands
+### The commands
 
 **Use `popover`, not `tr`, for the popover shots.** The popover is anchored under the tray
 icon, which on a 6718px capture leaves its left edge 161px outside a top-right window, so `tr`
@@ -562,20 +623,23 @@ screenshot and puts someone else's interface in the listing.
 tools/hold-state.sh comeback                           # then open it FROM THE MENU BAR ICON
 tools/store-shots.sh clip 1 comeback popover
 
+tools/hold-state.sh awake                              # click +, then the HAIR tab
+tools/store-shots.sh clip 2 builder popover
+
 tools/hold-state.sh awake
-tools/store-shots.sh clip 2 awake popover
+tools/store-shots.sh clip 3 awake popover
 
 tools/hold-state.sh dozing
-tools/store-shots.sh clip 3 dozing popover
+tools/store-shots.sh clip 4 dozing popover
 
 tools/hold-state.sh asleep
-tools/store-shots.sh clip 4 asleep popover
+tools/store-shots.sh clip 5 asleep popover
 
 tools/hold-state.sh awake                              # popover closed, pet in a calm corner
-tools/store-shots.sh clip 5 pet bl
+tools/store-shots.sh clip 6 pet bl
 
 # Click Share Status, which puts the card on the clipboard, then:
-tools/store-shots.sh card --clip 6 card
+tools/store-shots.sh card --clip 7 card
 
 tools/store-shots.sh check                             # every file exactly 2560x1600
 ```
@@ -614,19 +678,52 @@ Worth noting how it stayed hidden: the unit test at the momentum layer passed be
 after, because the defect was the ordering of two calls in `app.rs` and not the behaviour of
 either one. It took needing the screenshot to find it.
 
+### The builder shot, for 0.4.0
+
+Stage it with `hold-state.sh awake`, which is what sets `KEEPGOING_PIN_POPOVER`: the builder
+lives inside the popover, so it is unphotographable for exactly the reason the four room shots
+were. Open the popover **from the menu bar icon**, so the panel lands where shots 1 and 3 to 5
+have it, then click the `+` slot to open the builder.
+
+**Take it on the HAIR tab, mid-choice rather than empty.** Hair is the only category that draws
+both rows at once, the styles as a grid and the colours as a flat strip above it, so it is the
+one screen that shows what the builder actually is. `SKIN` and `EYES` are a single grid, and
+`WEAR` and `EXTRA` are the same two-row shape with a less legible grid. Choose a hairstyle
+before shooting so a swatch carries the selected outline; an untouched builder photographs as a
+grid of heads with nothing happening to them.
+
+**The room above it is the preview, and it has to have somebody in it.** That is the argument
+for the whole feature and it is the half of the frame a thumbnail can read: at gallery size the
+swatch grid is texture, and the character in the room is the only thing with a shape.
+
+**Check that `popover` cropped it and did not fall back.** The crop finds the panel by masking
+its background colour and taking the connected component 704 physical pixels wide, and the
+builder fills that panel with swatches in colours the mask does not know about. It should still
+find the panel's own margins, but this is the first shot where that assumption is being asked a
+new question, so open the result rather than trusting `check`: `check` verifies the size, which
+a wrong crop also has. `tools/store-shots.sh clip 2 builder tr` is the fallback, plus a manual
+`+X+Y` if the panel sits outside a top-right window.
+
 ### Taken
 
-All six, on 25 and 26 August 2026, and `store-shots.sh check` reports every one at exactly
-2560x1600.
+Six of the seven, on 25 and 26 August 2026, and `store-shots.sh check` reports every one at
+exactly 2560x1600. The slot column is the 0.4.0 order; the file names are still the 0.3.2 ones
+and are renumbered when the builder shot is taken.
 
-| # | File | What is in it |
+| Slot | File | What is in it |
 |---|---|---|
 | 1 | `1-comeback.png` | popover, comeback, "I KNEW IT.", rows at 3 minutes / 6 days / 14 days |
-| 2 | `2-awake.png` | popover, awake, "Something moved today. That counts." |
-| 3 | `3-dozing.png` | popover, dozing, "Taking five. Same here." |
-| 4 | `4-asleep.png` | popover, asleep, "Sleeping, not gone. Wake me whenever." |
-| 5 | `5-pet.png` | the pet alone, bottom-left corner, over water |
-| 6 | `6-card.png` | the comeback share card, BACK!!!, at 2x on its mat |
+| 2 | not yet shot | the builder, HAIR tab, a mascot mid-build in the room above it |
+| 3 | `2-awake.png` | popover, awake, "Something moved today. That counts." |
+| 4 | `3-dozing.png` | popover, dozing, "Taking five. Same here." |
+| 5 | `4-asleep.png` | popover, asleep, "Sleeping, not gone. Wake me whenever." |
+| 6 | `5-pet.png` | the pet alone, bottom-left corner, over water |
+| 7 | `6-card.png` | the comeback share card, BACK!!!, at 2x on its mat |
+
+**`5-pet.png` was reshot on 27 August** onto a flat mid-tone wallpaper in the top-left corner,
+cropped `tl`; the "over water" row above is the original and the reasoning is in the wallpaper
+paragraph. The five popover shots are the 25 and 26 August set and do not need retaking for
+0.4.0: nothing in this version changes the room, the quote line or the project rows.
 
 The menu bar icon and not the mascot: the popover hangs off whichever of the two opened it, so
 opening it from the mascot puts the panel in the bottom-right corner and the four shots no
@@ -757,6 +854,56 @@ the store copy: `id="version"`, `limezu.itch.io` and `Add Project` all return 0,
 expected result rather than a failure. `getVersion` returns 2, and that is a trap worth naming:
 those are the Rust side's `core:app` command name, so they prove the command is compiled in and
 say nothing about whether the page calls it.
+
+## The 0.4.0 queue
+
+Written before the build, so the panel session is a list to work through rather than a
+discovery exercise. 0.3.1 took six attempts to press Add for Review and none of them were about
+the binary; the fix for that is this list.
+
+Everything above is already updated for 0.4.0 and is the source to copy from.
+
+**Before either script runs**
+
+- [ ] Take the builder screenshot and renumber the set. `### The builder shot, for 0.4.0`.
+- [ ] `tools/store-shots.sh check` reports seven files at exactly 2560x1600.
+
+**The two scripts, in this order**
+
+- [ ] `tools/release.sh minor`, which is what makes 0.4.0 exist: it bumps
+      `tauri.conf.json`, `Cargo.toml` and `Cargo.lock`, dates the `[Unreleased]` bullets into a
+      `## 0.4.0` section, rewrites both version strings on `site/index.html`, commits, tags,
+      pushes, builds and notarizes the disk image, and publishes the GitHub release.
+- [ ] `tools/release-mas.sh --upload`, which burns build 6. One run, not two: `--validate-app`
+      runs before `--upload-package` under `set -eu`, so a validation failure stops it before
+      anything is sent.
+
+**In App Store Connect**
+
+- [ ] Read the live 0.3.2 copy back off the API before editing anything. The command is under
+      Description. The panel does not report what a new version dropped.
+- [ ] Create the 0.4.0 version and attach build 6, once it has finished processing.
+- [ ] **Promotional Text**: re-enter all 162 characters. It is not copied forward and an empty
+      one is a legal listing that warns about nothing.
+- [ ] **What's New**: the 0.4.0 block, 1433 characters.
+- [ ] **Description**: the build-your-own clause is the only change. Paste the whole block
+      rather than editing in place, so the line breaks are the ones in this file.
+- [ ] **Screenshots**: drop the seven one at a time in slot order, then read the slots back.
+      Drop order sets the slots, not file names, and a released version's order cannot be
+      changed afterwards.
+- [ ] **App Review Information > Notes**: the review notes plus the rewritten addendum, 3886
+      characters. Point 7 changed and the old wording is now false.
+- [ ] Export compliance, answered by hand: no encryption.
+- [ ] Add for Review, then Submit.
+
+**After**
+
+- [ ] Merge PR #3, which is what publishes the builder section on keepgoing.dev. Held until the
+      release ships by decision, because the site must describe only what people can download.
+- [ ] Add the rows to the submission log below.
+- [ ] `tools/verify-store-copy.sh` against `/Applications` the day it goes live, and not before:
+      a Developer ID or locally signed copy fails the provenance and sandbox checks by
+      definition.
 
 ## What rode on 0.3.2, and what it cost
 
