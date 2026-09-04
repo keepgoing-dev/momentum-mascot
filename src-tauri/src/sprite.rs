@@ -96,12 +96,19 @@ pub fn resolve_path(app: &tauri::AppHandle, character_id: &str, mood: &str) -> O
     use tauri::Manager;
     // AppState's path, not store::default_path(), so the debug state override that
     // tools/drive-states.sh sets is honoured here too.
-    if character_id == crate::store::CUSTOM_ID {
+    let mut id = character_id;
+    if id == crate::store::CUSTOM_ID {
         let art = crate::custom::dir(&app.state::<crate::app::AppState>().store_path);
-        return crate::custom::relative_art_path(&format!("pet/{mood}")).map(|r| art.join(r));
+        let built = crate::custom::relative_art_path(&format!("pet/{mood}")).map(|r| art.join(r));
+        if let Some(p) = built.filter(|p| p.is_file()) {
+            return Some(p);
+        }
+        // Spec 5.4: a half-written cache shows a premade rather than leaving the pet blank,
+        // which is what the popover does and what NSImage cannot do on its own.
+        id = crate::store::CHARACTERS[0];
     }
     let dir = app.path().resource_dir().ok()?;
-    Some(dir.join(relative_path(character_id, mood)))
+    Some(dir.join(relative_path(id, mood)))
 }
 
 #[cfg(test)]

@@ -137,7 +137,11 @@ fn write_art_to(art_dir: &std::path::Path, name: &str, png: &[u8]) -> Result<(),
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
-    std::fs::write(&path, png).map_err(|e| e.to_string())
+    // Same rename dance as store::save, for the same reason: `has_art` only checks that a
+    // strip is non-empty, so a torn write would read as usable art with no way back.
+    let tmp = path.with_extension(format!("png.tmp-{}", std::process::id()));
+    std::fs::write(&tmp, png).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

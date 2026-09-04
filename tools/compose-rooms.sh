@@ -802,13 +802,12 @@ emit_shared() {
   magick $SPARK_FRAMES  +append PNG32:"$APP_OUT/shared/spark.png"
   magick $Z_FRAMES      +append PNG32:"$APP_OUT/shared/z.png"
 
-  # One pre-tinted copy per consuming state, because the baker tints nothing.
+  # One pre-tinted copy per consuming state, because the baker tints nothing. Asleep needs no
+  # tinted Z: the room bakes it into the front plate and the pet takes no tint at all.
   magick "$APP_OUT/shared/coffee.png" -fill "$TINT_COLOUR" -colorize "$TINT_DOZING" \
     PNG32:"$APP_OUT/shared/coffee-dozing.png"
   magick "$APP_OUT/shared/dots.png" -fill "$TINT_COLOUR" -colorize "$TINT_DOZING" \
     PNG32:"$APP_OUT/shared/dots-dozing.png"
-  magick "$APP_OUT/shared/z.png" -fill "$TINT_COLOUR" -colorize "$TINT_ASLEEP" \
-    PNG32:"$APP_OUT/shared/z-asleep.png"
   magick "$APP_OUT/shared/bang.png" -modulate "$COMEBACK_MODULATE" \
     PNG32:"$APP_OUT/shared/bang-comeback.png"
   magick "$APP_OUT/shared/spark.png" -modulate "$COMEBACK_MODULATE" \

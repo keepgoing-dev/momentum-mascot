@@ -22,6 +22,7 @@ const el = {
   cancel: document.getElementById("builderCancel"),
   shuffle: document.getElementById("builderShuffle"),
   done: document.getElementById("builderDone"),
+  error: document.getElementById("error"),
 };
 
 let index = null;
@@ -242,12 +243,17 @@ el.shuffle.addEventListener("click", () => {
 
 el.done.addEventListener("click", async () => {
   el.done.disabled = true;
+  el.error.hidden = true;
   try {
     const blobs = await bake(manifest, build);
     // Closed before the callback, as cancel does: the callback re-renders, and a render is
     // dropped while the builder is still open.
     close();
     await onFinish?.(build, blobs);
+  } catch (e) {
+    // Without this a failed bake leaves the panel open over a hidden room with nothing said.
+    el.error.textContent = `Couldn't save that mascot: ${e}`;
+    el.error.hidden = false;
   } finally {
     el.done.disabled = false;
   }
