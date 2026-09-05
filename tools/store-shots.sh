@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# The five App Store screenshots, at exactly 2560x1600, with nothing resampled.
+# The App Store screenshots, at exactly 2560x1600, with nothing resampled.
 #
 # The listing sells pixel art, so a screenshot that has been through a resize is not a smaller
 # problem than a wrong one: soft edges are the single most visible way for this listing to look
@@ -78,6 +78,9 @@ offset_for() {  # offset_for <corner> <srcW> <srcH> -> "+X+Y"
 # a 2x display: the window is 352x540 logical.
 PANEL='#14141c'
 PANEL_W=704
+
+# Slots the listing expects, which grew to seven when the builder shot joined at slot 2.
+SHOTS=7
 
 # Where the popover is, so the offset is measured instead of guessed.
 #
@@ -248,7 +251,7 @@ check)
     fi
   done
   printf '\n  %d shots, %s\n' "$count" "$([ "$bad" = 0 ] && echo "all ${W}x${H}" || echo "SOME WRONG")"
-  [ "$count" = 6 ] || printf '  the listing wants 6, in the order in docs/app-store-listing.md\n'
+  [ "$count" = "$SHOTS" ] || printf '  the listing wants %d, in the order in docs/app-store-listing.md\n' "$SHOTS"
   exit "$bad"
   ;;
 
