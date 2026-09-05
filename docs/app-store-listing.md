@@ -489,9 +489,10 @@ four rooms apart. A stranger scrolling the gallery sees the first two or three a
 and putting the builder second is the only placement where the second thing they see is not a
 near-copy of the first.
 
-**Renumber the existing files when the builder shot is taken.** `2-awake` through `6-card` each
-move up one. The names are a note to the person uploading and nothing else, per the paragraph
-below, but a set where two files claim slot 2 is exactly how the 0.3.1 order went wrong.
+**The existing files were renumbered when the builder shot landed.** `2-awake` through `6-card`
+each moved up one. The names are a note to the person uploading and nothing else, per the
+paragraph below, but a set where two files claim slot 2 is exactly how the 0.3.1 order went
+wrong.
 
 **The listing went live with this order wrong, and the file names did not prevent it.** The
 shots are numbered `1-comeback` through `6-card` in `docs/store-shots/`, which is the order
@@ -716,13 +717,16 @@ logical space on a 2x display, and the popover is 352x540 logical, so the panel 
 chooses is where the window sits, never how large the panel is inside it. Getting closer would
 mean scaling, and nothing in `store-shots.sh` scales a screenshot.
 
-**Check that `popover` cropped it and did not fall back.** The crop finds the panel by masking
-its background colour and taking the connected component 704 physical pixels wide, and the
-builder fills that panel with swatches in colours the mask does not know about. It should still
-find the panel's own margins, but this is the first shot where that assumption is being asked a
-new question, so open the result rather than trusting `check`: `check` verifies the size, which
-a wrong crop also has. `tools/store-shots.sh clip 2 builder tr` is the fallback, plus a manual
-`+X+Y` if the panel sits outside a top-right window.
+**A `popover` crop now checks itself**, and it was this shot that made it necessary. Two
+attempts came back as 2560x1600 files with no app in them, and nothing in the pipeline noticed:
+`check` verifies the size, which a crop that missed the subject entirely also has. `crop_to`
+asserts the panel is present, whole and centred, prints `panel 698x1068+931+77, centred` when it
+is, and deletes the file when it is not. The two historical failures were replayed against it
+and both are caught, one as a missing panel and one as a clipped one.
+
+The check runs for `popover` only, because it is the only corner that implies a popover is the
+subject. If you fall back to `tools/store-shots.sh clip 2 builder tr` and a manual `+X+Y`,
+nothing verifies the result and it has to be opened by eye.
 
 ### Taken
 

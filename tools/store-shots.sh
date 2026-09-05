@@ -24,6 +24,8 @@
 # `popover` finds the dark panel and centres the window on it, which is what a display wide
 # enough to leave the popover outside a top-right crop needs.
 #
+# It then asserts the panel is whole and in frame, and deletes the crop when it is not.
+#
 # `grab` needs Screen & System Audio Recording permission for the terminal, in System Settings
 # > Privacy & Security. Without it `screencapture` fails with "could not create image from
 # display", which reads like a bug and is a permission. `crop` and `clip` are the ways round it,
@@ -85,29 +87,65 @@ PANEL_W=704
 # rather than a bounding box is the second: even keyed on colour, a bounding box is the union of
 # every match, so dark foliage on the far side of a 6718px screen dragged the box across most of
 # the display. The panel is then identified by its width, which is the one number known exactly.
-find_popover() {  # find_popover <src> -> "+X+Y" centring the window on the popover
-  local src=$1 dims sw at
-  dims=$(size_of "$src"); sw=${dims%x*}
-  at=$(magick "$src" -fuzz 2% -fill white -opaque "$PANEL" -fill black +opaque white \
+panel_box() {  # panel_box <file> -> "WxH+X+Y" of the popover panel, or nothing
+  magick "$1" -fuzz 2% -fill white -opaque "$PANEL" -fill black +opaque white \
     -colorspace gray -threshold 50% \
     -define connected-components:verbose=true \
     -define connected-components:area-threshold=20000 \
     -connected-components 8 null: 2>/dev/null \
-    | awk -v want="$PANEL_W" -v win="$W" -v sw="$sw" '
+    | awk -v want="$PANEL_W" '
         NR > 1 {
           split($2, g, /[x+]/)
           d = g[1] - want; if (d < 0) d = -d
-          if (best == "" || d < best) { best = d; centre = g[3] + g[1] / 2 }
+          if (best == "" || d < best) { best = d; box = $2 }
         }
-        END {
-          if (best == "" || best > 96) exit 1
-          x = int(centre - win / 2)
-          if (x < 0) x = 0
-          if (x > sw - win) x = sw - win
-          printf "+%d+0", x
-        }')
-  [ -n "$at" ] || { echo "could not find the popover panel in $src" >&2; return 1; }
-  echo "$at"
+        END { if (best != "" && best <= 96) print box }'
+}
+
+find_popover() {  # find_popover <src> -> "+X+Y" centring the window on the popover
+  local src=$1 box bw bx dims sw x
+  box=$(panel_box "$src")
+  [ -n "$box" ] || { echo "could not find the popover panel in $src" >&2; return 1; }
+  dims=$(size_of "$src"); sw=${dims%x*}
+  bw=${box%%x*}; bx=${box#*+}; bx=${bx%%+*}
+  x=$((bx + bw / 2 - W / 2))
+  [ "$x" -ge 0 ] || x=0
+  [ "$x" -le $((sw - W)) ] || x=$((sw - W))
+  printf '+%d+0' "$x"
+}
+
+# `check` verifies the size, which a crop that missed the popover entirely also has. Twice.
+assert_panel() {  # assert_panel <file>
+  local box rest bw bh bx by off
+  box=$(panel_box "$1")
+  if [ -z "$box" ]; then
+    echo "error: no popover panel in $1" >&2
+    echo "" >&2
+    echo "  The file is the right size and the subject is not in it. Two causes, both seen:" >&2
+    echo "  the popover was opened from the MASCOT, which anchors it to a corner the crop" >&2
+    echo "  cannot centre, or the capture was a region rather than the whole display." >&2
+    echo "  Open it from the menu bar icon, capture the whole display, and re-run." >&2
+    return 1
+  fi
+  bw=${box%%x*}; rest=${box#*x}
+  bh=${rest%%+*}; rest=${rest#*+}
+  bx=${rest%%+*}; by=${rest#*+}
+  if [ "$bx" -le 0 ] || [ "$by" -le 0 ] \
+    || [ $((bx + bw)) -ge "$W" ] || [ $((by + bh)) -ge "$H" ]; then
+    echo "error: the popover panel is clipped by the frame in $1 ($box)" >&2
+    echo "" >&2
+    echo "  Only part of it is in the crop, which the size check cannot see. Same two" >&2
+    echo "  causes as a missing panel: opened from the mascot, or a region capture." >&2
+    return 1
+  fi
+  off=$((bx + bw / 2 - W / 2))
+  [ "$off" -ge 0 ] || off=$((-off))
+  printf '  panel %s' "$box"
+  if [ "$off" -gt 64 ]; then
+    printf ', %spx off centre: the other popover shots sit at +931\n' "$off"
+  else
+    printf ', centred\n'
+  fi
 }
 
 # The clipboard, because ctrl-shift-cmd-3 and the "Copy to Clipboard" option in the shift-cmd-5
@@ -145,6 +183,11 @@ crop_to() {  # crop_to <src> <dest> <corner>
   mkdir -p "$(dirname "$dest")"
   magick "$src" -crop "${W}x${H}${at}" +repage "$dest"
   printf '  %s  %s  cropped %s from %s at %s\n' "$(size_of "$dest")" "$dest" "$corner" "$dims" "$at"
+  if [ "$corner" = popover ] && ! assert_panel "$dest"; then
+    rm -f "$dest"
+    echo "  removed it, rather than leave a file that passes \`check\` and is unusable" >&2
+    return 1
+  fi
 }
 
 case "${1:-}" in
