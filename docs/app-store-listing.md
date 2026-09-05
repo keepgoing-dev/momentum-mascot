@@ -685,12 +685,20 @@ lives inside the popover, so it is unphotographable for exactly the reason the f
 were. Open the popover **from the menu bar icon**, so the panel lands where shots 1 and 3 to 5
 have it, then click the `+` slot to open the builder.
 
-**Take it on the HAIR tab, mid-choice rather than empty.** Hair is the only category that draws
-both rows at once, the styles as a grid and the colours as a flat strip above it, so it is the
-one screen that shows what the builder actually is. `SKIN` and `EYES` are a single grid, and
-`WEAR` and `EXTRA` are the same two-row shape with a less legible grid. Choose a hairstyle
-before shooting so a swatch carries the selected outline; an untouched builder photographs as a
-grid of heads with nothing happening to them.
+**Open the popover from the menu bar icon.** Not optional here, and not only for consistency
+with the other four: `find_popover` solves for X and hardcodes `+0` for Y
+(`tools/store-shots.sh:106`), because the panel is assumed to hang under the tray icon. A
+popover opened from the mascot lands in the bottom-right corner, and `popover` then frames the
+wallpaper it is standing on rather than the app. Doing it by hand does not rescue it: that panel
+ends near y=2650 on a 2836-tall capture, so no 1600-tall window holds both it and the menu bar.
+
+**Take it on the WEAR tab, mid-choice rather than empty.** This was HAIR until a real capture
+settled it. WEAR draws thirteen whole figures in different outfits, which reads as "choose what
+they wear" at the 640px the gallery shows; HAIR draws fourteen near-identical heads separated by
+a few pixels of fringe, and EYES is one row. Both tabs draw the same two-row shape, so the grid
+is the only thing that distinguishes them and the grid favours WEAR. Choose an outfit before
+shooting so a swatch carries the selected outline; an untouched builder photographs as a grid
+with nothing happening in it.
 
 **The top of the panel is the preview, and it is not the room.** `builder.js:209` hides the room
 and swaps in the untinted `awake-back` plate with the character centred, so there is no blue wash
