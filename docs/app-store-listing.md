@@ -190,7 +190,7 @@ WHAT YOU GET
 
 - A 64x64 desktop pet in the corner of your screen, visible over fullscreen apps, draggable to any corner.
 - A full animated room in a popover, opened from the mascot or the menu bar icon, with the character and a line of copy that never scolds you.
-- Three characters to choose from, or build your own: a skin tone, eyes, a hairstyle and its colour, an outfit and its colour, and one accessory. The mascot you build lives everywhere a premade does, including the desktop pet and the share card.
+- Three characters to choose from, or build your own: a skin tone, eyes, a hairstyle and its color, an outfit and its color, and one accessory. The mascot you build lives everywhere a premade does, including the desktop pet and the share card.
 - A 1200x630 share card copied to your clipboard, carrying the room and the mood and nothing that identifies a project.
 - Operating mode, for projects that run without commits: they keep their place in your list, and the mascot ignores them.
 
@@ -217,11 +217,12 @@ the sentence it modifies: a reader who meets "build your own" before "three char
 choose from" has to hold an open question through the rest of the list. One bullet says the
 whole thing once.
 
-**This block is the live 0.3.1 text, not the draft it was written from.** Three commas were
-typed straight into App Store Connect at submission (`off,`, `silence,`, `list,`) and never
-came back here, so for four days the file that calls itself every field was wrong about three
-of them. Read the shipping text out of the API before editing this block, rather than assuming
-the file is ahead of the store:
+**This block is the live 0.4.0 text, read back off the API.** It has been wrong twice. Three
+commas were typed straight into App Store Connect at 0.3.1's submission (`off,`, `silence,`,
+`list,`) and never came back here, so for four days the file that calls itself every field was
+wrong about three of them. Then 0.4.0 was edited in the panel again, to US spelling: every
+`colour` in this field and in What's New went up as `color`. Read the shipping text out of the
+API before editing this block, rather than assuming the file is ahead of the store:
 
 ```sh
 set -a; . tools/.release-env; set +a
@@ -248,18 +249,24 @@ Promotional Text, which is the one field above that can change at any time.
 ```
 Build your own mascot.
 
-The character picker has a fourth slot, marked +. Open it and you get a builder inside the popover: a skin tone, eyes, a hairstyle and its colour, an outfit and its colour, and one accessory. Nine skin tones, seven pairs of eyes, fourteen hairstyles in seven colours, thirteen outfits in four colours, and forty-two accessories. There is a Shuffle button for when nothing in particular comes to mind.
+The character picker has a fourth slot, marked +. Open it to find a builder inside the popover: a skin tone, eyes, a hairstyle and its color, an outfit and its color, and one accessory. Nine skin tones, seven pairs of eyes, fourteen hairstyles in seven colors, thirteen outfits in four colors, and forty-two accessories. A Shuffle button is available for when nothing in particular comes to mind.
 
 The room is the preview, so you are looking at your mascot in the place they are going to live rather than at a form. Once you are done they are a character like any of the three that ship with the app: they are in the room, they are the pet on your desktop, they are on the share card, and clicking the character cycles through them along with the rest.
 
 Also in this version:
 
-- The mascot no longer disappears when you drag it off the edge of a screen. It used to keep moving after the pointer had stopped against the edge, and once it was clear of every display it stayed there invisibly, with reopening the app the only way to get it back. It now runs home to the nearest corner of the display it left.
+- The mascot no longer disappears when you drag it off the edge of a screen. It used to keep moving after the pointer stopped at the edge, and once it was clear of every display, it stayed there invisibly, with reopening the app as the only way to get it back. It now runs home to the nearest corner of the display it left.
 - On more than one display, the mascot's corners are measured from the display it is actually on, so a mascot on a second screen no longer runs to a corner of the first one.
 - The menu bar icon's right-click menu has a Support item. Nothing inside the app said where to report a bug or ask for help.
 ```
 
-1433 characters against a limit of 4000.
+1424 characters against a limit of 4000.
+
+**Edited in the panel, and the block above is the edited text.** What shipped differs from the
+draft in spelling and in four phrasings: "Open it to find a builder", "A Shuffle button is
+available", "after the pointer stopped at the edge", and "with reopening the app as the only
+way". None of it changes what the field says; all of it is why the block is read back rather
+than assumed.
 
 **The builder gets three paragraphs and the fixes get three bullets, which is the opposite of
 the 0.3.2 split.** That version led with three watcher fixes sharing one paragraph, because
@@ -418,7 +425,8 @@ curl -s -H "Authorization: Bearer $JWT" \
 
 `processingState` is the answer: `PROCESSING` means wait, `VALID` means the picker will show it
 after a page refresh, `INVALID` or `FAILED` means the upload needs redoing. Build 4 read `VALID`
-with `minOsVersion 10.15` about twenty minutes after the upload.
+with `minOsVersion 10.15` about twenty minutes after the upload. Build 6 took about a minute,
+so the wait is not predictable and polling beats guessing.
 
 Two traps in that snippet, both hit while writing it. `--generate-jwt` prints the token to
 **stderr**, so `2>/dev/null` silently discards the thing being captured and leaves an empty
@@ -431,35 +439,20 @@ Paste verbatim into App Review Notes. Without it the app looks broken to a revie
 never adds a folder, which is a 2.1 rejection: "We will reject incomplete app bundles."
 
 ```
-This app has no Dock icon and no main window by design. It is a menu bar app (LSUIElement),
-and it shows nothing until you add a repository. To review it:
+This app has no Dock icon and no main window by design. It is a menu bar app (LSUIElement), and it shows nothing until you add a repository. To review it:
 
-1. Look for the small pixel character in the bottom-right corner of the screen. That is the
-   desktop pet. It appears on launch. You can drag it to any corner.
-2. Click the pixel icon in the menu bar, at the top right of the screen, or click the
-   character itself. Either opens the popover: an animated room with the character in it.
-3. Click "Add Project" and choose any folder that contains a git repository. If you need
-   one, any checkout of any public repository works, and so does a folder where you have run
-   "git init" followed by one commit.
-4. A repository committed to today shows the "awake" state immediately: the character is at
-   their desk and the project row shows how long ago that commit was.
-5. The character's state is derived from time since the newest commit across the projects
-   you added: awake under a day, dozing after a day, asleep after three days. A commit made
-   after a long silence triggers a one-off "comeback" celebration.
+1. Look for the small pixel character in the bottom-right corner of the screen. That is the desktop pet. It appears on launch. You can drag it to any corner.
+2. Click the pixel icon in the menu bar, at the top right of the screen, or click the character itself. Either opens the popover: an animated room with the character in it.
+3. Click "Add Project" and choose any folder that contains a git repository. If you need one, any checkout of a public repository works, and so does a folder where you have run "git init" followed by one commit.
+4. A repository committed to today shows the "awake" state immediately: the character is at their desk and the project row shows how long ago that commit was.
+5. The character's state is derived from time since the newest commit across the projects you added: awake under a day, dozing after a day, asleep after three days. A commit made after a long silence triggers a one-off "comeback" celebration.
 6. "Share Status" copies a 1200x630 image to the clipboard. Paste it anywhere to see it.
 
-The app makes no network requests. It has no accounts, no telemetry and no server of any
-kind. It reads only the reflog and file modification times of the folders you add through
-the picker, and stores its state in one JSON file in its own container.
+The app makes no network requests. It has no accounts, no telemetry, and no server of any kind. It reads only the reflog and file modification times of the folders you add through the picker, and stores its state in one JSON file in its own container.
 
-The bundle does carry com.apple.security.network.client, and that is not a contradiction.
-The entitlement is required for WKWebView to reach its own networking process: without it,
-a sandboxed webview never finishes navigation, so the popover renders blank and the app
-appears broken, with no sandbox violation logged. It grants WebKit that access; the app
-itself issues no requests.
+The bundle does carry com.apple.security.network.client, and that is not a contradiction. The entitlement is required for WKWebView to reach its own networking process: without it, a sandboxed webview never finishes navigation, so the popover renders blank, and the app appears broken, with no sandbox violation logged. It grants WebKit that access; the app itself issues no requests.
 
-Category: Developer Tools. The app's audience is developers with side projects, and the
-signal it reads is a git reflog.
+Category: Developer Tools. The app's audience is developers with side projects, and it reads a git reflog.
 ```
 
 **The network entitlement paragraph is load-bearing.** An earlier draft of these notes said
@@ -889,52 +882,52 @@ expected result rather than a failure. `getVersion` returns 2, and that is a tra
 those are the Rust side's `core:app` command name, so they prove the command is compiled in and
 say nothing about whether the page calls it.
 
-## The 0.4.0 queue
+## The 0.4.0 queue, worked through on 5 September 2026
 
-Written before the build, so the panel session is a list to work through rather than a
+Written before the build, so the panel session was a list to work through rather than a
 discovery exercise. 0.3.1 took six attempts to press Add for Review and none of them were about
-the binary; the fix for that is this list.
-
-Everything above is already updated for 0.4.0 and is the source to copy from.
+the binary; the fix for that was this list. It worked: Add for Review was pressed once.
 
 **Before either script runs**
 
-- [ ] Take the builder screenshot and renumber the set. `### The builder shot, for 0.4.0`.
-- [ ] `tools/store-shots.sh check` reports seven files at exactly 2560x1600.
+- [x] Take the builder screenshot and renumber the set. `### The builder shot, for 0.4.0`.
+- [x] `tools/store-shots.sh check` reports seven files at exactly 2560x1600.
 
 **The two scripts, in this order**
 
-- [ ] `tools/release.sh minor`, which is what makes 0.4.0 exist: it bumps
+- [x] `tools/release.sh minor`, which is what makes 0.4.0 exist: it bumps
       `tauri.conf.json`, `Cargo.toml` and `Cargo.lock`, dates the `[Unreleased]` bullets into a
       `## 0.4.0` section, rewrites both version strings on `site/index.html`, commits, tags,
       pushes, builds and notarizes the disk image, and publishes the GitHub release.
-- [ ] `tools/release-mas.sh --upload`, which burns build 6. One run, not two: `--validate-app`
+- [x] `tools/release-mas.sh --upload`, which burns build 6. One run, not two: `--validate-app`
       runs before `--upload-package` under `set -eu`, so a validation failure stops it before
       anything is sent.
 
 **In App Store Connect**
 
-- [ ] Read the live 0.3.2 copy back off the API before editing anything. The command is under
+- [x] Read the live 0.3.2 copy back off the API before editing anything. The command is under
       Description. The panel does not report what a new version dropped.
-- [ ] Create the 0.4.0 version and attach build 6, once it has finished processing.
-- [ ] **Promotional Text**: re-enter all 162 characters. It is not copied forward and an empty
+- [x] Create the 0.4.0 version and attach build 6, once it has finished processing.
+- [x] **Promotional Text**: re-enter all 162 characters. It is not copied forward and an empty
       one is a legal listing that warns about nothing.
-- [ ] **What's New**: the 0.4.0 block, 1433 characters.
-- [ ] **Description**: the build-your-own clause is the only change. Paste the whole block
+- [x] **What's New**: the 0.4.0 block, 1424 characters as submitted.
+- [x] **Description**: the build-your-own clause is the only change. Paste the whole block
       rather than editing in place, so the line breaks are the ones in this file.
-- [ ] **Screenshots**: drop the seven one at a time in slot order, then read the slots back.
-      Drop order sets the slots, not file names, and a released version's order cannot be
+- [x] **Screenshots**: seven, `COMPLETE`, at 2560x1600, in the order this file gives. Read back
+      off the API rather than the panel. The five carried forward from 0.3.2 kept their old file
+      names and the builder went in at slot 2, which is why the names no longer match the slots:
+      drop order sets the slots, not file names, and a released version's order cannot be
       changed afterwards.
-- [ ] **App Review Information > Notes**: the review notes plus the rewritten addendum, 3886
+- [x] **App Review Information > Notes**: the review notes plus the rewritten addendum, 3856
       characters. Point 7 changed and the old wording is now false.
-- [ ] Export compliance, answered by hand: no encryption.
-- [ ] Add for Review, then Submit.
+- [x] Export compliance, answered by hand: no encryption.
+- [x] Add for Review, then Submit.
 
 **After**
 
 - [ ] Merge PR #3, which is what publishes the builder section on keepgoing.dev. Held until the
       release ships by decision, because the site must describe only what people can download.
-- [ ] Add the rows to the submission log below.
+- [x] Add the rows to the submission log below.
 - [ ] `tools/verify-store-copy.sh` against `/Applications` the day it goes live, and not before:
       a Developer ID or locally signed copy fails the provenance and sandbox checks by
       definition.
@@ -1009,6 +1002,8 @@ reason is worth more than a clean pass.
 | 2026-08-31 | 0.3.2 | 5 | `UPLOAD SUCCEEDED with no errors, 1 warning` (90889 a third time). Delivery UUID `ce4b6ca0-e770-439d-b5e5-f24ac837811f`, 7207763 bytes. Reached `VALID`, minimum macOS 10.15. |
 | 2026-08-31 | 0.3.2 | 5 | **Submitted for review** at 08:03 +07, Submission ID `67103224-ab09-4462-9f99-b8db71caecf1`. No rejection and no questionnaire: the 2.1 answers were in the Notes field from the first submission of this version, which is what 0.3.1 taught. |
 | 2026-08-31 | 0.3.2 | 5 | **Approved and released**, `2026-08-31T17:03:34Z`. Sixteen hours from Submit, unattended. Verified without credentials from `https://itunes.apple.com/lookup?id=6804925509&entity=macSoftware`: version 0.3.2, six screenshots, release notes present, 4942018 bytes delivered against 7207763 uploaded. |
+| 2026-09-05 | 0.4.0 | 6 | `UPLOAD SUCCEEDED with no errors, 1 warning` (90889 a fourth time). Delivery UUID `0aae5041-680c-475b-9b22-e32809c6d70d`, 8560259 bytes. Reached `VALID` about a minute after the upload, minimum macOS 10.15. |
+| 2026-09-05 | 0.4.0 | 6 | **Submitted for review** at `2026-09-05T16:39:36Z`, Submission ID `1e07ff96-a4a1-4b4b-9e7a-9e332e2b72d9`. Add for Review was pressed once, against six attempts on 0.3.1. Seven screenshots with the builder at slot 2, and the Notes field caught short before Submit: see below. |
 
 **Submitting took six tries, none of them about the build.** After the build was attached,
 "Add for Review" refused five times over listing fields, all recorded above: contact information,
@@ -1098,3 +1093,18 @@ CFBundleVersion:            4
 rewrite happened, and Phase 6 could not complete until `drawsBackground` and `fullScreenEnabled`
 were out of the binary. This is the first time that gate has been reported on a build that left
 the machine.
+
+**The Notes field went in without its addendum, and only the API said so.** The panel showed a
+full-looking field: 1936 characters of reviewer instructions, correctly formatted, with nothing
+to suggest anything was missing. What was missing was everything Apple's 2.1 questionnaire had
+asked for on 0.3.1, which is the reason this app was approved on the same build it was rejected
+on. Reading the field back and grepping it for its own section headings is what found it, and
+the fix took one paste. **Check for content, not for emptiness.** A field that has the right
+shape and half the substance is the failure mode a panel cannot show you.
+
+**The panel copy was edited on the way in, again, and this time deliberately.** Every `colour`
+in the Description, What's New and the Notes addendum went up as `color`, with Oxford commas
+added and four sentences rephrased. The store is `en-US` and the edit is defensible; the point
+is that the file said one thing and the store said another, for the second version running. The
+blocks above are now the API's text rather than the draft, which is the only version of this
+file that can be trusted.

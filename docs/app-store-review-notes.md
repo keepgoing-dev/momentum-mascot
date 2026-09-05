@@ -72,7 +72,7 @@ Typeface: Departure Mono by Helena Zhang, under the SIL Open Font License 1.1, w
 The app is not in a regulated industry, handles no health, financial or personal data, and collects nothing.
 ```
 
-## The Notes field: the review notes plus this addendum (2025 characters)
+## The Notes field: the review notes plus this addendum (1918 characters)
 
 Apple's closing line asks for this information in the Notes field of App Review Information so
 the next version is not asked again. The version is editable while it sits rejected, so this can
@@ -80,12 +80,12 @@ be done now, and it should be: the questionnaire arrives per app, but a reviewer
 reach the four states arrives per version.
 
 **The field must keep the reviewer instructions.** Those are in `docs/app-store-listing.md` under
-"Review notes", they are 1971 characters, and they are what tells a reviewer where to click in an
+"Review notes", they are 1936 characters, and they are what tells a reviewer where to click in an
 app with no window. This addendum goes below them and covers only what a reviewer cannot work out
 by clicking: what it was tested on, who it is for, how to reach the states, and what is licensed
 from whom.
 
-**The pair lands at 3886 characters against a 4000 limit, which is not a comfortable fit.** The
+**The pair lands at 3856 characters against a 4000 limit, which is not a comfortable fit.** The
 limit on this field is assumed rather than measured: 4000 is what Reply to App Review states, and
 the Notes field is treated the same here.
 
@@ -111,9 +111,9 @@ EXTERNAL SERVICES: none, as above: no data provider, authentication service, pay
 
 REGIONAL DIFFERENCES: none. No region-gated features or content, and no localization (English only).
 
-THIRD-PARTY MATERIAL: the rooms, furniture and characters are derived from "Modern Interiors" by LimeZu (limezu.itch.io), a commercial asset pack purchased under its full-version licence, which permits use and editing in any commercial project and forbids reselling or distributing the asset itself. The art ships inside the application as its own resources: composited rooms, plus the curated character layers the in-app mascot builder composites at runtime. That is a derived subset cut to this app's frame geometry rather than the pack as sold, and the app offers no way to export any of it, so this is use rather than redistribution. The required credit is shown in the popover and in the copyright field; receipt and licence text available on request. The typeface is Departure Mono by Helena Zhang under the SIL Open Font License 1.1, which permits bundling, and its licence text ships in the bundle.
+THIRD-PARTY MATERIAL: the rooms, furniture, and characters are derived from "Modern Interiors" by LimeZu (limezu.itch.io), a commercial asset pack purchased under its full-version license, which permits use and editing in any commercial project and forbids reselling or distributing the asset itself. The art ships inside the application as its own resources: composited rooms, plus the curated character layers the in-app mascot builder composites at runtime. That is a derived subset cut to this app's frame geometry rather than the pack as sold, and the app offers no way to export any of it, so this is use rather than redistribution. The required credit is shown in the popover and in the copyright field; receipt and license text available on request. The typeface is Departure Mono by Helena Zhang under the SIL Open Font License 1.1, which permits bundling, and its licence text ships in the bundle.
 
-Not a regulated industry: no health, financial or personal data, and nothing collected.
+Not a regulated industry: no health, financial, or personal data, and nothing is collected.
 ```
 
 ## Where each answer comes from
