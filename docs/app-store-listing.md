@@ -726,19 +726,29 @@ a wrong crop also has. `tools/store-shots.sh clip 2 builder tr` is the fallback,
 
 ### Taken
 
-Six of the seven, on 25 and 26 August 2026, and `store-shots.sh check` reports every one at
-exactly 2560x1600. The slot column is the 0.4.0 order; the file names are still the 0.3.2 ones
-and are renumbered when the builder shot is taken.
+All seven, and `store-shots.sh check` reports every one at exactly 2560x1600. The set was
+renumbered when the builder shot landed, so file names and slots agree again.
 
 | Slot | File | What is in it |
 |---|---|---|
 | 1 | `1-comeback.png` | popover, comeback, "I KNEW IT.", rows at 3 minutes / 6 days / 14 days |
-| 2 | not yet shot | the builder, HAIR tab, a mascot mid-build in the room above it |
-| 3 | `2-awake.png` | popover, awake, "Something moved today. That counts." |
-| 4 | `3-dozing.png` | popover, dozing, "Taking five. Same here." |
-| 5 | `4-asleep.png` | popover, asleep, "Sleeping, not gone. Wake me whenever." |
-| 6 | `5-pet.png` | the pet alone, bottom-left corner, over water |
-| 7 | `6-card.png` | the comeback share card, BACK!!!, at 2x on its mat |
+| 2 | `2-builder.png` | the builder, WEAR tab, an outfit selected, the mascot in the preview |
+| 3 | `3-awake.png` | popover, awake, "Something moved today. That counts." |
+| 4 | `4-dozing.png` | popover, dozing, "Taking five. Same here." |
+| 5 | `5-asleep.png` | popover, asleep, "Sleeping, not gone. Wake me whenever." |
+| 6 | `6-pet.png` | the pet alone, top-left corner, flat mid-tone wallpaper |
+| 7 | `7-card.png` | the comeback share card, BACK!!!, at 2x on its mat |
+
+**The panel lands in the same place in all five popover shots, and that is measured rather than
+eyeballed.** Masking `#14141c` and taking the connected component 698px wide puts it at `+931+69`
+in shot 3 and `+931+77` in shot 2: identical horizontally, four logical pixels apart vertically.
+Two earlier attempts at shot 2 failed this and both were opened from the mascot.
+
+**Three cosmetic departures in shot 2, all accepted.** A menu bar glyph is sliced by the right
+frame edge, where the older shots happen to end on a whole icon; the menu bar's mean value is 101
+against 91 for the other four, because more status items are lit; and the wallpaper is a
+different frame of a rotating set. None of the three survives the downscale to the 640px the
+gallery shows, and shot 5 already departs from shots 1, 3 and 4 on wallpaper.
 
 **`5-pet.png` was reshot on 27 August** onto a flat mid-tone wallpaper in the top-left corner,
 cropped `tl`; the "over water" row above is the original and the reasoning is in the wallpaper
