@@ -19,6 +19,23 @@ The site, not the repo. The site has the hero GIF above the fold and the downloa
 GitHub opens on a wall of text. `site/hero.gif` and `docs/mockups/states-four.gif` are the two
 assets that do the actual selling.
 
+When the repo link does get shared anyway, GitHub unfurls its social preview rather than the
+site's card. That is `site/assets/share/github-1280x640.png`, the comeback state at GitHub's
+recommended 1280x640. Regenerate it with:
+
+```sh
+tools/compose-rooms.sh
+MASCOT_CW=1280 MASCOT_CH=640 tools/compose-share.sh
+cp docs/mockups/share-comeback-1280x640.png site/assets/share/github-1280x640.png
+```
+
+Uploading is manual and has no API: repo Settings -> General -> Social preview -> Edit ->
+Upload an image. The four 600x315 cards in the same directory are the site's own and are below
+GitHub's 640x320 minimum, so they cannot stand in for this one.
+
+The small icon beside the repo name is not this image and not a repo setting at all - it is the
+`keepgoing.dev` org avatar, changed at the org's profile settings and shared by every repo.
+
 ---
 
 ## Show HN
