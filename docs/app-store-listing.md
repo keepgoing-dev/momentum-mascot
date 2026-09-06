@@ -930,7 +930,9 @@ the binary; the fix for that was this list. It worked: Add for Review was presse
 - [x] Add the rows to the submission log below.
 - [ ] `tools/verify-store-copy.sh` against `/Applications` the day it goes live, and not before:
       a Developer ID or locally signed copy fails the provenance and sandbox checks by
-      definition.
+      definition. Blocked on the App Store app actually delivering the update: an installed copy
+      stays on the previous version until it does, and reads `0.3.2` build `5` while 0.4.0 is
+      already `READY_FOR_SALE`.
 
 ## What rode on 0.3.2, and what it cost
 
@@ -1004,6 +1006,7 @@ reason is worth more than a clean pass.
 | 2026-08-31 | 0.3.2 | 5 | **Approved and released**, `2026-08-31T17:03:34Z`. Sixteen hours from Submit, unattended. Verified without credentials from `https://itunes.apple.com/lookup?id=6804925509&entity=macSoftware`: version 0.3.2, six screenshots, release notes present, 4942018 bytes delivered against 7207763 uploaded. |
 | 2026-09-05 | 0.4.0 | 6 | `UPLOAD SUCCEEDED with no errors, 1 warning` (90889 a fourth time). Delivery UUID `0aae5041-680c-475b-9b22-e32809c6d70d`, 8560259 bytes. Reached `VALID` about a minute after the upload, minimum macOS 10.15. |
 | 2026-09-05 | 0.4.0 | 6 | **Submitted for review** at `2026-09-05T16:39:36Z`, Submission ID `1e07ff96-a4a1-4b4b-9e7a-9e332e2b72d9`. Add for Review was pressed once, against six attempts on 0.3.1. Seven screenshots with the builder at slot 2, and the Notes field caught short before Submit: see below. |
+| 2026-09-05 | 0.4.0 | 6 | **Approved and released**, `2026-09-05T17:58:07Z`. One hour nineteen minutes from Submit, against sixteen hours for 0.3.2, on a version carrying a new feature and a new screenshot. Verified without credentials from `https://itunes.apple.com/lookup?id=6804925509&entity=macSoftware`: version 0.4.0, seven screenshots, release notes present, 6504511 bytes delivered against 8560259 uploaded. |
 
 **Submitting took six tries, none of them about the build.** After the build was attached,
 "Add for Review" refused five times over listing fields, all recorded above: contact information,
