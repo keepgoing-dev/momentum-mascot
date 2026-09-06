@@ -10,6 +10,7 @@
 # Output: docs/mockups/share-<s>-1200x630.png, plus a 2x2 contact sheet.
 #
 # Env:  MASCOT_OUT   output directory (default docs/mockups)
+#       MASCOT_CW/CH canvas size (default 1200x630)
 #
 # Run tools/compose-rooms.sh first; this consumes its stills.
 
@@ -25,10 +26,10 @@ FONT="$ROOT/assets/fonts/departure-mono/DepartureMono-Regular.otf"
 # ---------------------------------------------------------------------------
 # Canvas
 # ---------------------------------------------------------------------------
-# 1200x630 is the standard social card. The room is 10:7 and the card is 1.91:1, so the
-# room is integer-scaled and matted, never scaled fractionally to fill (section 5.2).
+# Default 1200x630 is the standard social card; GitHub's repo preview wants 1280x640. Neither
+# is the room's 10:7, so the room is integer-scaled and matted, never stretched (section 5.2).
 
-CW=1200 ; CH=630
+CW="${MASCOT_CW:-1200}" ; CH="${MASCOT_CH:-630}"
 SCALE=5                       # 160x112 -> 800x560
 RW=$((160 * SCALE))
 RH=$((112 * SCALE))
@@ -214,7 +215,7 @@ trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$OUT"
 sheet=""
 for state in awake dozing asleep comeback; do
-  out="$OUT/share-$state-1200x630.png"
+  out="$OUT/share-$state-${CW}x${CH}.png"
   card "$state" "$out"
   sheet="$sheet $out"
   echo "  $out"
