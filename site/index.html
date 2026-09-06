@@ -147,6 +147,22 @@
         <div class="feature reverse">
           <div class="feature-visual">
             <div
+              class="built-room"
+              data-who="01"
+              role="img"
+              aria-label="Mascots built from different skin, eyes, hair, outfit and accessory choices, each at their desk"
+            ></div>
+          </div>
+          <div class="feature-text">
+            <h2>Build the one who waits</h2>
+            <p>Three premade characters, or the <code>+</code> slot: pick a skin tone, eyes, hair, an outfit and one accessory, and the person in the room becomes yours. 9 skin tones, 7 eyes, 14 hairstyles in 7 colours, 13 outfits in 4 colours, and 42 accessories.</p>
+            <p>You build them once and that is the end of it. There is no settings screen to come back to, and the mascot you built then lives everywhere a premade does: the room, the desktop pet, and the share card.</p>
+          </div>
+        </div>
+
+        <div class="feature">
+          <div class="feature-visual">
+            <div
               class="share-card"
               data-mood="awake"
               role="img"
@@ -160,7 +176,7 @@
           </div>
         </div>
 
-        <div class="feature">
+        <div class="feature reverse">
           <div class="feature-visual">
             <div class="op-badge" aria-hidden="true">operating</div>
           </div>
@@ -236,20 +252,20 @@
         const moods = ["awake", "dozing", "asleep", "comeback"];
         const labels = { awake: "Awake", dozing: "Dozing", asleep: "Asleep", comeback: "Comeback" };
 
-        function cycle({ target, label, assetDir }) {
+        function cycle({ target, label, assetDir, values = moods, attr = "mood" }) {
           if (!target) return;
 
-          moods.forEach((mood) => {
+          values.forEach((value) => {
             const img = new Image();
-            img.src = `${assetDir}/${mood}.png`;
+            img.src = `${assetDir}/${value}.png`;
           });
 
           let i = 0;
           setInterval(() => {
-            i = (i + 1) % moods.length;
-            const mood = moods[i];
-            target.dataset.mood = mood;
-            if (label) label.textContent = labels[mood];
+            i = (i + 1) % values.length;
+            const value = values[i];
+            target.dataset[attr] = value;
+            if (label) label.textContent = labels[value];
           }, 3000);
         }
 
@@ -263,6 +279,13 @@
           target: document.querySelector(".share-card"),
           label: document.querySelector(".share-state"),
           assetDir: "assets/share",
+        });
+
+        cycle({
+          target: document.querySelector(".built-room"),
+          assetDir: "assets/built",
+          values: ["01", "02", "03", "04"],
+          attr: "who",
         });
       })();
     </script>

@@ -241,8 +241,9 @@ nav {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
   background-repeat: no-repeat;
   /* 12 frames of the 160x112 room, tripled: a 5760x336 strip stepped one room at a time. */
-  background-size: 5760px 336px;
-  animation: hero-room 2s steps(12) infinite;
+  --strip: 5760px;
+  background-size: var(--strip) 336px;
+  animation: room-strip 2s steps(12) infinite;
 }
 
 .hero-room[data-mood="awake"] {
@@ -262,12 +263,12 @@ nav {
   animation-duration: 1.5s;
 }
 
-@keyframes hero-room {
+@keyframes room-strip {
   from {
     background-position: 0 0;
   }
   to {
-    background-position: -5760px 0;
+    background-position: calc(var(--strip) * -1) 0;
   }
 }
 
@@ -349,6 +350,34 @@ nav {
   font-size: 0.75rem;
   margin: 0;
   min-height: 1.2em;
+}
+
+.built-room {
+  width: 360px;
+  max-width: 100%;
+  aspect-ratio: 480 / 336;
+  border-radius: var(--radius);
+  border: 2px solid var(--border);
+  image-rendering: pixelated;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  background-repeat: no-repeat;
+  /* Whole frames rather than the hero's crop: 12 of them at the rendered width. */
+  --strip: 4320px;
+  background-size: var(--strip) 252px;
+  animation: room-strip 2s steps(12) infinite;
+}
+
+.built-room[data-who="01"] {
+  background-image: url("assets/built/01.png");
+}
+.built-room[data-who="02"] {
+  background-image: url("assets/built/02.png");
+}
+.built-room[data-who="03"] {
+  background-image: url("assets/built/03.png");
+}
+.built-room[data-who="04"] {
+  background-image: url("assets/built/04.png");
 }
 
 .op-badge {
