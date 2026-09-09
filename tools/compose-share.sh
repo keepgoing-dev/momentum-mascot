@@ -7,7 +7,7 @@
 # coordinates rather than art, and therefore safe to commit.
 #
 # Input:  docs/mockups/state-<s>-160x112.png, the frame-0 stills from compose-rooms.sh.
-# Output: docs/mockups/share-<s>-1200x630.png, plus a 2x2 contact sheet.
+# Output: docs/mockups/share-<s>-<CW>x<CH>.png, plus a 2x2 contact sheet.
 #
 # Env:  MASCOT_OUT   output directory (default docs/mockups)
 #       MASCOT_CW/CH canvas size (default 1200x630)
