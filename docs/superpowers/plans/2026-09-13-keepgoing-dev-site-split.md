@@ -196,14 +196,20 @@ echo "Path resolution"
 # Relative src/href in HTML resolves against the page URL, so a page served at
 # /momentum-mascot/ would look for /momentum-mascot/assets/. Root-absolute only.
 if [ -z "$BASE" ]; then
-  if grep -rnoE '(src|href)="[^"]+"' --include="*.html" --exclude-dir=.git . 2>/dev/null \
-       | grep -vE '="(/|https?:|mailto:|#)'; then
+  rel=$(grep -rnoE '(src|href)="[^"]+"' --include="*.html" --exclude-dir=.git . 2>/dev/null \
+          | grep -vE '="(/|https?:|mailto:|#)' || true)
+  if [ -n "$rel" ]; then
+    printf '%s\n' "$rel"
     fail "relative src/href found in HTML; assets will 404 under a subpath"
   else
     ok "all HTML src/href are absolute"
   fi
 
-  if grep -nE 'assetDir: *"[^/]' index.html momentum-mascot/index.html 2>/dev/null; then
+  # Captured, not piped. grep exits 2 when a listed file is missing and `set -o pipefail`
+  # propagates that, so a status test would report "pass" while matches existed.
+  hits=$(grep -hnE 'assetDir: *"[^/]' index.html momentum-mascot/index.html 2>/dev/null || true)
+  if [ -n "$hits" ]; then
+    printf '%s\n' "$hits"
     fail "relative assetDir in the preloader script"
   else
     ok "preloader assetDir paths are absolute"
@@ -240,7 +246,29 @@ chmod +x tools/verify-site.sh
 tools/verify-site.sh
 ```
 
-Expected: FAIL. At this point `/momentum-mascot` and `/commitropolis` do not exist, `/` has `#support` only because the mascot page is still at the root, and the relative-path check fails on `index.html`, `404.html` and `privacy.html`. Read the output and keep it. It is the task list for Tasks 3 through 7.
+Expected: **FAIL: 5 check(s)**, exactly this, verified by running it against the extracted tree
+before this plan was handed over:
+
+```
+Pinned URLs
+  ok    /privacy serves the privacy policy
+  ok    / carries #support
+  FAIL  /momentum-mascot is missing #support
+Pages
+  ok    / serves a complete page
+  FAIL  /momentum-mascot does not serve a complete page
+  FAIL  /commitropolis does not serve a complete page
+  ok    /privacy serves a complete page
+Path resolution
+  FAIL  relative src/href found in HTML; assets will 404 under a subpath
+  FAIL  relative assetDir in the preloader script
+Licence
+  ok    no layer or swatch files
+```
+
+`/ carries #support` passes only because the mascot page is still at the root; Task 4 moves it
+away and Task 5 puts the anchor back on the hub. Each `FAIL` line above is retired by a later
+task, and nothing else in this plan is done until all five are green.
 
 - [ ] **Step 3: Commit**
 
