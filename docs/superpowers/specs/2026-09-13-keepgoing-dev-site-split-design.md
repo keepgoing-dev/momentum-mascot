@@ -85,8 +85,8 @@ different ones.
 
 Seed it with `git subtree split --prefix=site` rather than copying files in. The page has real
 history worth keeping, including the reasons behind several of its claims, and the split is one
-command. If the split proves awkward for any reason, a plain copy is an acceptable fallback and
-not worth a fight.
+command. Verified clean against the current tree during review, so the plain-copy fallback is
+not expected to be needed.
 
 Two rules have to travel with the files, because both currently live in the repository being
 left behind and would otherwise be orphaned:
@@ -114,8 +114,15 @@ ship on three strangers returning the next day and states plainly that not launc
 outcome. The page must be truthful about that, and a teaser that promises delivery would make
 this document the reason the project could not later walk away cheaply.
 
-This assumes an itch.io page exists or can be put up as a draft. If it cannot, the card falls
-back to the minimal placeholder: premise, one screenshot, link to the GitHub repository.
+The itch.io account does not exist yet. Creating it and publishing a public project page is a
+Phase 0 task of the launch spec rather than a prerequisite of this one, and it is cheap: the
+account is free and immediate, and itch's **tax interview blocks selling, not following**, so a
+working Follow button needs no payout setup at all. A public page carrying a premise, screenshots
+and no download is ordinary on itch.
+
+Pulling it forward is not scope creep borrowed from another project. Commitropolis' spec needs
+the page regardless, and a Follow button only accumulates followers during the weeks it is up,
+so the cheapest time to publish it is before this launch rather than after.
 
 ## 7. Cutover
 
@@ -144,9 +151,8 @@ Three checks, all cheap, all of which have failed silently for someone before:
 - No file under the new repository matches the layer or swatch outputs described in
   `docs/app-store-licence-check.md:98`.
 
-## 9. Open questions
+## 9. Questions closed during review
 
-- Whether an itch.io page for Commitropolis exists yet, which decides between the teaser in
-  section 6 and its fallback.
-- Whether `git subtree split` produces a clean history given `site/` was added and moved during
-  the repository's life. Fallback is a plain copy.
+- **`git subtree split` is clean** on the current tree. No fallback needed.
+- **No itch.io account exists.** Resolved by section 6: creating it is a Phase 0 task, not a
+  blocker on this document.

@@ -100,8 +100,22 @@ art with nothing to sell, because that subreddit reacts badly to promotion and w
 
 ### The article, written once
 
-Canonical on **hoatrinh.dev**, cross-posted to dev.to and Hashnode with canonical tags, and
-syndicated to daily.dev by registering hoatrinh.dev as a Source.
+Canonical on **hoatrinh.dev**, cross-posted to dev.to, and syndicated to daily.dev by
+registering hoatrinh.dev as a Source.
+
+Most of this is already built, which was checked rather than assumed:
+
+- `apps/web/scripts/build-rss.ts` emits `/rss.xml` carrying `<content:encoded>` with the full
+  post body rather than an excerpt, which is what daily.dev needs to render an article properly.
+- `apps/web/index.html:7` declares `<link rel="alternate" type="application/rss+xml">`, so the
+  feed is auto-discovered from the domain and Source registration is a URL submission.
+- Sixteen posts are already published. Source review screens for a real feed with history, not a
+  feed with one item in it, so this is the difference between approval and rejection.
+- `apps/web/scripts/crosspost-devto/` already sets `canonical_url` to `${SITE}/post/<slug>`,
+  caps tags at four and publishes. The dev.to half is a script run, not manual work.
+
+Hashnode is dropped. It was the only remaining manual cross-post, its organic reach sits well
+below dev.to's, and a third copy of one article dilutes the canonical signal for very little.
 
 hoatrinh.dev rather than a blog on keepgoing.dev for two reasons. It is already designated as
 the writing home in Commitropolis' own launch spec, and consistency between the two launches is
@@ -148,8 +162,10 @@ finishes outside the top twenty, and it consumes a day of attention doing so.
 **Phase 0, days 1-7. Nothing is public.**
 Record the baseline Releases download count and star count before anything moves, because
 without it the launch produces a graph with no baseline. Execute the site split spec end to end
-and verify it. Confirm hoatrinh.dev has a blog and an RSS feed at all, which this document
-assumes and has not checked, then submit the daily.dev Source. Write the article. Warm the HN
+and verify it. Submit hoatrinh.dev to daily.dev as a Source, first, because review takes days and
+everything the feed needs already exists. Create the itch.io account and publish a public
+Commitropolis project page, so `/commitropolis` has a Follow button to point at and that button
+spends the whole launch accruing followers. Write the article. Warm the HN
 account by commenting honestly on unrelated threads, with no links. Rebuild and upload the
 GitHub social preview card, which `fcd4aaa` removed from git, per the recipe in
 `docs/launch-copy.md`. Install once from a different machine to prove the download is clean.
