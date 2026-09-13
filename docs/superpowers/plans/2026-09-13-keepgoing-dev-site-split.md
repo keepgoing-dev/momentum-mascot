@@ -146,13 +146,15 @@ fail() { printf '  FAIL  %s\n' "$1"; fails=$((fails + 1)); }
 get() {
   local path="$1"
   if [ -n "$BASE" ]; then
-    curl -fsS "${BASE}${path}" 2>/dev/null
+    # -L is required: Pages 308-redirects some paths, and without it this script
+    # reports the #support invariant broken when it is not.
+    curl -fsSL "${BASE}${path}" 2>/dev/null
   else
     case "$path" in
       /)                  cat index.html ;;
       /privacy)           cat privacy.html ;;
-      /momentum-mascot)   cat momentum-mascot/index.html ;;
-      /commitropolis)     cat commitropolis/index.html ;;
+      /momentum-mascot)   cat momentum-mascot.html ;;
+      /commitropolis)     cat commitropolis.html ;;
       *)                  cat ".${path}" ;;
     esac 2>/dev/null
   fi
@@ -207,7 +209,7 @@ if [ -z "$BASE" ]; then
 
   # Captured, not piped. grep exits 2 when a listed file is missing and `set -o pipefail`
   # propagates that, so a status test would report "pass" while matches existed.
-  hits=$(grep -hnE 'assetDir: *"[^/]' index.html momentum-mascot/index.html 2>/dev/null || true)
+  hits=$(grep -hnE 'assetDir: *"[^/]' index.html momentum-mascot.html 2>/dev/null || true)
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
     fail "relative assetDir in the preloader script"
@@ -367,7 +369,7 @@ git commit -m "Anchor every asset path to the root so pages can move"
 ### Task 4: Move the mascot page to `/momentum-mascot`
 
 **Files:**
-- Create: `momentum-mascot/index.html` (moved from `index.html`)
+- Create: `momentum-mascot.html` (moved from `index.html`)
 - Modify: `404.html` (nav links at 25, 26)
 - Modify: `sitemap.xml`
 
@@ -378,24 +380,29 @@ git commit -m "Anchor every asset path to the root so pages can move"
 - [ ] **Step 1: Move the file**
 
 ```bash
-mkdir -p momentum-mascot
-git mv index.html momentum-mascot/index.html
+git mv index.html momentum-mascot.html
 ```
+
+**`momentum-mascot.html`, not `momentum-mascot/index.html`.** Cloudflare Pages adds a trailing
+slash for directory-index files and strips it for `.html` files, so the directory form serves at
+`/momentum-mascot/` while this page's canonical, `og:url`, JSON-LD `url`, the sitemap and the
+App Store Connect Marketing URL all declare the slashless `/momentum-mascot`. The `.html` form
+makes all of them exact with no redirect. Measured under `wrangler pages dev`.
 
 - [ ] **Step 2: Update its own URLs to point at the new location**
 
-In `momentum-mascot/index.html`, change the canonical and Open Graph URL, and the logo link that currently goes to `/`:
+In `momentum-mascot.html`, change the canonical and Open Graph URL, and the logo link that currently goes to `/`:
 
 ```bash
 sed -i '' \
   -e 's|<link rel="canonical" href="https://keepgoing.dev/" />|<link rel="canonical" href="https://keepgoing.dev/momentum-mascot" />|' \
   -e 's|<meta property="og:url" content="https://keepgoing.dev/" />|<meta property="og:url" content="https://keepgoing.dev/momentum-mascot" />|' \
-  momentum-mascot/index.html
+  momentum-mascot.html
 ```
 
 - [ ] **Step 3: Point the nav logo at the hub and add a hub link**
 
-The header's logo currently reads `<a href="/" class="logo">` with the text `Momentum Mascot`. The root is about to stop being this page, so the logo becomes the way back to the hub. Replace the `nav-links` block in `momentum-mascot/index.html`:
+The header's logo currently reads `<a href="/" class="logo">` with the text `Momentum Mascot`. The root is about to stop being this page, so the logo becomes the way back to the hub. Replace the `nav-links` block in `momentum-mascot.html`:
 
 ```html
         <div class="nav-links">
@@ -682,7 +689,7 @@ git commit -m "Give the root to both products"
 ### Task 6: Create the itch.io page and build `/commitropolis`
 
 **Files:**
-- Create: `commitropolis/index.html`
+- Create: `commitropolis.html`
 - Create: `assets/commitropolis/hub.png`, `assets/commitropolis/shot-01.png`, `assets/commitropolis/shot-02.png`
 - Modify: nothing
 
@@ -738,7 +745,15 @@ Manual, in a browser:
 
 - [ ] **Step 3: Write the page**
 
-Create `commitropolis/index.html`, replacing `ITCH_URL` with the URL from Step 2:
+Create **`commitropolis.html`**, not `commitropolis/index.html`, replacing `ITCH_URL` with the
+URL from Step 2.
+
+The filename is load-bearing, not cosmetic. Cloudflare Pages adds a trailing slash for
+directory-index files and strips it for `.html` files, so `commitropolis/index.html` would serve
+at `/commitropolis/` while this page's canonical, its `og:url` and the sitemap all declare the
+slashless `/commitropolis`. The page would declare a canonical that redirects to itself and the
+sitemap would submit a redirecting URL. `momentum-mascot.html` and `privacy.html` follow the same
+rule for the same reason. Measured under `wrangler pages dev`, not assumed.
 
 ```html
 <!doctype html>
@@ -860,9 +875,9 @@ Create `commitropolis/index.html`, replacing `ITCH_URL` with the URL from Step 2
 - [ ] **Step 4: Substitute the real itch URL**
 
 ```bash
-grep -c "ITCH_URL" commitropolis/index.html   # expect 3
-sed -i '' 's|ITCH_URL|https://<username>.itch.io/commitropolis|g' commitropolis/index.html
-grep -c "ITCH_URL" commitropolis/index.html   # expect 0
+grep -c "ITCH_URL" commitropolis.html   # expect 3
+sed -i '' 's|ITCH_URL|https://<username>.itch.io/commitropolis|g' commitropolis.html
+grep -c "ITCH_URL" commitropolis.html   # expect 0
 ```
 
 - [ ] **Step 5: Run the verification**
@@ -876,7 +891,7 @@ Expected: **PASS**. Every check green against the local tree.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add commitropolis/index.html assets/commitropolis
+git add commitropolis.html assets/commitropolis
 git commit -m "Give Commitropolis a page and a follow button"
 git push
 ```
@@ -895,6 +910,12 @@ git push
 This happens while nothing is pointing at the domain. Doing it during a live thread is the one sequencing mistake in this plan that cannot be undone.
 
 - [ ] **Step 1: Create the Pages project**
+
+**Finish Task 6 before this step, not merely before step 4.** The gate in step 2 protects
+`keepgoing.dev`, but creating the project publishes the site to a `*.pages.dev` URL as soon as
+the repository is pushed, and that URL is shareable and indexable. With Task 6 unfinished the
+hub's Commitropolis card is four dead links over a broken image, which reads as a bug rather
+than as "coming soon".
 
 In the Cloudflare dashboard, Workers and Pages, create a new Pages project connected to `keepgoing-dev/keepgoing.dev`. Build command: none. Build output directory: `/`. The existing project is named `keepgoing` (`momentum-mascot/.wrangler/cache/pages.json`); give this one a different name, such as `keepgoing-dev-site`.
 
