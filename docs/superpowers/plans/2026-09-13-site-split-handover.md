@@ -3,22 +3,18 @@
 The site is built and verified locally. `tools/verify-site.sh` reports one failure,
 `/commitropolis`, which cannot be retired without an itch.io account.
 
-Nothing here has been published. The repository has no git remote, and
-`keepgoing-dev/keepgoing.dev` does not exist on GitHub.
+## 1. Publish the repository - DONE, private
 
-## 1. Publish the repository
+`keepgoing-dev/web` exists and holds all 10 commits on `master`. It was created **private**,
+not public as this plan first assumed, because Cloudflare Pages connects to private repos: that
+unblocks step 3 now while keeping the broken Commitropolis card off a public URL.
+
+**Flip it to public at cutover, after step 2 lands**, not before. Until `/commitropolis` is
+built, the hub's second card is four dead links over a broken image.
 
 ```sh
-cd ~/Workspace/KeepGoing.dev/keepgoing.dev
-gh repo create keepgoing-dev/keepgoing.dev --public --source=. --remote=origin --push
+gh repo edit keepgoing-dev/web --visibility public --accept-visibility-change-consequences
 ```
-
-Withheld deliberately: creating a public repository is a publish, and that is yours to decide.
-
-**Do step 2 before you push, or accept that the hub is publicly reachable with a broken card.**
-Creating the Cloudflare Pages project puts the site on a shareable `*.pages.dev` URL as soon as
-the repository exists, and until `/commitropolis` is built the hub's second card is four dead
-links over a broken image.
 
 ## 2. Task 6: the itch.io page and `/commitropolis`
 

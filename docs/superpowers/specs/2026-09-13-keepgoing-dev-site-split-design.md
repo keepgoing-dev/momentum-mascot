@@ -81,7 +81,9 @@ different ones.
 
 ## 5. The repository
 
-`keepgoing-dev/keepgoing.dev`, public, static, no build step, as today.
+`keepgoing-dev/web`, static, no build step, as today. Named for its function, matching
+`releases` and `community` rather than the domain. Created private and flipped to public
+at cutover, so the hub is not publicly reachable while its Commitropolis card is broken.
 
 Seed it with `git subtree split --prefix=site` rather than copying files in. The page has real
 history worth keeping, including the reasons behind several of its claims, and the split is one
