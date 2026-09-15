@@ -25,6 +25,10 @@ set -eu
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 APP="Momentum Mascot"
 
+# The site is keepgoing-dev/web, checked out beside this repository by default.
+SITE_REPO=${MASCOT_SITE_REPO:-$ROOT/../keepgoing.dev}
+SITE_PAGE="$SITE_REPO/momentum-mascot.html"
+
 # Point cargo at rustup's toolchain, not the standalone install in /usr/local/bin.
 export PATH="$HOME/.cargo/bin:$PATH"
 
@@ -159,16 +163,16 @@ fi
 sed -i '' "s/\"version\": \"$CURRENT\"/\"version\": \"$VERSION\"/" src-tauri/tauri.conf.json
 sed -i '' "s/^version = \"$CURRENT\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
 
-# The site states the latest version in prose, so it is a version file too. It was two releases
-# behind before this line existed, which is what a public page does when nothing owns it.
-#
-# Matched on any version rather than on $CURRENT deliberately: anchoring on the old value means
-# a page that has already drifted is silently left alone, and silently doing nothing is the
-# failure mode being fixed here.
-sed -i '' "s|Latest release: v[0-9][0-9.]*|Latest release: v$VERSION|" site/index.html
-
-# The same page says it a second time in JSON-LD, where it had drifted a release behind again.
-sed -i '' "s|\"softwareVersion\": \"[0-9][0-9.]*\"|\"softwareVersion\": \"$VERSION\"|" site/index.html
+# The site states the version in prose and again in JSON-LD, so it is a version file too, and it
+# lives in another repository: this edits that checkout but cannot commit or push it for you.
+if [ -f "$SITE_PAGE" ]; then
+  sed -i '' "s|Latest release: v[0-9][0-9.]*|Latest release: v$VERSION|" "$SITE_PAGE"
+  sed -i '' "s|\"softwareVersion\": \"[0-9][0-9.]*\"|\"softwareVersion\": \"$VERSION\"|" "$SITE_PAGE"
+  echo "site: bumped $SITE_PAGE to v$VERSION - commit and push it in that repository"
+else
+  echo "warning: no site checkout at $SITE_REPO" >&2
+  echo "warning: set the version on keepgoing.dev/momentum-mascot by hand, or the page drifts" >&2
+fi
 
 # Keep Cargo.lock in sync.
 cargo update --manifest-path src-tauri/Cargo.toml -p momentum-mascot >/dev/null
@@ -219,8 +223,7 @@ fi
 
 # ---------------------------------------------------------------- commit and tag
 
-git add src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock CHANGELOG.md \
-  site/index.html
+git add src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock CHANGELOG.md
 git commit -m "Release v$VERSION"
 git tag -a "v$VERSION" -m "Release v$VERSION"
 git push origin "$(git branch --show-current)" "v$VERSION"

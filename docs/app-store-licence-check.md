@@ -95,7 +95,7 @@ the line has moved.
 - **Shipping the generator's full library** instead of the curated palette. The builder design
   declined this for tone reasons as well and the licence is the second reason
   (`docs/superpowers/specs/2026-09-03-mascot-builder-design.md`, section 3).
-- **Putting layers or swatches on a public URL.** `site/` may carry composited rooms and cards
-  only, which is why `tools/site-built-strips.sh` generates finished room strips rather than
+- **Putting layers or swatches on a public URL.** The site repository may carry composited rooms
+  and cards only, which is why `tools/site-built-strips.sh` generates finished room strips rather than
   publishing the swatch art the builder draws. A file on keepgoing.dev is a download, and a
   download is distribution on anyone's reading.

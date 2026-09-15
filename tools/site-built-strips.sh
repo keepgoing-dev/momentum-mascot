@@ -8,7 +8,10 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-OUT="$ROOT/site/assets/built"
+
+# Written straight into the site repository, checked out beside this one by default.
+SITE_REPO="${MASCOT_SITE_REPO:-$ROOT/../keepgoing.dev}"
+OUT="${MASCOT_OUT:-$SITE_REPO/assets/built}"
 FRAMES=$(jq -r '.frames' "$ROOT/src/assets/character-layout.json")
 
 # skin eyes outfit hair accessory

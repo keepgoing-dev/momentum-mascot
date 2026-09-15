@@ -29,10 +29,14 @@ wrap it again on top.
 | SKU | momentum-mascot-1 |
 | Copyright | 2026 Hoa Trinh |
 | Support URL | https://keepgoing.dev |
-| Marketing URL | https://keepgoing.dev |
+| Marketing URL | https://keepgoing.dev/momentum-mascot |
 | Privacy Policy URL | https://keepgoing.dev/privacy |
 
 Name is 15 characters and subtitle 29, against Apple's limit of 30 for each.
+
+**Marketing URL moved to `/momentum-mascot` and Support URL did not.** Shipped binaries open
+`keepgoing.dev/#support` from the tray and that string cannot be changed after the fact, so the
+root has to keep the support anchor.
 
 **Support URL takes http or https and nothing else.** Both `hello@keepgoing.dev` and
 `mailto:hello@keepgoing.dev` are refused with "The URL is formatted incorrectly. URLs must be
@@ -897,7 +901,7 @@ the binary; the fix for that was this list. It worked: Add for Review was presse
 
 - [x] `tools/release.sh minor`, which is what makes 0.4.0 exist: it bumps
       `tauri.conf.json`, `Cargo.toml` and `Cargo.lock`, dates the `[Unreleased]` bullets into a
-      `## 0.4.0` section, rewrites both version strings on `site/index.html`, commits, tags,
+      `## 0.4.0` section, rewrites both version strings on the site repository's `momentum-mascot.html`, commits, tags,
       pushes, builds and notarizes the disk image, and publishes the GitHub release.
 - [x] `tools/release-mas.sh --upload`, which burns build 6. One run, not two: `--validate-app`
       runs before `--upload-package` under `set -eu`, so a validation failure stops it before

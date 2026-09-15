@@ -16,7 +16,8 @@ in a Gatekeeper dialog spends attention you cannot get back.
 ## What to link
 
 The site, not the repo. The site has the hero GIF above the fold and the download button;
-GitHub opens on a wall of text. `site/hero.gif` and `docs/mockups/states-four.gif` are the two
+GitHub opens on a wall of text. `hero.gif` in the site repository and `docs/mockups/states-four.gif`
+are the two
 assets that do the actual selling.
 
 When the repo link does get shared anyway, GitHub unfurls its own social preview rather than
@@ -31,8 +32,9 @@ MASCOT_CW=1280 MASCOT_CH=640 tools/compose-share.sh
 Then repo Settings -> General -> Social preview -> Edit -> Upload, pointing at
 `docs/mockups/share-comeback-1280x640.png`. There is no API for it.
 
-Character 07 is deliberate: it matches `site/share.png`, so the repo and the site unfurl the
-same person. The four 600x315 cards in `site/assets/share/` are the on-page widget's and are
+Character 07 is deliberate: it matches the site's `share.png`, so the repo and the site unfurl
+the same person. The four 600x315 cards in the site repository's `assets/share/` are the
+on-page widget's and are
 under GitHub's 640x320 minimum, so they cannot stand in.
 
 ---
@@ -52,7 +54,7 @@ Show HN: Momentum Mascot – a pixel room that reflects your git activity, with 
 Show HN: I built a desktop pet for side projects that never guilts you
 ```
 
-**URL:** `https://keepgoing.dev` (or wherever the mascot page lives)
+**URL:** `https://keepgoing.dev/momentum-mascot`
 
 **First comment, posted immediately after submitting:**
 
@@ -128,7 +130,7 @@ copies to your clipboard.
 Zero network layer, so nothing leaves the machine. Everything it knows is in one JSON file you
 can read.
 
-Download: <link>
+Download: https://keepgoing.dev/momentum-mascot
 Source: <link>
 ```
 
