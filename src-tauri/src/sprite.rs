@@ -1,8 +1,9 @@
 //! The pet's sprite: the arithmetic, and the AppKit view that draws it.
 //!
-//! Split deliberately. Everything above the `// native` divider is pure and tested; everything
-//! below it is FFI and is covered by the manual acceptance test. The two rules most likely to be
-//! got wrong, the N+1 keyTimes rule and the whole-multiple cell, are both in the pure half.
+//! Split deliberately. Above the `// native` divider are the pure, tested arithmetic and
+//! `SpriteHost`, the seam the host injects its handlers and art lookup through; below it is FFI,
+//! covered by the manual acceptance test. The two rules most likely to be got wrong, the N+1
+//! keyTimes rule and the whole-multiple cell, are both in the pure half.
 
 use std::path::PathBuf;
 
@@ -88,27 +89,27 @@ pub fn relative_path(character_id: &str, mood: &str) -> PathBuf {
     PathBuf::from("pet").join(character_id).join(format!("{mood}.png"))
 }
 
-/// The absolute path of a sprite inside the running bundle, or `None` if the resource directory
-/// cannot be resolved.
+/// The corner a released drag snaps to, if any.
+pub type ReleaseHandler = Box<dyn Fn((f64, f64)) -> Option<(i32, i32)>>;
+/// A character and mood to the strip that draws it.
+pub type ArtResolver = Box<dyn Fn(&str, &str) -> Option<PathBuf>>;
+
+/// What the host does with the sprite's input, and where it finds art.
 ///
-/// Separate from `relative_path` so the layout is testable without an `AppHandle`.
-pub fn resolve_path(app: &tauri::AppHandle, character_id: &str, mood: &str) -> Option<PathBuf> {
-    use tauri::Manager;
-    // AppState's path, not store::default_path(), so the debug state override that
-    // tools/drive-states.sh sets is honoured here too.
-    let mut id = character_id;
-    if id == crate::store::CUSTOM_ID {
-        let art = crate::custom::dir(&app.state::<crate::app::AppState>().store_path);
-        let built = crate::custom::relative_art_path(&format!("pet/{mood}")).map(|r| art.join(r));
-        if let Some(p) = built.filter(|p| p.is_file()) {
-            return Some(p);
-        }
-        // Spec 5.4: a half-written cache shows a premade rather than leaving the pet blank,
-        // which is what the popover does and what NSImage cannot do on its own.
-        id = crate::store::CHARACTERS[0];
-    }
-    let dir = app.path().resource_dir().ok()?;
-    Some(dir.join(relative_path(id, mood)))
+/// Boxed closures rather than a trait, and neither `Send` nor `Sync`: the view is
+/// `MainThreadOnly` and every one of these is called from a mouse handler on the main thread.
+pub struct SpriteHost {
+    /// A press landed, before any drag state is recorded.
+    pub on_press: Box<dyn Fn()>,
+    /// The drag moved. The window's top-left in physical pixels.
+    pub on_move: Box<dyn Fn((f64, f64))>,
+    /// The press ended without the drag threshold ever being crossed.
+    pub on_click: Box<dyn Fn()>,
+    /// The drag ended, at the window's top-left in physical pixels. The corner it reports, if
+    /// any, is where the sprite is about to run.
+    pub on_release: ReleaseHandler,
+    /// The strip for a character and mood, or `None` to leave the layer as it is.
+    pub resolve: ArtResolver,
 }
 
 #[cfg(test)]
@@ -231,6 +232,22 @@ mod tests {
         );
         assert_eq!(relative_path("20", "run"), PathBuf::from("pet/20/run.png"));
     }
+
+    /// Every path out of this file starts with one of these two, grouped imports included, so
+    /// naming no module is a stronger claim than naming the four this story untangled.
+    #[test]
+    fn the_sprite_names_no_host_module_and_no_framework_type() {
+        // Spelled in pieces so the needles cannot match this test's own text.
+        let sep = "::";
+        let forbidden = [format!("crate{sep}"), format!("tauri{sep}")];
+        let source = include_str!("sprite.rs");
+        for needle in forbidden {
+            assert!(
+                !source.contains(&needle),
+                "sprite.rs names {needle}, so it is no longer liftable into a crate of its own"
+            );
+        }
+    }
 }
 
 // --------------------------------------------------------------------------------------
@@ -258,9 +275,7 @@ mod view {
         CAAction, CATransform3D, CATransform3DIdentity,
     };
 
-    use super::{
-        cell_origin, cell_side, duration, frame_rect, key_times, resolve_path, FRAMES,
-    };
+    use super::{cell_origin, cell_side, duration, frame_rect, key_times, SpriteHost, FRAMES};
     #[cfg(debug_assertions)]
     use super::frame_at;
 
@@ -334,7 +349,7 @@ mod view {
         /// `anchorPoint` of (0.5, 0.5) mirrors about the cell's own centre, and `contentsScale`
         /// is unambiguously ours to maintain.
         sprite: Retained<CALayer>,
-        app: tauri::AppHandle,
+        host: SpriteHost,
         state: RefCell<SpriteState>,
         /// Only used by the `MASCOT_PROBE_FRAMES` probe. See `probeFrames`.
         #[cfg(debug_assertions)]
@@ -459,7 +474,7 @@ mod view {
             fn mouse_down(&self, _event: *mut AnyObject) {
                 // A drag that starts while the last glide is still landing would have its own
                 // movement fought by the glide's remaining steps.
-                crate::pet::cancel_glide();
+                (self.ivars().host.on_press)();
 
                 let Some(origin) = self.window_origin() else {
                     return;
@@ -533,7 +548,7 @@ mod view {
                         );
                     }
                 }
-                crate::pet::move_to(&self.ivars().app, (drag.x, drag.y));
+                (self.ivars().host.on_move)((drag.x, drag.y));
             }
 
             #[unsafe(method(mouseUp:))]
@@ -549,13 +564,13 @@ mod view {
 
                 if !drag.moved {
                     self.end_run();
-                    crate::pet::on_click(&self.ivars().app);
+                    (self.ivars().host.on_click)();
                     return;
                 }
 
                 // Keep running: the backend glides the window, and the facing comes from the
                 // corner it reports. `busy` clears when the glide lands.
-                match crate::pet::on_drag_end(&self.ivars().app, (drag.x, drag.y)) {
+                match (self.ivars().host.on_release)((drag.x, drag.y)) {
                     Some(target) => {
                         // Mirror for rightward travel, matching the drag. The glide's second
                         // phase is the horizontal run to the corner, so this is its direction.
@@ -625,7 +640,7 @@ mod view {
         /// through to tao's view, which returns YES from `tao/view.rs:1148` and routes `mouseDown`
         /// into tao's own handler, so the pet appears to accept clicks while the drag never
         /// starts, with nothing logged.
-        pub fn install(window_ns: *mut c_void, app: &tauri::AppHandle) -> Option<Retained<Self>> {
+        pub fn install(window_ns: *mut c_void, host: SpriteHost) -> Option<Retained<Self>> {
             let mtm = MainThreadMarker::new()?;
             let ns = window_ns as *mut AnyObject;
             if ns.is_null() {
@@ -669,7 +684,7 @@ mod view {
 
             let this = Self::alloc(mtm).set_ivars(Ivars {
                 sprite: sprite.clone(),
-                app: app.clone(),
+                host,
                 state: RefCell::new(SpriteState {
                     mood: "awake".into(),
                     character_id: "07".into(),
@@ -777,7 +792,7 @@ mod view {
             self.ivars().state.borrow_mut().painted = Some(wanted);
             let sprite = &self.ivars().sprite;
 
-            if let Some(path) = resolve_path(&self.ivars().app, character_id, mood) {
+            if let Some(path) = (self.ivars().host.resolve)(character_id, mood) {
                 let s = NSString::from_str(&path.to_string_lossy());
                 if let Some(image) = NSImage::initWithContentsOfFile(NSImage::alloc(), &s) {
                     unsafe { sprite.setContents(Some(&image)) };
@@ -1009,7 +1024,8 @@ mod view {
     /// thread and the watcher thread.
     pub struct SpriteHandle(Retained<SpriteView>);
 
-    // SAFETY: see the type's own comment. The inner view is only ever touched on the main thread.
+    // SAFETY: see the type's own comment. The inner view is only ever touched on the main thread,
+    // and so are the `SpriteHost` closures it now owns, which are themselves neither Send nor Sync.
     unsafe impl Send for SpriteHandle {}
     unsafe impl Sync for SpriteHandle {}
 

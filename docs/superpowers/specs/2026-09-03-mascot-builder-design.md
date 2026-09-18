@@ -349,8 +349,8 @@ CSP is `img-src 'self' data: blob:` (`tauri.conf.json:28`) - `blob:` is already 
 this needs **no `assetProtocol` scope and no CSP change**, which is the cheapest possible answer
 and keeps the App Store surface identical. `share.js:187` takes the same blob URL.
 
-The pet needs none of this: it reads a file path natively. `sprite::resolve_path` gains one
-branch - the custom id resolves under the state directory instead of `resource_dir()`.
+The pet needs none of this: it reads a file path natively. `pet::art_path` gains one branch - the
+custom id resolves under the state directory instead of `resource_dir()`.
 
 ### 5.4 Invalidation
 

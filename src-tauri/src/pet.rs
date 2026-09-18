@@ -19,6 +19,7 @@
 //! need it too: it shipped as a plain `NSWindow`, so the pet was visible over a fullscreen app
 //! and clicking it opened a popover nobody could see.
 
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
@@ -80,7 +81,7 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
 
         // Task 3 only: the sprite view goes on top of the webview so the renderer can be judged
         // before the window type changes underneath it. Task 5 removes the webview.
-        match crate::sprite::SpriteView::install(win.ns_window()?, app) {
+        match crate::sprite::SpriteView::install(win.ns_window()?, host(app)) {
             Some(view) => {
                 let _ = SPRITE.set(crate::sprite::SpriteHandle::new(view));
             }
@@ -465,6 +466,57 @@ pub fn on_drag_end(app: &AppHandle, at: (f64, f64)) -> Option<(i32, i32)> {
     Some(target)
 }
 
+/// The absolute path of a sprite strip, or `None` if the resource directory cannot be resolved.
+/// This is the sprite's whole view of the store, and it stays on this side of the divide.
+///
+/// Both roots are thunks because neither is read unless it is needed: a premade character never
+/// touches `AppState`, and a built mascot's own art never touches the bundle.
+fn art_path(
+    store_path: impl FnOnce() -> PathBuf,
+    resources: impl FnOnce() -> Option<PathBuf>,
+    character_id: &str,
+    mood: &str,
+) -> Option<PathBuf> {
+    let mut id = character_id;
+    if id == crate::store::CUSTOM_ID {
+        let art = crate::custom::dir(&store_path());
+        let built = crate::custom::relative_art_path(&format!("pet/{mood}")).map(|r| art.join(r));
+        if let Some(p) = built.filter(|p| p.is_file()) {
+            return Some(p);
+        }
+        // docs/superpowers/specs/2026-09-03-mascot-builder-design.md 5.4: a half-written cache
+        // shows a premade, as the popover does; NSImage cannot do that on its own.
+        id = crate::store::CHARACTERS[0];
+    }
+    Some(resources()?.join(crate::sprite::relative_path(id, mood)))
+}
+
+/// The handlers and the art resolver the sprite view is built with, each closing over the
+/// `AppHandle` so that no Tauri type crosses into `sprite.rs`.
+#[cfg(target_os = "macos")]
+fn host(app: &AppHandle) -> crate::sprite::SpriteHost {
+    let moved = app.clone();
+    let clicked = app.clone();
+    let released = app.clone();
+    let resolving = app.clone();
+    crate::sprite::SpriteHost {
+        on_press: Box::new(cancel_glide),
+        on_move: Box::new(move |to| move_to(&moved, to)),
+        on_click: Box::new(move || on_click(&clicked)),
+        on_release: Box::new(move |at| on_drag_end(&released, at)),
+        resolve: Box::new(move |character_id, mood| {
+            art_path(
+                // AppState's path, not store::default_path(), so the debug state override that
+                // tools/drive-states.sh sets is honoured here too.
+                || resolving.state::<AppState>().store_path.clone(),
+                || resolving.path().resource_dir().ok(),
+                character_id,
+                mood,
+            )
+        }),
+    }
+}
+
 #[cfg(target_os = "macos")]
 mod macos {
     use objc2_app_kit::NSScreen;
@@ -610,6 +662,50 @@ mod tests {
         assert_eq!(s[1].distance_to((2000.0, 3000.0)), 0.0);
         assert_eq!(nearest_monitor((100.0, 100.0), &s), Some(0));
         assert_eq!(nearest_monitor((2000.0, 3000.0), &s), Some(1));
+    }
+
+    /// Section 5.4 of docs/superpowers/specs/2026-09-03-mascot-builder-design.md, checkable for
+    /// the first time now that the resolver needs no `AppHandle`.
+    #[test]
+    fn a_half_written_custom_cache_falls_back_to_a_premade_character() {
+        let root = std::env::temp_dir().join(format!("mascot-art-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let state = root.join("state.json");
+        let resources = root.join("Resources");
+        // Panicking rather than answering, so a root that should not be read is a failure
+        // rather than a wrong path.
+        let no_bundle = || -> Option<PathBuf> { unreachable!("built art needs no bundle") };
+        let no_store = || -> PathBuf { unreachable!("a premade character needs no store") };
+
+        let premade = Some(resources.join("pet/07/run.png"));
+        let bundle = || Some(resources.clone());
+        assert_eq!(
+            art_path(|| state.clone(), bundle, "custom", "run"),
+            premade,
+            "nothing written yet"
+        );
+
+        // custom::dir puts the art beside state.json, and this is the only check of that.
+        std::fs::create_dir_all(root.join("custom/pet")).unwrap();
+        std::fs::write(root.join("custom/pet/awake.png"), b"x").unwrap();
+        assert_eq!(
+            art_path(|| state.clone(), bundle, "custom", "run"),
+            premade,
+            "the run strip is still missing"
+        );
+        assert_eq!(
+            art_path(|| state.clone(), no_bundle, "custom", "awake"),
+            Some(root.join("custom/pet/awake.png")),
+            "the mood that is on disk comes from the cache, without the bundle"
+        );
+
+        assert_eq!(
+            art_path(no_store, bundle, "20", "run"),
+            Some(resources.join("pet/20/run.png")),
+            "a premade character never consults the cache"
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
