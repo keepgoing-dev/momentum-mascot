@@ -63,7 +63,7 @@ fn main() {
 
             tray::setup(&handle)?;
             pet::setup(&handle)?;
-            app::setup_popover(&handle);
+            app::setup_popover(&handle)?;
 
             // Startup reads every tracked project once, so commits made while the app was
             // not running are picked up rather than waiting for the next filesystem event.

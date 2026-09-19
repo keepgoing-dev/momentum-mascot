@@ -86,7 +86,9 @@ pub fn duration(mood: &str) -> f64 {
 
 /// Where a sprite lives under the bundle's resource directory.
 pub fn relative_path(character_id: &str, mood: &str) -> PathBuf {
-    PathBuf::from("pet").join(character_id).join(format!("{mood}.png"))
+    PathBuf::from("pet")
+        .join(character_id)
+        .join(format!("{mood}.png"))
 }
 
 /// The corner a released drag snaps to, if any.
@@ -165,7 +167,9 @@ mod tests {
         let right = key_times();
         // The mistake: 12 values with 12 keyTimes, giving eleven plateaus of D/11 and a twelfth
         // frame that holds for no time at all.
-        let wrong: Vec<f64> = (0..FRAMES).map(|i| i as f64 / (FRAMES - 1) as f64).collect();
+        let wrong: Vec<f64> = (0..FRAMES)
+            .map(|i| i as f64 / (FRAMES - 1) as f64)
+            .collect();
 
         let samples = 1200;
         let mut wrong_disagreements = 0;
@@ -200,7 +204,11 @@ mod tests {
         assert_eq!(cell_side(96.0), 96.0, "3x");
         assert_eq!(cell_side(100.0), 96.0, "never a fraction");
         assert_eq!(cell_side(63.0), 32.0, "just under 2x is 1x, not 1.97x");
-        assert_eq!(cell_side(20.0), 32.0, "the floor: a small pet, never a cropped one");
+        assert_eq!(
+            cell_side(20.0),
+            32.0,
+            "the floor: a small pet, never a cropped one"
+        );
         assert_eq!(cell_side(0.0), 32.0, "a degenerate view still has a floor");
     }
 
@@ -271,13 +279,13 @@ mod view {
         NSString, NSValue,
     };
     use objc2_quartz_core::{
-        kCAAnimationDiscrete, kCAFilterNearest, CAKeyframeAnimation, CALayer, CAMediaTiming,
-        CAAction, CATransform3D, CATransform3DIdentity,
+        kCAAnimationDiscrete, kCAFilterNearest, CAAction, CAKeyframeAnimation, CALayer,
+        CAMediaTiming, CATransform3D, CATransform3DIdentity,
     };
 
-    use super::{cell_origin, cell_side, duration, frame_rect, key_times, SpriteHost, FRAMES};
     #[cfg(debug_assertions)]
     use super::frame_at;
+    use super::{cell_origin, cell_side, duration, frame_rect, key_times, SpriteHost, FRAMES};
 
     #[derive(Default)]
     pub struct SpriteState {
@@ -814,10 +822,7 @@ mod view {
                 .map(|i| {
                     let (x, y, w, h) = frame_rect(i);
                     let v = unsafe {
-                        NSValue::valueWithRect(NSRect::new(
-                            NSPoint::new(x, y),
-                            NSSize::new(w, h),
-                        ))
+                        NSValue::valueWithRect(NSRect::new(NSPoint::new(x, y), NSSize::new(w, h)))
                     };
                     // `setValues` takes an untyped `NSArray`, so the rects are erased here
                     // rather than fighting the generic parameter at the call site.
@@ -844,96 +849,97 @@ mod view {
         /// whole thing compiles out of release. Debug-only; see `probeFrames`.
         #[cfg(debug_assertions)]
         fn probe_step(&self) {
-                let sprite = &self.ivars().sprite;
-                let mood = self.ivars().state.borrow().mood.clone();
-                let total = duration(&mood);
+            let sprite = &self.ivars().sprite;
+            let mood = self.ivars().state.borrow().mood.clone();
+            let total = duration(&mood);
 
-                let step = self.ivars().probe.borrow().step;
-                if step == 0 {
-                    let keys = sprite.animationKeys()
-                        .map(|k| k.count())
-                        .unwrap_or(0);
-                    let has_contents = unsafe { sprite.contents() }.is_some();
-                    // `magnificationFilter` and `contentsScale` are the two ways the pixel art
-                    // goes blurry, and both read back, so neither needs an eye test.
-                    let filter = sprite.magnificationFilter().to_string();
-                    println!(
-                        "PROBE frames: mood={mood} duration={total} animationKeys={keys} \
+            let step = self.ivars().probe.borrow().step;
+            if step == 0 {
+                let keys = sprite.animationKeys().map(|k| k.count()).unwrap_or(0);
+                let has_contents = unsafe { sprite.contents() }.is_some();
+                // `magnificationFilter` and `contentsScale` are the two ways the pixel art
+                // goes blurry, and both read back, so neither needs an eye test.
+                let filter = sprite.magnificationFilter().to_string();
+                println!(
+                    "PROBE frames: mood={mood} duration={total} animationKeys={keys} \
                          contents={has_contents} cell={:?}",
-                        sprite.frame()
-                    );
-                    println!(
-                        "PROBE sprite: magnificationFilter={filter} contentsScale={} \
+                    sprite.frame()
+                );
+                println!(
+                    "PROBE sprite: magnificationFilter={filter} contentsScale={} \
                          backingScale={} viewBounds={:?}",
-                        sprite.contentsScale(),
-                        self.backing_scale(),
-                        self.bounds()
-                    );
-                }
+                    sprite.contentsScale(),
+                    self.backing_scale(),
+                    self.bounds()
+                );
+            }
 
-                if step < PROBE_SAMPLES {
-                    // A nil presentation layer records as -1 rather than 0, because
-                    // `f64::NAN as i64` is 0 in Rust and would masquerade as a real frame.
-                    let frame = match unsafe { sprite.presentationLayer() } {
-                        Some(p) => {
-                            let x = p.contentsRect().origin.x;
-                            (x * FRAMES as f64).round() as i64
-                        }
-                        None => -1,
-                    };
-                    let mut probe = self.ivars().probe.borrow_mut();
-                    probe.readings.push(frame);
-                    probe.step = step + 1;
-                    drop(probe);
-                    self.schedule_probe(PROBE_INTERVAL);
-                    return;
-                }
-
-                let readings = self.ivars().probe.borrow().readings.clone();
-                let distinct: std::collections::BTreeSet<i64> = readings.iter().copied().collect();
-                // From the oracle rather than from 0..11 literally, so the probe is checking
-                // Core Animation against the same `steps(12)` rule the unit tests check.
-                let expected: std::collections::BTreeSet<i64> = (0..FRAMES)
-                    .map(|i| frame_at((i as f64 + 0.5) / FRAMES as f64) as i64)
-                    .collect();
-
-                // Frames should appear in order and wrap, so count the transitions that are not
-                // "the next frame" or "back to the start". A scheme that skips frames shows up
-                // here even if every frame is eventually seen.
-                let mut out_of_order = 0usize;
-                for pair in readings.windows(2) {
-                    let (a, b) = (pair[0], pair[1]);
-                    if a == b {
-                        continue;
+            if step < PROBE_SAMPLES {
+                // A nil presentation layer records as -1 rather than 0, because
+                // `f64::NAN as i64` is 0 in Rust and would masquerade as a real frame.
+                let frame = match unsafe { sprite.presentationLayer() } {
+                    Some(p) => {
+                        let x = p.contentsRect().origin.x;
+                        (x * FRAMES as f64).round() as i64
                     }
-                    let next = (a + 1) % FRAMES as i64;
-                    if b != next {
-                        out_of_order += 1;
-                    }
-                }
+                    None => -1,
+                };
+                let mut probe = self.ivars().probe.borrow_mut();
+                probe.readings.push(frame);
+                probe.step = step + 1;
+                drop(probe);
+                self.schedule_probe(PROBE_INTERVAL);
+                return;
+            }
 
-                println!("PROBE frames: {} samples over {}s", readings.len(),
-                         PROBE_SAMPLES as f64 * PROBE_INTERVAL);
-                println!("PROBE frames: distinct={:?}", distinct);
-                println!("PROBE frames: out_of_order_transitions={out_of_order}");
-                if distinct == expected && out_of_order == 0 {
-                    println!(
-                        "PROBE frames: PASS, all twelve frames render in order, so Core \
-                         Animation honours the N+1 keyTimes in discrete mode"
-                    );
-                } else if distinct.len() == 1 {
-                    println!(
-                        "PROBE frames: INCONCLUSIVE, only frame {:?} was ever on screen",
-                        distinct.iter().next()
-                    );
-                } else {
-                    println!(
-                        "PROBE frames: FAIL, expected the twelve frames 0..11 in order, got \
-                         {} distinct with {out_of_order} bad transitions",
-                        distinct.len()
-                    );
+            let readings = self.ivars().probe.borrow().readings.clone();
+            let distinct: std::collections::BTreeSet<i64> = readings.iter().copied().collect();
+            // From the oracle rather than from 0..11 literally, so the probe is checking
+            // Core Animation against the same `steps(12)` rule the unit tests check.
+            let expected: std::collections::BTreeSet<i64> = (0..FRAMES)
+                .map(|i| frame_at((i as f64 + 0.5) / FRAMES as f64) as i64)
+                .collect();
+
+            // Frames should appear in order and wrap, so count the transitions that are not
+            // "the next frame" or "back to the start". A scheme that skips frames shows up
+            // here even if every frame is eventually seen.
+            let mut out_of_order = 0usize;
+            for pair in readings.windows(2) {
+                let (a, b) = (pair[0], pair[1]);
+                if a == b {
+                    continue;
+                }
+                let next = (a + 1) % FRAMES as i64;
+                if b != next {
+                    out_of_order += 1;
                 }
             }
+
+            println!(
+                "PROBE frames: {} samples over {}s",
+                readings.len(),
+                PROBE_SAMPLES as f64 * PROBE_INTERVAL
+            );
+            println!("PROBE frames: distinct={:?}", distinct);
+            println!("PROBE frames: out_of_order_transitions={out_of_order}");
+            if distinct == expected && out_of_order == 0 {
+                println!(
+                    "PROBE frames: PASS, all twelve frames render in order, so Core \
+                         Animation honours the N+1 keyTimes in discrete mode"
+                );
+            } else if distinct.len() == 1 {
+                println!(
+                    "PROBE frames: INCONCLUSIVE, only frame {:?} was ever on screen",
+                    distinct.iter().next()
+                );
+            } else {
+                println!(
+                    "PROBE frames: FAIL, expected the twelve frames 0..11 in order, got \
+                         {} distinct with {out_of_order} bad transitions",
+                    distinct.len()
+                );
+            }
+        }
 
         /// Queue `probeFrames` on the main run loop. It is the only thread that may touch the
         /// view, so nothing needs to be `Send` for this.

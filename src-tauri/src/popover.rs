@@ -46,7 +46,11 @@ impl Rect {
 /// *inside* the menu bar, so the anchor is legitimately outside the area it is clamped into.
 /// That is fine and is why the clamp is applied to the result rather than to the anchor.
 pub fn anchored(anchor: Rect, size: (f64, f64), area: Rect, gap: f64) -> (f64, f64) {
-    let x = clamp(anchor.center().0 - size.0 / 2.0, area.x + gap, area.x + area.w - size.0 - gap);
+    let x = clamp(
+        anchor.center().0 - size.0 / 2.0,
+        area.x + gap,
+        area.x + area.w - size.0 - gap,
+    );
     let opens_down = anchor.center().1 < area.center().1;
     let y = if opens_down {
         anchor.y + anchor.h + gap
@@ -69,8 +73,18 @@ mod tests {
 
     /// The author's own desk, in physical pixels: a 1600x1000 laptop display as primary, and a
     /// 3360x1418 display arranged above it, which puts the second one at negative y.
-    const LAPTOP: Rect = Rect { x: 0.0, y: 62.0, w: 3200.0, h: 1938.0 };
-    const ABOVE: Rect = Rect { x: -1760.0, y: -2836.0, w: 6720.0, h: 2836.0 };
+    const LAPTOP: Rect = Rect {
+        x: 0.0,
+        y: 62.0,
+        w: 3200.0,
+        h: 1938.0,
+    };
+    const ABOVE: Rect = Rect {
+        x: -1760.0,
+        y: -2836.0,
+        w: 6720.0,
+        h: 2836.0,
+    };
     const SIZE: (f64, f64) = (704.0, 916.0);
     const GAP: f64 = 12.0;
 
@@ -81,7 +95,11 @@ mod tests {
         // Not `0 + 60 + GAP`: that lands 2px above the work area's own inset top, and the
         // clamp lifts it. The two are within a pixel of each other by construction, the menu
         // bar being about as tall as the icon in it.
-        assert_eq!(y, LAPTOP.y + GAP, "hangs below the icon, clear of the menu bar");
+        assert_eq!(
+            y,
+            LAPTOP.y + GAP,
+            "hangs below the icon, clear of the menu bar"
+        );
         assert_eq!(x, 822.0, "centred on the icon");
     }
 
@@ -89,7 +107,11 @@ mod tests {
     fn the_pet_in_a_bottom_corner_opens_upwards() {
         let pet = Rect::new(3032.0, 1832.0, 128.0, 128.0);
         let (_, y) = anchored(pet, SIZE, LAPTOP, GAP);
-        assert_eq!(y, 1832.0 - GAP - SIZE.1, "sits above the pet rather than off the bottom");
+        assert_eq!(
+            y,
+            1832.0 - GAP - SIZE.1,
+            "sits above the pet rather than off the bottom"
+        );
     }
 
     #[test]
@@ -116,7 +138,11 @@ mod tests {
     fn a_corner_anchor_pulls_the_panel_back_inside_the_work_area() {
         let pet = Rect::new(3032.0, 1832.0, 128.0, 128.0);
         let (x, _) = anchored(pet, SIZE, LAPTOP, GAP);
-        assert_eq!(x, LAPTOP.w - SIZE.0 - GAP, "would have run off the right edge");
+        assert_eq!(
+            x,
+            LAPTOP.w - SIZE.0 - GAP,
+            "would have run off the right edge"
+        );
 
         let pet = Rect::new(40.0, 1832.0, 128.0, 128.0);
         let (x, _) = anchored(pet, SIZE, LAPTOP, GAP);

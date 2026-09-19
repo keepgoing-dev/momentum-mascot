@@ -97,7 +97,12 @@ pub fn untrack(app: AppHandle, id: String) {
 /// mascot's mood evaluation and show an "operating" label in the project list.
 #[tauri::command]
 pub fn toggle_operating(app: AppHandle, id: String) -> Option<bool> {
-    let new_state = app.state::<AppState>().momentum.lock().unwrap().toggle_operating(&id);
+    let new_state = app
+        .state::<AppState>()
+        .momentum
+        .lock()
+        .unwrap()
+        .toggle_operating(&id);
     app::publish(&app);
     new_state
 }
@@ -206,7 +211,9 @@ pub fn bake_probe() -> Option<String> {
 #[tauri::command]
 pub fn copy_share_card(app: AppHandle, png: Vec<u8>) -> Result<(), String> {
     let image = tauri::image::Image::from_bytes(&png).map_err(|e| e.to_string())?;
-    app.clipboard().write_image(&image).map_err(|e| e.to_string())
+    app.clipboard()
+        .write_image(&image)
+        .map_err(|e| e.to_string())
 }
 
 /// The privacy policy, opened in the user's browser.
@@ -244,7 +251,10 @@ mod tests {
         assert!(!d.parent().unwrap().join("escape").exists());
 
         assert!(write_art_to(&d, "rooms/awake", &[1, 2, 3]).is_ok());
-        assert_eq!(std::fs::read(d.join("rooms/awake.png")).unwrap(), vec![1, 2, 3]);
+        assert_eq!(
+            std::fs::read(d.join("rooms/awake.png")).unwrap(),
+            vec![1, 2, 3]
+        );
 
         let _ = std::fs::remove_dir_all(&d);
     }

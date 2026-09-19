@@ -109,8 +109,9 @@ mod tests {
     fn a_name_containing_spaces_still_parses() {
         // The timestamp is found from the right-hand end precisely so that a multi-word
         // name cannot shift the field positions.
-        let log =
-            format!("{ZERO} {SHA} Ada Lovelace van der Berg <ada@example.com> 5555 +0000\tcommit: x");
+        let log = format!(
+            "{ZERO} {SHA} Ada Lovelace van der Berg <ada@example.com> 5555 +0000\tcommit: x"
+        );
         assert_eq!(last_qualifying(&log), Some(5555));
     }
 
@@ -137,7 +138,13 @@ mod tests {
 
     #[test]
     fn junk_survives_contact() {
-        for junk in ["", "\n\n", "not a reflog line at all", "\t\t\t", "a b c d e\tcommit: x"] {
+        for junk in [
+            "",
+            "\n\n",
+            "not a reflog line at all",
+            "\t\t\t",
+            "a b c d e\tcommit: x",
+        ] {
             let _ = last_qualifying(junk);
         }
         // The last one has no parseable timestamp, so it must not be mistaken for one.
