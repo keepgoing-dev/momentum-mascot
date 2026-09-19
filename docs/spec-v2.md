@@ -557,8 +557,8 @@ Two consequences to hold onto:
 > was not. That combination is worse than neither working, because the pet stays clickable and
 > clicking it looks like the app is broken.
 >
-> So the recipe now lives in `appkit::show_over_fullscreen` and both windows call it, once each,
-> before either is first shown. The two disagree on one thing: the pet must never take the
+> So the recipe now lives in `appkit::Panel` and both windows adopt one, once each, before
+> either is first shown. The two disagree on one thing: the pet must never take the
 > keyboard, and the popover must, because Escape dismisses it.
 >
 > That difference cost the one genuinely new piece of knowledge here. `object_setClass` to the

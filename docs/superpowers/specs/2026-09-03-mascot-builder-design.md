@@ -373,7 +373,7 @@ The bake is nine PNGs of pixel art. It runs on Done, once, and does not need pro
 
 No second window. The popover is 352x540, fixed, undecorated, `alwaysOnTop`, and the credit line
 notes the app has "no about window and no settings screen". A second window would need the
-`appkit::show_over_fullscreen` treatment and would be a new surface in an app whose whole pitch is
+`appkit::Panel` treatment and would be a new surface in an app whose whole pitch is
 that it has one.
 
 The builder replaces the panel's contents below the room. The room stays.
