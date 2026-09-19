@@ -140,7 +140,11 @@ pub fn publish(app: &AppHandle) {
     {
         let mut last = state.last_published.lock().unwrap();
         if *last != Some(payload.mood) {
-            println!("{} -> {}", elapsed_hours(&state, now), payload.mood.as_str());
+            println!(
+                "{} -> {}",
+                elapsed_hours(&state, now),
+                payload.mood.as_str()
+            );
             *last = Some(payload.mood);
         }
     }
@@ -193,43 +197,54 @@ pub fn sync_watcher(app: &AppHandle) {
     }
 }
 
+/// The right to show the popover, which only `setup_popover` can hand out. Setup now fails
+/// startup rather than giving up, so the guard below covers only a `show_popover` reached first.
+static POPOVER_PANEL: std::sync::OnceLock<crate::appkit::Panel> = std::sync::OnceLock::new();
+
+/// A startup failure worth stopping for. `tauri::Error` has no shape of its own for ours.
+pub fn setup_failed(why: &str) -> tauri::Error {
+    let boxed: Box<dyn std::error::Error> = why.into();
+    tauri::Error::Setup(boxed.into())
+}
+
 /// The popover's window chrome, which the app owns now.
 ///
-/// Two of the three calls are cosmetic and were previously done for us by the private-API feature
-/// or not needed at all. `transparent: true` is gone from the window's config: the room art fills
-/// the whole surface, so the popover never needed a see-through webview. What it needed was
-/// rounded corners, and those come from the layer.
+/// Two of the three things the panel does are cosmetic and were previously done for us by the
+/// private-API feature or not needed at all. `transparent: true` is gone from the window's config:
+/// the room art fills the whole surface, so the popover never needed a see-through webview. What
+/// it needed was rounded corners, and those come from the layer.
 ///
-/// The third changes what kind of window this is, and has to run before the first `show`.
+/// The third changes what kind of window this is. The window is declared in `tauri.conf.json`
+/// with `visible: false`, adopted here, and shown afterwards through the `Panel`.
 #[cfg(target_os = "macos")]
-pub fn setup_popover(app: &AppHandle) {
+pub fn setup_popover(app: &AppHandle) -> tauri::Result<()> {
     let Some(win) = app.get_webview_window(POPOVER) else {
-        return;
+        return Err(setup_failed("the popover window is not in the config"));
     };
-    if let Ok(ns) = win.ns_window() {
-        // Section 9 item 1, found by eye and not by test: the pet showed over a fullscreen app
-        // and the popover did not, which is worse than neither working, because the pet is still
-        // clickable and clicking it looks like the app is broken. `alwaysOnTop` in the window
-        // config is a *level*, and the spike proved no level is enough.
-        //
-        // This runs in `setup`, so it is still the ordering the spike requires: the window is
-        // created from `tauri.conf.json` with `visible: false`, configured here, and shown for
-        // the first time later. Nothing reconfigures it afterwards.
-        //
-        // `true`, unlike the pet: the popover has to be able to take the keyboard, because
-        // Escape dismisses it through a JS `keydown`.
-        if !crate::appkit::show_over_fullscreen(ns, true) {
-            eprintln!("NSPanel class not found; the popover will not show over fullscreen apps");
-        }
-        crate::appkit::make_transparent(ns);
-        // 12pt, matching `.panel`'s `border-radius: 12px` in popover.css. If these ever disagree,
-        // the border draws a different curve than the mask cuts.
-        crate::appkit::round_corners(ns, 12.0);
+    let ns = win.ns_window()?;
+    // Section 9 item 1, found by eye and not by test: `alwaysOnTop` in the window config is a
+    // *level*, and the spike proved no level is enough.
+    //
+    // 12pt matches `.panel`'s `border-radius: 12px` in popover.css; if these ever disagree, the
+    // border draws a different curve than the mask cuts.
+    let Some(panel) = crate::appkit::Panel::adopt_key(ns, Some(12.0)) else {
+        return Err(setup_failed("the popover has no hidden NSWindow to adopt"));
+    };
+    if !panel.is_configured() {
+        eprintln!("NSPanel class not found; the popover will not show over fullscreen apps");
     }
+    let _ = POPOVER_PANEL.set(panel);
+    Ok(())
 }
 
 #[cfg(not(target_os = "macos"))]
-pub fn setup_popover(_app: &AppHandle) {}
+pub fn setup_popover(_app: &AppHandle) -> tauri::Result<()> {
+    let Some(panel) = crate::appkit::Panel::adopt_key(std::ptr::null_mut(), None) else {
+        return Err(setup_failed("the popover has no window to adopt"));
+    };
+    let _ = POPOVER_PANEL.set(panel);
+    Ok(())
+}
 
 /// Which surface opened the popover, and therefore what the panel hangs off.
 ///
@@ -252,7 +267,12 @@ fn anchor(app: &AppHandle, by: OpenedBy) -> Option<(Rect, Rect, f64)> {
             let win = app.get_window(PET)?;
             let at = win.outer_position().ok()?;
             let size = win.outer_size().ok()?;
-            Rect::new(at.x as f64, at.y as f64, size.width as f64, size.height as f64)
+            Rect::new(
+                at.x as f64,
+                at.y as f64,
+                size.width as f64,
+                size.height as f64,
+            )
         }
         OpenedBy::Tray => {
             let (x, y, w, h) = crate::tray::rect(app)?;
@@ -280,15 +300,25 @@ fn monitor_holding(app: &AppHandle, anchor: Rect) -> Option<tauri::Monitor> {
         .into_iter()
         .find(|m| {
             let (at, size) = (m.position(), m.size());
-            Rect::new(at.x as f64, at.y as f64, size.width as f64, size.height as f64)
-                .contains(cx, cy)
+            Rect::new(
+                at.x as f64,
+                at.y as f64,
+                size.width as f64,
+                size.height as f64,
+            )
+            .contains(cx, cy)
         })
         .or_else(|| app.primary_monitor().ok().flatten())
 }
 
 /// Show the popover, hung off whichever surface opened it.
 pub fn show_popover(app: &AppHandle, by: OpenedBy) {
+    let Some(panel) = POPOVER_PANEL.get() else {
+        eprintln!("the popover was never configured; it will not open");
+        return;
+    };
     let Some(win) = app.get_webview_window(POPOVER) else {
+        eprintln!("the popover window is gone; it will not open");
         return;
     };
     let state = app.state::<AppState>();
@@ -310,7 +340,7 @@ pub fn show_popover(app: &AppHandle, by: OpenedBy) {
         let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
     }
 
-    let _ = win.show();
+    let _ = panel.show(&win.as_ref().window());
     let _ = win.set_focus();
     publish(app);
 }
@@ -459,5 +489,30 @@ fn on_change(app: &AppHandle, event: ChangeEvent) {
             // other reasons, and publish is cheap and idempotent.
             publish(app);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `setup_popover` adopts this window and fails startup when it is missing or already on
+    /// screen, so both facts are pinned here rather than living only in the config.
+    #[test]
+    fn the_popover_window_is_declared_hidden_so_setup_can_adopt_it() {
+        let conf: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).expect("tauri.conf.json");
+        let windows = conf["app"]["windows"]
+            .as_array()
+            .expect("the config declares no windows at all");
+        let popover = windows.iter().find(|w| w["label"] == POPOVER).expect(
+            "no window labelled `popover`, so setup_popover fails and the app will not start",
+        );
+
+        assert_eq!(
+            popover["visible"],
+            serde_json::Value::Bool(false),
+            "the popover starts visible, so `adopt_key` refuses it and the app will not start"
+        );
     }
 }

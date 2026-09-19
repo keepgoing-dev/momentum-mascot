@@ -3563,8 +3563,8 @@ answer the live fixture gave. They reproduce the sandbox's asymmetry without a s
 on `HEAD` and not on the folder above it, so the folder stays traversable, every existence check
 passes, and only a read fails. 89 tests pass.
 
-The window fix is `appkit::show_over_fullscreen`, called once by each window before it is shown,
-with one parameter for the one thing they disagree on. The constants and the spike's reasoning moved
+The window fix is `appkit::Panel`, adopted once by each window before it is shown, with a
+constructor apiece for the one thing they disagree on. The constants and the spike's reasoning moved
 there from `pet.rs`; `pet.rs`'s module doc still carries the spike story and now points at it.
 
 **The naive version of this fix would have silently broken Escape**, and the by-eye list would not

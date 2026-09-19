@@ -151,10 +151,14 @@ impl Watcher {
                 guard.git_dirs.difference(&wanted_git).cloned().collect();
             let add_git: Vec<PathBuf> = wanted_git.difference(&guard.git_dirs).cloned().collect();
             let current_trees: HashSet<PathBuf> = guard.work_trees.keys().cloned().collect();
-            let remove_trees: Vec<PathBuf> =
-                current_trees.difference(&wanted_tree_set).cloned().collect();
-            let add_trees: Vec<PathBuf> =
-                wanted_tree_set.difference(&current_trees).cloned().collect();
+            let remove_trees: Vec<PathBuf> = current_trees
+                .difference(&wanted_tree_set)
+                .cloned()
+                .collect();
+            let add_trees: Vec<PathBuf> = wanted_tree_set
+                .difference(&current_trees)
+                .cloned()
+                .collect();
             (remove_git, add_git, remove_trees, add_trees)
         };
 
@@ -247,7 +251,12 @@ fn is_directory(kind: &EventKind, path: &Path) -> bool {
 fn classify(state: &WatchState, kind: &EventKind, path: &Path) -> Option<ChangeEvent> {
     // Git directories first: a normal repo's work tree contains its `.git` folder, so
     // reflog events must win the classification.
-    if state.git_dirs.iter().any(|git_dir| path.starts_with(git_dir)) && path.ends_with("logs/HEAD") {
+    if state
+        .git_dirs
+        .iter()
+        .any(|git_dir| path.starts_with(git_dir))
+        && path.ends_with("logs/HEAD")
+    {
         return Some(ChangeEvent::ReflogChanged);
     }
 
@@ -282,7 +291,8 @@ mod tests {
     struct Temp(PathBuf);
     impl Temp {
         fn new(name: &str) -> Self {
-            let p = std::env::temp_dir().join(format!("mascot-watch-{name}-{}", std::process::id()));
+            let p =
+                std::env::temp_dir().join(format!("mascot-watch-{name}-{}", std::process::id()));
             let _ = std::fs::remove_dir_all(&p);
             std::fs::create_dir_all(&p).unwrap();
             Temp(p)
@@ -389,7 +399,11 @@ mod tests {
         s.git_dirs.insert(t.path().join(".git"));
         let reflog = t.path().join(".git/logs/HEAD");
         assert!(matches!(
-            classify(&s, &EventKind::Modify(notify::event::ModifyKind::Any), &reflog),
+            classify(
+                &s,
+                &EventKind::Modify(notify::event::ModifyKind::Any),
+                &reflog
+            ),
             Some(ChangeEvent::ReflogChanged)
         ));
     }

@@ -164,10 +164,7 @@ fn resolve_with(
     let mut stale = Bool::NO;
     let url = unsafe {
         NSURL::URLByResolvingBookmarkData_options_relativeToURL_bookmarkDataIsStale_error(
-            &data,
-            options,
-            None,
-            &mut stale,
+            &data, options, None, &mut stale,
         )
     }
     .ok()?;
@@ -249,8 +246,11 @@ mod tests {
 
         // Empty options, NOT WithSecurityScope: see the comment on `create_with`. This is the
         // most the FFI can be driven to outside an entitled app bundle.
-        let bookmark = create_with(&dir, objc2_foundation::NSURLBookmarkCreationOptions::empty())
-            .expect("plain bookmark creation failed, so the FFI plumbing itself is wrong");
+        let bookmark = create_with(
+            &dir,
+            objc2_foundation::NSURLBookmarkCreationOptions::empty(),
+        )
+        .expect("plain bookmark creation failed, so the FFI plumbing itself is wrong");
         assert!(!bookmark.is_empty());
         assert!(base64_decode(&bookmark).is_some(), "not storable as text");
 

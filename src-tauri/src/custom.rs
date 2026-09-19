@@ -72,7 +72,10 @@ mod tests {
             assert_eq!(relative_art_path(bad), None, "{bad} should be rejected");
         }
         for good in ["rooms/awake", "rooms/comeback", "pet/run", "pet/asleep"] {
-            assert!(relative_art_path(good).is_some(), "{good} should be accepted");
+            assert!(
+                relative_art_path(good).is_some(),
+                "{good} should be accepted"
+            );
         }
     }
 

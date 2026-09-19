@@ -134,7 +134,10 @@ mod tests {
         let c = Clock::scaled(3600.0);
         std::thread::sleep(Duration::from_millis(50));
         // Half a second of real time is at least half an hour of simulated time.
-        assert!(c.now() - c.origin_unix >= 60, "scaled clock did not advance");
+        assert!(
+            c.now() - c.origin_unix >= 60,
+            "scaled clock did not advance"
+        );
     }
 
     /// The regression test for the bug above. A commit landing *now* must read as landing

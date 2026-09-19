@@ -15,9 +15,9 @@
 //! The dead ends are kept in `spikes/always-on-top/RESULTS.md` so that a future macOS release
 //! breaking this is re-diagnosed in minutes rather than re-explored from scratch.
 //!
-//! The recipe itself lives in `appkit::show_over_fullscreen`, because the popover turned out to
-//! need it too: it shipped as a plain `NSWindow`, so the pet was visible over a fullscreen app
-//! and clicking it opened a popover nobody could see.
+//! The recipe itself lives in `appkit::Panel`, because the popover turned out to need it too: it
+//! shipped as a plain `NSWindow`, so the pet was visible over a fullscreen app and clicking it
+//! opened a popover nobody could see.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -26,6 +26,7 @@ use std::time::Duration;
 use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition};
 
 use crate::app::{AppState, PET};
+use crate::appkit::Panel;
 use crate::store::PetAnchor;
 
 /// The pet's size in **logical** pixels, which is the same unit `pet.html` draws in.
@@ -50,7 +51,7 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     // public under tauri's `unstable` feature.
     //
     // Per spec 4.1, `WindowBuilder::transparent()` is gated on `macos-private-api`, so the
-    // window is opaque until `appkit::make_transparent` runs below.
+    // window is opaque until the panel below adopts it.
     let win = tauri::window::WindowBuilder::new(app, PET)
         .inner_size(SIZE, SIZE)
         .resizable(false)
@@ -67,17 +68,17 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     place(&win, app)?;
 
     #[cfg(target_os = "macos")]
-    {
-        // `false`: clicking the character must never take the keyboard from whatever the user
+    let panel = {
+        // Non-key: clicking the character must never take the keyboard from whatever the user
         // is doing. The popover asks for the opposite, because Escape dismisses it.
-        if !crate::appkit::show_over_fullscreen(win.ns_window()?, false) {
+        let Some(panel) = Panel::adopt_non_key(win.ns_window()?, None) else {
+            // An unconfigured pet is an opaque square that cannot float, and it would start
+            // without the sprite view or the screen-change handler below it.
+            return Err(crate::app::setup_failed("the pet has no hidden NSWindow"));
+        };
+        if !panel.is_configured() {
             eprintln!("NSPanel class not found; the pet will not show over fullscreen apps");
         }
-
-        // Redundant while `macos-private-api` is on, because tao does it. Load-bearing the day
-        // it is off, and silent if it is missing then: with the feature gone, tao's only
-        // complaint is an eprintln gated on debug_assertions.
-        crate::appkit::make_transparent(win.ns_window()?);
 
         // Task 3 only: the sprite view goes on top of the webview so the renderer can be judged
         // before the window type changes underneath it. Task 5 removes the webview.
@@ -88,9 +89,15 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
             None => eprintln!("the sprite view could not be installed"),
         }
 
-    }
+        panel
+    };
+    // Off macOS the handle shows the window and does nothing else.
+    #[cfg(not(target_os = "macos"))]
+    let Some(panel) = Panel::adopt_non_key(std::ptr::null_mut(), None) else {
+        return Err(crate::app::setup_failed("the pet has no window to adopt"));
+    };
 
-    win.show()?;
+    panel.show(&win)?;
 
     #[cfg(target_os = "macos")]
     {
@@ -257,10 +264,7 @@ fn resolve(anchor: Option<PetAnchor>, corners: &[(i32, i32); 4]) -> ((i32, i32),
 fn place(win: &tauri::window::Window, app: &AppHandle) -> tauri::Result<()> {
     // Its own position as the fallback hint: once a display is unplugged the window overlaps
     // none, `current_monitor` is nil, and without this `usable_bounds` gives up on the pet.
-    let at = win
-        .outer_position()
-        .ok()
-        .map(|p| (p.x as f64, p.y as f64));
+    let at = win.outer_position().ok().map(|p| (p.x as f64, p.y as f64));
     let Some(b) = usable_bounds(win, at) else {
         return Ok(());
     };

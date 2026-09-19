@@ -168,7 +168,10 @@ impl Momentum {
     /// Only the watch set is resolved. The stored path is the one the user picked and the one
     /// the bookmark was made from, and reading a reflog through a symlink works fine.
     pub fn watch_paths(&self) -> (HashMap<String, PathBuf>, HashMap<String, PathBuf>) {
-        (without_symlinks(&self.git_dirs), without_symlinks(&self.work_trees))
+        (
+            without_symlinks(&self.git_dirs),
+            without_symlinks(&self.work_trees),
+        )
     }
 
     /// The single number the whole product runs on: the most recent real activity across every
@@ -185,7 +188,11 @@ impl Momentum {
                 let commit = p.last_commit_at.unwrap_or(0);
                 let active = p.last_active_at.unwrap_or(0);
                 let best = commit.max(active);
-                if best > 0 { Some(best) } else { None }
+                if best > 0 {
+                    Some(best)
+                } else {
+                    None
+                }
             })
             .max();
         best
@@ -342,7 +349,8 @@ impl Momentum {
         let reading = read_commit_time(&git_dir, path).map(|ts| self.clock.to_simulated(ts));
         apply_reading(&mut project, reading);
         self.git_dirs.insert(project.id.clone(), git_dir);
-        self.work_trees.insert(project.id.clone(), path.to_path_buf());
+        self.work_trees
+            .insert(project.id.clone(), path.to_path_buf());
         self.state.projects.push(project);
         Ok(true)
     }
@@ -487,7 +495,10 @@ mod tests {
         let (git_dirs, work_trees) = m.watch_paths();
         assert_eq!(work_trees["a"], real.canonicalize().unwrap());
         assert_eq!(git_dirs["a"], real.canonicalize().unwrap().join(".git"));
-        assert_ne!(work_trees["a"], link, "the symlink went to the watcher, which no event names");
+        assert_ne!(
+            work_trees["a"], link,
+            "the symlink went to the watcher, which no event names"
+        );
 
         let _ = std::fs::remove_file(&link);
         let _ = std::fs::remove_dir_all(&real);
@@ -496,10 +507,16 @@ mod tests {
     #[test]
     fn an_older_reading_never_wins() {
         let mut p = project(Some(T));
-        assert!(!apply_reading(&mut p, Some(T - 86400)), "an older reading moved it");
+        assert!(
+            !apply_reading(&mut p, Some(T - 86400)),
+            "an older reading moved it"
+        );
         assert_eq!(p.last_commit_at, Some(T));
 
-        assert!(!apply_reading(&mut p, Some(T)), "an identical reading counted as a change");
+        assert!(
+            !apply_reading(&mut p, Some(T)),
+            "an identical reading counted as a change"
+        );
         assert!(apply_reading(&mut p, Some(T + 60)));
         assert_eq!(p.last_commit_at, Some(T + 60));
     }
@@ -516,9 +533,18 @@ mod tests {
     fn the_newest_commit_anywhere_is_what_counts() {
         let m = with(
             vec![
-                Project { id: "a".into(), ..project(Some(T - 100 * 3600)) },
-                Project { id: "b".into(), ..project(None) },
-                Project { id: "c".into(), ..project(Some(T - 3600)) },
+                Project {
+                    id: "a".into(),
+                    ..project(Some(T - 100 * 3600))
+                },
+                Project {
+                    id: "b".into(),
+                    ..project(None)
+                },
+                Project {
+                    id: "c".into(),
+                    ..project(Some(T - 3600))
+                },
             ],
             None,
         );
@@ -598,9 +624,15 @@ mod tests {
         // It holds, rather than flashing for one tick.
         assert_eq!(m.evaluate(T + 60, T + 60), Mood::Comeback);
         // And it settles at the cap, silently.
-        assert_eq!(m.evaluate(T + COMEBACK_CAP, T + COMEBACK_CAP), Mood::Rest(Rest::Awake));
+        assert_eq!(
+            m.evaluate(T + COMEBACK_CAP, T + COMEBACK_CAP),
+            Mood::Rest(Rest::Awake)
+        );
         // Once settled, it does not fire again on the next tick.
-        assert_eq!(m.evaluate(T + COMEBACK_CAP + 60, T + COMEBACK_CAP + 60), Mood::Rest(Rest::Awake));
+        assert_eq!(
+            m.evaluate(T + COMEBACK_CAP + 60, T + COMEBACK_CAP + 60),
+            Mood::Rest(Rest::Awake)
+        );
     }
 
     /// The regression test for the second thing the accelerated clock got wrong.
@@ -707,8 +739,14 @@ mod tests {
         // the more common one in practice (section 8.2).
         let mut m = with(vec![project(Some(T))], None);
         assert_eq!(m.evaluate(T + 3600, T + 3600), Mood::Rest(Rest::Awake));
-        assert_eq!(m.evaluate(T + 25 * 3600, T + 25 * 3600), Mood::Rest(Rest::Dozing));
-        assert_eq!(m.evaluate(T + 80 * 3600, T + 80 * 3600), Mood::Rest(Rest::Asleep));
+        assert_eq!(
+            m.evaluate(T + 25 * 3600, T + 25 * 3600),
+            Mood::Rest(Rest::Dozing)
+        );
+        assert_eq!(
+            m.evaluate(T + 80 * 3600, T + 80 * 3600),
+            Mood::Rest(Rest::Asleep)
+        );
     }
 
     #[test]

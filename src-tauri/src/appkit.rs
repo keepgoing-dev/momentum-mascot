@@ -10,14 +10,19 @@
 //! API and only a webview cannot" is true of AppKit and false of Tauri, and the way out is to make
 //! the AppKit calls here.
 //!
-//! `show_over_fullscreen` is a different kind of thing from the rest: that one changes what the
-//! window *is*, and it is the fix the fullscreen behaviour was won with. It lives here, rather
-//! than in the window module it was written for, because **both** windows need it and a recipe
-//! this history-sensitive should not exist twice. `pet.rs`'s module doc is still where the spike
-//! that found it is written down.
+//! The reclass is a different kind of thing from the rest: that one changes what the window *is*,
+//! and it is the fix the fullscreen behaviour was won with. It lives here, rather than in the
+//! window module it was written for, because **both** windows need it and a recipe this
+//! history-sensitive should not exist twice. `pet.rs`'s module doc is still where the spike that
+//! found it is written down.
 //!
-//! Non-macOS builds get no-ops rather than a `cfg` at every call site, which is the same shape
-//! `store::default_path` already uses for Windows.
+//! It is reachable only through `Panel`, whose constructor refuses a window that is *currently*
+//! on screen. That is narrower than the spike's rule: a window shown and then hidden reports
+//! `isVisible` false and would be adopted again. Nothing adopts after a show today, and the
+//! tests at the foot of this file are what hold the call sites to that.
+//!
+//! Non-macOS builds get a handle with the same signature, so `appkit` exports no per-call stub.
+//! The call sites still carry a `cfg`, because `ns_window()` is macOS-only.
 
 /// `NSStatusWindowLevel`.
 #[cfg(target_os = "macos")]
@@ -26,6 +31,96 @@ const FULLSCREEN_LEVEL: isize = 25;
 /// `canJoinAllSpaces | stationary | fullScreenAuxiliary`.
 #[cfg(target_os = "macos")]
 const FULLSCREEN_BEHAVIOR: usize = 273;
+
+/// `NSWindowStyleMaskNonactivatingPanel`, the property a plain `NSWindow` lacks: a panel with it
+/// is shown without activating its app, so clicking it neither switches Space nor steals focus.
+#[cfg(target_os = "macos")]
+const NONACTIVATING_PANEL: usize = 1 << 7;
+
+/// The right to show a window that was reclassed and configured while it was still hidden.
+///
+/// The handle owns that right, not the window: both surfaces need the window itself afterwards,
+/// the pet to install the sprite view into and the popover to hide and re-show for the process.
+///
+/// `adopt_key` and `adopt_non_key` are the only things that make one.
+pub struct Panel {
+    configured: bool,
+}
+
+impl Panel {
+    /// Whether the recipe reached the window. A `false` is an ordinary `NSWindow` that will be
+    /// invisible over fullscreen apps, and the caller says so rather than pretending otherwise.
+    pub fn is_configured(&self) -> bool {
+        self.configured
+    }
+
+    /// Show a window through the handle. The handle carries no window, so this is the intended
+    /// route to the screen rather than the only one; the tests below hold the call sites to it.
+    pub fn show<R: tauri::Runtime>(&self, win: &tauri::Window<R>) -> tauri::Result<()> {
+        win.show()
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl Panel {
+    /// Adopt a window the popover may take the keyboard through, because Escape dismisses it.
+    pub fn adopt_key(ns: *mut std::ffi::c_void, radius: Option<f64>) -> Option<Self> {
+        Self::adopt(ns, true, radius)
+    }
+
+    /// Adopt a window that must never take the keyboard from whatever the user is doing.
+    pub fn adopt_non_key(ns: *mut std::ffi::c_void, radius: Option<f64>) -> Option<Self> {
+        Self::adopt(ns, false, radius)
+    }
+
+    /// `None` means there is no window to adopt, or it is on screen now: reconfiguring a live
+    /// window is what the spike measured as history-dependent, so it is refused rather than done.
+    fn adopt(ns: *mut std::ffi::c_void, keyboard: bool, radius: Option<f64>) -> Option<Self> {
+        use objc2::runtime::{AnyObject, Bool};
+
+        let ns = ns as *mut AnyObject;
+        if ns.is_null() {
+            return None;
+        }
+        let visible: Bool = unsafe { objc2::msg_send![ns, isVisible] };
+        if visible.as_bool() {
+            return None;
+        }
+        let configured = reclass(ns, keyboard);
+        make_transparent(ns);
+        if let Some(radius) = radius {
+            round_corners(ns, radius);
+        }
+        Some(Self { configured })
+    }
+}
+
+/// Off macOS there is no window to be missing or already up, so the answer is always `Some`.
+#[cfg(not(target_os = "macos"))]
+impl Panel {
+    pub fn adopt_key(ns: *mut std::ffi::c_void, radius: Option<f64>) -> Option<Self> {
+        let _ = (ns, radius);
+        Some(Self { configured: false })
+    }
+
+    pub fn adopt_non_key(ns: *mut std::ffi::c_void, radius: Option<f64>) -> Option<Self> {
+        let _ = (ns, radius);
+        Some(Self { configured: false })
+    }
+}
+
+#[cfg(target_os = "macos")]
+/// The style mask the reclass writes back: borderless (0) and whatever else the window had are
+/// preserved, and the non-activating bit is added.
+fn panel_style_mask(current: usize) -> usize {
+    current | NONACTIVATING_PANEL
+}
+
+#[cfg(target_os = "macos")]
+/// `becomesKeyOnlyIfNeeded` is the inverse of the surface's answer to "may I take the keyboard".
+fn becomes_key_only_if_needed(keyboard: bool) -> bool {
+    !keyboard
+}
 
 /// An `NSPanel` that can still take the keyboard.
 ///
@@ -51,7 +146,10 @@ fn key_capable_panel() -> Option<&'static objc2::runtime::AnyClass> {
     *CLASS.get_or_init(|| {
         let mut builder = ClassBuilder::new(c"MomentumKeyPanel", AnyClass::get(c"NSPanel")?)?;
         unsafe {
-            builder.add_method(objc2::sel!(canBecomeKeyWindow), yes as extern "C" fn(_, _) -> _);
+            builder.add_method(
+                objc2::sel!(canBecomeKeyWindow),
+                yes as extern "C" fn(_, _) -> _,
+            );
         }
         Some(builder.register())
     })
@@ -65,10 +163,11 @@ fn key_capable_panel() -> Option<&'static objc2::runtime::AnyClass> {
 /// twenty verified lines against a dependency with its own Tauri-version coupling and its own
 /// plugin surface, in a project whose stated failure mode is sprawl.
 ///
-/// **Call once, before the window is first shown.** The spike found that reconfiguring a live
-/// window gives history-dependent results: the identical level and behaviour was invisible over
-/// fullscreen in one run and visible in another, decided by what had been applied minutes
-/// earlier. That is also why the recipe is not minimised further.
+/// **Applied once, to a window that has not been shown.** The spike found that reconfiguring a
+/// live window gives history-dependent results: the identical level and behaviour was invisible
+/// over fullscreen in one run and visible in another, decided by what had been applied minutes
+/// earlier. That is also why the recipe is not minimised further, and why nothing outside `adopt`
+/// can reach it.
 ///
 /// `keyboard` is the one thing the two windows disagree on. The pet must never take the keyboard
 /// from whatever the user is doing, and a stock `NSPanel` will not. The popover must, because
@@ -78,13 +177,9 @@ fn key_capable_panel() -> Option<&'static objc2::runtime::AnyClass> {
 /// `NSWindow` and will be invisible over fullscreen apps; the caller says so rather than
 /// pretending otherwise.
 #[cfg(target_os = "macos")]
-pub fn show_over_fullscreen(ns: *mut std::ffi::c_void, keyboard: bool) -> bool {
-    use objc2::runtime::{AnyClass, AnyObject, Bool};
+fn reclass(ns: *mut objc2::runtime::AnyObject, keyboard: bool) -> bool {
+    use objc2::runtime::{AnyClass, Bool};
 
-    let ns = ns as *mut AnyObject;
-    if ns.is_null() {
-        return false;
-    }
     let Some(cls) = (if keyboard {
         key_capable_panel()
     } else {
@@ -94,13 +189,11 @@ pub fn show_over_fullscreen(ns: *mut std::ffi::c_void, keyboard: bool) -> bool {
     };
     unsafe {
         objc2::ffi::object_setClass(ns.cast(), (cls as *const AnyClass).cast());
-        // Preserve borderless (0) and add nonactivatingPanel (1 << 7), which is the property a
-        // plain NSWindow lacks: a panel with it can be shown without activating its application,
-        // so clicking it over a fullscreen app neither switches Space nor steals focus.
         let mask: usize = objc2::msg_send![ns, styleMask];
-        let _: () = objc2::msg_send![ns, setStyleMask: mask | (1usize << 7)];
+        let _: () = objc2::msg_send![ns, setStyleMask: panel_style_mask(mask)];
         let _: () = objc2::msg_send![ns, setFloatingPanel: Bool::YES];
-        let _: () = objc2::msg_send![ns, setBecomesKeyOnlyIfNeeded: Bool::new(!keyboard)];
+        let key_only: Bool = Bool::new(becomes_key_only_if_needed(keyboard));
+        let _: () = objc2::msg_send![ns, setBecomesKeyOnlyIfNeeded: key_only];
 
         let _: () = objc2::msg_send![ns, setCollectionBehavior: FULLSCREEN_BEHAVIOR];
         let _: () = objc2::msg_send![ns, setLevel: FULLSCREEN_LEVEL];
@@ -111,33 +204,22 @@ pub fn show_over_fullscreen(ns: *mut std::ffi::c_void, keyboard: bool) -> bool {
     true
 }
 
-#[cfg(not(target_os = "macos"))]
-pub fn show_over_fullscreen(_ns: *mut std::ffi::c_void, _keyboard: bool) -> bool {
-    false
-}
-
 /// `setOpaque: NO` plus a clear `backgroundColor`, which is exactly what
 /// `tao/window.rs:544-561` does behind the private feature.
 ///
-/// Takes tauri's own `ns_window()` return type, so there is no cast at the call site. Verified by
-/// reading the properties back afterwards: `isOpaque=false backgroundColorAlpha=0`.
+/// Redundant while `macos-private-api` is on, because tao does it. Load-bearing the day it is
+/// off, and silent if it is missing then. Verified by reading the properties back afterwards:
+/// `isOpaque=false backgroundColorAlpha=0`.
 #[cfg(target_os = "macos")]
-pub fn make_transparent(ns: *mut std::ffi::c_void) {
-    use objc2::runtime::{AnyObject, Bool};
+fn make_transparent(ns: *mut objc2::runtime::AnyObject) {
+    use objc2::runtime::Bool;
 
-    let ns = ns as *mut AnyObject;
-    if ns.is_null() {
-        return;
-    }
     unsafe {
         let _: () = objc2::msg_send![ns, setOpaque: Bool::NO];
         let clear = objc2_app_kit::NSColor::clearColor();
         let _: () = objc2::msg_send![ns, setBackgroundColor: &*clear];
     }
 }
-
-#[cfg(not(target_os = "macos"))]
-pub fn make_transparent(_ns: *mut std::ffi::c_void) {}
 
 /// Round the window's content view, so the popover reads as a panel against the desktop rather
 /// than a rectangle with a drawn-on radius. `layer.cornerRadius` plus `masksToBounds`, both
@@ -149,13 +231,9 @@ pub fn make_transparent(_ns: *mut std::ffi::c_void) {}
 /// `invalidateShadow` call is needed. The documented fallback, rounding the webview's own layer
 /// through `with_webview`, is not required.
 #[cfg(target_os = "macos")]
-pub fn round_corners(ns: *mut std::ffi::c_void, radius: f64) {
+fn round_corners(ns: *mut objc2::runtime::AnyObject, radius: f64) {
     use objc2::runtime::{AnyObject, Bool};
 
-    let ns = ns as *mut AnyObject;
-    if ns.is_null() {
-        return;
-    }
     unsafe {
         let view: *mut AnyObject = objc2::msg_send![ns, contentView];
         if view.is_null() {
@@ -170,9 +248,6 @@ pub fn round_corners(ns: *mut std::ffi::c_void, radius: f64) {
         let _: () = objc2::msg_send![layer, setMasksToBounds: Bool::YES];
     }
 }
-
-#[cfg(not(target_os = "macos"))]
-pub fn round_corners(_ns: *mut std::ffi::c_void, _radius: f64) {}
 
 /// Open a URL in the user's browser. `NSWorkspace`, not a shellout: `/usr/bin/open` would be an
 /// `exec` of a program outside the bundle, which Apple's sandbox documentation puts out of reach
@@ -218,3 +293,151 @@ pub fn observe_screen_changes<F: Fn() + 'static>(f: F) {
 
 #[cfg(not(target_os = "macos"))]
 pub fn observe_screen_changes<F: Fn() + 'static>(_f: F) {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The deliverable is that a reclass can no longer reach a window through a free function,
+    /// so it needs a check that fails when the hole reopens.
+    #[test]
+    fn the_constructor_is_the_only_thing_taking_a_window_pointer() {
+        // Spelled in pieces so the needles cannot match this test's own text.
+        let pointers = [
+            format!("*mut {}c_void", ""),
+            format!("*mut {}c_void", "std::ffi::"),
+            format!("*mut {}c_void", "core::ffi::"),
+            format!("*mut {}AnyObject", ""),
+            format!("*mut {}AnyObject", "objc2::runtime::"),
+        ];
+        let source = include_str!("appkit.rs");
+        let taking: Vec<&str> = source
+            .lines()
+            .map(str::trim)
+            .filter(|line| pointers.iter().any(|p| line.contains(p)))
+            .collect();
+
+        assert!(!taking.is_empty(), "nothing takes a window now");
+        for line in taking {
+            let exported = line.contains(&format!("{}fn ", "pub "));
+            let constructor = line.contains("fn adopt_key") || line.contains("fn adopt_non_key");
+            assert!(
+                !exported || constructor,
+                "appkit.rs exposes `{line}`, so a live window can be reclassed again"
+            );
+        }
+    }
+
+    /// A tripwire, not a proof: `tauri::Window::show` is public, so `win.show( )` still slips by.
+    #[test]
+    fn no_surface_shows_its_window_without_going_through_the_handle() {
+        // Assembled at runtime, and `panel.show(&win)` reads `.show(` rather than this.
+        let bare = format!(".{}()", "show");
+        let surfaces = [
+            ("pet.rs", include_str!("pet.rs")),
+            ("app.rs", include_str!("app.rs")),
+            ("commands.rs", include_str!("commands.rs")),
+            ("main.rs", include_str!("main.rs")),
+            ("tray.rs", include_str!("tray.rs")),
+        ];
+
+        for (name, source) in surfaces {
+            // Comments are stripped first: this file's own prose quotes the call it forbids.
+            let code = source
+                .lines()
+                .filter(|l| !l.trim_start().starts_with("//"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            assert!(
+                !code.contains(&bare),
+                "{name} shows a window itself, so the handle is optional rather than the way"
+            );
+        }
+    }
+
+    /// A tripwire like the one above: it can say where a window is adopted and which keyboard
+    /// answer that site asked for, never whether the window was live.
+    #[test]
+    fn each_surface_adopts_its_own_window_only_in_the_setup_that_built_it() {
+        // Assembled at runtime, as above.
+        let call = format!("Panel::{}", "adopt");
+        let key = format!("{}_key", call);
+        let non_key = format!("{}_non_key", call);
+        let surfaces = [
+            ("pet.rs", include_str!("pet.rs"), "fn setup(", &non_key),
+            ("app.rs", include_str!("app.rs"), "fn setup_popover(", &key),
+        ];
+
+        for (name, source, setup, constructor) in surfaces {
+            let mut enclosing = "";
+            let mut calls = 0;
+            for line in source.lines() {
+                let head = line.trim_start();
+                if head.starts_with("fn ") || head.contains(&format!("{} ", " fn")) {
+                    enclosing = head;
+                } else if line == "}" {
+                    enclosing = "";
+                }
+                if !line.contains(&call) {
+                    continue;
+                }
+                calls += 1;
+                assert!(enclosing.contains(setup), "{name} adopts in `{enclosing}`");
+                assert!(line.contains(constructor), "{name} wants {constructor}");
+            }
+            assert!(calls > 0, "{name} adopts no window at all");
+        }
+    }
+
+    /// The two constructors differ in one argument, and transposing it is invisible to every
+    /// test that does not own a real window: the helper tests below call the helper directly.
+    #[test]
+    fn each_constructor_asks_for_the_keyboard_answer_its_name_promises() {
+        // Assembled at runtime, as the tripwires above are.
+        let source = include_str!("appkit.rs");
+        let body_of = |name: &str| -> String {
+            let head = format!("{} {}(", "fn", name);
+            source
+                .lines()
+                .skip_while(|l| !l.contains(&head))
+                .skip(1)
+                .take_while(|l| !l.trim_start().starts_with('}'))
+                .collect::<Vec<_>>()
+                .join(" ")
+        };
+
+        let key = body_of("adopt_key");
+        let non_key = body_of("adopt_non_key");
+        assert!(
+            key.contains("true") && !key.contains("false"),
+            "`adopt_key` does not ask for the keyboard, so Escape will not dismiss the popover: `{key}`"
+        );
+        assert!(
+            non_key.contains("false") && !non_key.contains("true"),
+            "`adopt_non_key` takes the keyboard from whatever the user is typing in: `{non_key}`"
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn a_null_window_yields_no_handle_because_there_is_nothing_to_show() {
+        let panel = Panel::adopt_non_key(std::ptr::null_mut(), None);
+        assert!(panel.is_none(), "nothing was sent to nil");
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn a_panel_becomes_key_only_if_needed_exactly_when_it_may_not_take_the_keyboard() {
+        // The pet may not take the keyboard; the popover must, because Escape dismisses it.
+        assert!(becomes_key_only_if_needed(false));
+        assert!(!becomes_key_only_if_needed(true));
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn the_style_mask_keeps_what_the_window_already_had() {
+        assert_eq!(panel_style_mask(0), NONACTIVATING_PANEL, "borderless is 0");
+        assert_eq!(panel_style_mask(1 << 3), (1 << 3) | NONACTIVATING_PANEL);
+        assert_eq!(panel_style_mask(NONACTIVATING_PANEL), NONACTIVATING_PANEL);
+    }
+}

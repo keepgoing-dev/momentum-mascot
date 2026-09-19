@@ -386,8 +386,14 @@ mod tests {
 
     #[test]
     fn an_unknown_character_id_still_falls_back() {
-        assert_eq!(from_json(r#"{"version":"3.2","character_id":"custom"}"#).character_id, "07");
-        assert_eq!(from_json(r#"{"version":"3.2","character_id":"nonsense"}"#).character_id, "07");
+        assert_eq!(
+            from_json(r#"{"version":"3.2","character_id":"custom"}"#).character_id,
+            "07"
+        );
+        assert_eq!(
+            from_json(r#"{"version":"3.2","character_id":"nonsense"}"#).character_id,
+            "07"
+        );
     }
 
     #[test]
@@ -499,7 +505,10 @@ mod tests {
     fn a_missing_name_is_derived_from_the_path() {
         let s = from_json(r#"{"tracked_projects": [{"path": "/a/b/my-side-project"}]}"#);
         assert_eq!(s.projects[0].name, "my-side-project");
-        assert!(!s.projects[0].id.is_empty(), "a missing id must be generated");
+        assert!(
+            !s.projects[0].id.is_empty(),
+            "a missing id must be generated"
+        );
     }
 
     #[test]
@@ -528,7 +537,10 @@ mod tests {
             Some(PetAnchor::Corner(1))
         );
         assert_eq!(from_json(r#"{"pet_corner": 4}"#).pet_anchor, None);
-        assert_eq!(from_json(r#"{"pet_corner": "bottom right"}"#).pet_anchor, None);
+        assert_eq!(
+            from_json(r#"{"pet_corner": "bottom right"}"#).pet_anchor,
+            None
+        );
     }
 
     #[test]
@@ -663,9 +675,8 @@ mod tests {
         // The reader is tolerant of missing optional fields by contract, so a 3.0 file loads
         // with no bookmark and degrades to today's behaviour: it works this launch and reports
         // unavailable on the next one under sandbox.
-        let s = from_json(
-            r#"{"version": "3.0", "tracked_projects": [{"path": "/a/b", "name": "b"}]}"#,
-        );
+        let s =
+            from_json(r#"{"version": "3.0", "tracked_projects": [{"path": "/a/b", "name": "b"}]}"#);
         assert_eq!(s.projects.len(), 1);
         assert_eq!(s.projects[0].bookmark, None);
     }

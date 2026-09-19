@@ -246,7 +246,10 @@ mod tests {
         std::fs::create_dir_all(&wt).unwrap();
         std::fs::write(wt.join(".git"), format!("gitdir: {}\n", real.display())).unwrap();
 
-        assert!(real.is_dir(), "the folder stats fine, which is the whole problem");
+        assert!(
+            real.is_dir(),
+            "the folder stats fine, which is the whole problem"
+        );
         assert!(head.is_file(), "and so does the file inside it");
         assert_eq!(resolve(&wt), Err(RepoError::GitDirOutside));
     }
