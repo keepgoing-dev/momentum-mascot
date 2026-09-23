@@ -17,9 +17,9 @@ wrap it again on top.
 
 | Field | Value |
 |---|---|
-| Name | Momentum Mascot |
-| Subtitle | A pixel pet for side projects |
-| Version | 0.4.0 |
+| Name | Momentum Mascot: Desktop Pet |
+| Subtitle | Pixel buddy for your git repos |
+| Version | 0.4.1 |
 | Price | Free |
 | Primary category | Developer Tools |
 | Secondary category | none |
@@ -32,7 +32,7 @@ wrap it again on top.
 | Marketing URL | https://keepgoing.dev/momentum-mascot |
 | Privacy Policy URL | https://keepgoing.dev/privacy |
 
-Name is 15 characters and subtitle 29, against Apple's limit of 30 for each.
+Name is 28 characters and subtitle 30, against Apple's limit of 30 for each. No keyword repeats a word from either, because Apple already indexes both.
 
 **Marketing URL moved to `/momentum-mascot` and Support URL did not.** Shipped binaries open
 `keepgoing.dev/#support` from the tray and that string cannot be changed after the fact, so the
@@ -175,10 +175,10 @@ read the warning on.
 
 ## Keywords
 
-72 characters against a limit of 100.
+98 characters against a limit of 100. No other company's trademark goes in here: guideline 2.3.7 rejects it.
 
 ```
-git,commit,pixel,pet,mascot,desktop,menubar,side project,momentum,reflog
+commit,developer,programmer,coding,menubar,companion,retro,cute,virtual,character,avatar,8bit,room
 ```
 
 ## Description

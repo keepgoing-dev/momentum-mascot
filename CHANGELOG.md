@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1 (2026-09-23)
+
+- Changed: the App Store listing's name, subtitle and keywords, so the app can be found by searching for a desktop pet. Nothing you can see in the app changes.
+- Changed: the sprite view was restructured internally, with no change in behaviour.
+
 ## 0.4.0 (2026-09-05)
 
 - Added: build your own mascot. The character picker has a fourth slot, marked `+`, which opens a builder inside the popover: a skin tone, eyes, a hairstyle and its colour, an outfit and its colour, and one accessory. That is 9 skin tones, 7 pairs of eyes, 14 hairstyles in 7 colours, 13 outfits in 4 colours and 42 accessories, with a Shuffle button for when nothing in particular comes to mind. The room itself is the preview, so you are looking at the mascot in the place they are going to live rather than at a form.
