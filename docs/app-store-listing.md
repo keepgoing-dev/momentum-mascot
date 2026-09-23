@@ -71,12 +71,12 @@ changes, change both.
 For the side projects you keep coming back to. A pixel character who waits instead of nagging: no streaks, no scores, and never a word about how long it has been.
 ```
 
-**It does not carry across to a new version, so every draft starts empty.** Measured on 31 August
-2026: the live 0.3.1 localization held all 162 characters and the 0.3.2 draft held zero. App
-Store Connect copies the description and the keywords into a new version and does not copy this,
-so shipping a version as it stands deletes the line from the listing rather than changing it.
-Nothing warns about that at submission, because an empty promotional text is a legal listing.
-Re-enter it on every version, 0.4.0 included, and read it back rather than trusting the panel.
+**Whether it carries across to a new version is not reliable, so check every draft.** On 31
+August 2026 the live 0.3.1 localization held all 162 characters and the 0.3.2 draft held zero. On
+23 September 2026 the opposite happened: the 0.4.1 draft arrived with the text already filled in.
+Nothing warns at submission when it is missing, because an empty promotional text is a legal
+listing. Read it back on every version and re-enter it if it is empty, rather than assuming either
+behaviour.
 
 **This is the only field in the listing that can change without a new build.** Apple's own
 description of it: it informs visitors of current features "without requiring an updated
@@ -1011,6 +1011,8 @@ reason is worth more than a clean pass.
 | 2026-09-05 | 0.4.0 | 6 | `UPLOAD SUCCEEDED with no errors, 1 warning` (90889 a fourth time). Delivery UUID `0aae5041-680c-475b-9b22-e32809c6d70d`, 8560259 bytes. Reached `VALID` about a minute after the upload, minimum macOS 10.15. |
 | 2026-09-05 | 0.4.0 | 6 | **Submitted for review** at `2026-09-05T16:39:36Z`, Submission ID `1e07ff96-a4a1-4b4b-9e7a-9e332e2b72d9`. Add for Review was pressed once, against six attempts on 0.3.1. Seven screenshots with the builder at slot 2, and the Notes field caught short before Submit: see below. |
 | 2026-09-05 | 0.4.0 | 6 | **Approved and released**, `2026-09-05T17:58:07Z`. One hour nineteen minutes from Submit, against sixteen hours for 0.3.2, on a version carrying a new feature and a new screenshot. Verified without credentials from `https://itunes.apple.com/lookup?id=6804925509&entity=macSoftware`: version 0.4.0, seven screenshots, release notes present, 6504511 bytes delivered against 8560259 uploaded. |
+| 2026-09-23 | 0.4.1 | 7 | `UPLOAD SUCCEEDED with no errors, 1 warning` (90889 a fifth time). Delivery UUID `1f76374b-d5b0-4982-8185-995a82aa24ff`, 8568386 bytes. A listing-only release: new name, subtitle and keywords, after organic impressions stalled once the launch visibility wore off. |
+| 2026-09-23 | 0.4.1 | 7 | **Submitted for review.** Promotional text carried over from 0.4.0 by itself this time. |
 
 **Submitting took six tries, none of them about the build.** After the build was attached,
 "Add for Review" refused five times over listing fields, all recorded above: contact information,
