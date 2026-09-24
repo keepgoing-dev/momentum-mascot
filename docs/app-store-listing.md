@@ -1015,6 +1015,7 @@ reason is worth more than a clean pass.
 | 2026-09-23 | 0.4.1 | 7 | **Submitted for review.** Promotional text carried over from 0.4.0 by itself this time. |
 | 2026-09-24 | 0.4.1 | 7 | **Removed from review** before a reviewer picked it up, Submission ID `15268515-5027-470c-82d4-e5d56daf6913`, to ship a new icon in the same version. |
 | 2026-09-24 | 0.4.1 | 8 | `UPLOAD SUCCEEDED with no errors, 1 warning` (90889 a sixth time). Delivery UUID `64d2bdd1-eb2a-4e2f-a0d0-059cea5d4951`, 8775556 bytes. Build 7 plus the desk icon. |
+| 2026-09-24 | 0.4.1 | 8 | **Resubmitted for review** with build 8 attached in place of build 7. |
 
 **Submitting took six tries, none of them about the build.** After the build was attached,
 "Add for Review" refused five times over listing fields, all recorded above: contact information,
