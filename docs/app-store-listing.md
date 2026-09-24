@@ -1013,6 +1013,8 @@ reason is worth more than a clean pass.
 | 2026-09-05 | 0.4.0 | 6 | **Approved and released**, `2026-09-05T17:58:07Z`. One hour nineteen minutes from Submit, against sixteen hours for 0.3.2, on a version carrying a new feature and a new screenshot. Verified without credentials from `https://itunes.apple.com/lookup?id=6804925509&entity=macSoftware`: version 0.4.0, seven screenshots, release notes present, 6504511 bytes delivered against 8560259 uploaded. |
 | 2026-09-23 | 0.4.1 | 7 | `UPLOAD SUCCEEDED with no errors, 1 warning` (90889 a fifth time). Delivery UUID `1f76374b-d5b0-4982-8185-995a82aa24ff`, 8568386 bytes. A listing-only release: new name, subtitle and keywords, after organic impressions stalled once the launch visibility wore off. |
 | 2026-09-23 | 0.4.1 | 7 | **Submitted for review.** Promotional text carried over from 0.4.0 by itself this time. |
+| 2026-09-24 | 0.4.1 | 7 | **Removed from review** before a reviewer picked it up, Submission ID `15268515-5027-470c-82d4-e5d56daf6913`, to ship a new icon in the same version. |
+| 2026-09-24 | 0.4.1 | 8 | `UPLOAD SUCCEEDED with no errors, 1 warning` (90889 a sixth time). Delivery UUID `64d2bdd1-eb2a-4e2f-a0d0-059cea5d4951`, 8775556 bytes. Build 7 plus the desk icon. |
 
 **Submitting took six tries, none of them about the build.** After the build was attached,
 "Add for Review" refused five times over listing fields, all recorded above: contact information,
