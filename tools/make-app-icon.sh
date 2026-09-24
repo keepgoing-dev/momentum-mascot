@@ -5,7 +5,7 @@
 # This is NOT the tray icon, and the two are different jobs for the same reasons a menu bar
 # template is a different register from pixel art (make-icons.sh). The tray mark is ink and no
 # ink at 16px, drawn by hand, committed, and never from the pack. The app icon is 1024px of full
-# colour, and at that size the honest answer to "what is this app" is the character themselves.
+# colour, and at that size the honest answer to "what is this app" is the character at their desk.
 #
 # So this one IS derived from the pack, which puts it under section 4.2: permitted to ship
 # compiled into a distributed binary, forbidden to redistribute as an asset. It therefore lands
@@ -19,6 +19,8 @@
 # Env:  MASCOT_PACK   root of moderninteriors-win  (default matches compose-rooms.sh)
 #       MASCOT_CHAR   premade character number     (default 07)
 #
+# Needs the awake front plate, so run it after compose-rooms.sh, as build-app-assets.sh does.
+#
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -29,11 +31,15 @@ OUT="$ROOT/src-tauri/icons/bundle"
 SHEET="$PACK/2_Characters/Character_Generator/0_Premade_Characters/16x16/Premade_Character_$CHAR.png"
 [ -f "$SHEET" ] || { echo "character sheet not found: $SHEET" >&2; exit 1; }
 
-# The front-facing idle pose, which is the same frame the awake pet uses. Row 0 is one pose per
-# facing rather than an animation, and x=48 is the front (compose-rooms.sh explains how that
-# was established). Cropped to its content so the 8 transparent rows above the head do not
-# silently become part of the layout here.
-IDLE_X=48
+FRONT="$ROOT/src/assets/plates/awake-front.png"
+[ -f "$FRONT" ] || { echo "awake plate not found, run compose-rooms.sh first: $FRONT" >&2; exit 1; }
+
+# The awake room's seated rest frame, desk and computer, placed as compose-rooms.sh places them
+# and cropped just under the desktop so the legs and floor shadow do not cost the character size.
+SEATED_X=48
+SEATED_Y=192
+CHAR_AT="+111+41"
+SCENE_CROP="28x34+110+49"
 CANVAS=1024
 
 # The macOS icon grid: the artwork sits inside a rounded square inset from the canvas rather
@@ -50,26 +56,32 @@ MAT="#191924"
 MOUNT="#3a3a50"
 EDGE=12
 
-# Whole-number scaling only, here as everywhere. 26x on a 16x24 sprite is 416x624, which leaves
-# an even margin inside the plate at the sides and a little more below than above: the character
-# reads as standing on something rather than floating in the middle.
-SCALE=26
-DROP=24
+# Whole-number scaling only, here as everywhere: 19x makes the scene 532x646 inside the plate.
+SCALE=19
+DROP=10
+GLOW="#4a6a9a"
 
 WORK=$(mktemp -d -t mascot-icon)
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$OUT"
 
-magick "$SHEET" -crop 16x32+$IDLE_X+0 +repage -trim +repage "$WORK/char.png"
-magick "$WORK/char.png" -filter point -resize "$((SCALE * 100))%" "$WORK/big.png"
+magick "$SHEET" -crop 16x32+$SEATED_X+$SEATED_Y +repage "$WORK/char.png"
+magick -size 160x112 xc:none "$WORK/char.png" -geometry "$CHAR_AT" -composite \
+  \( "$FRONT" -crop 160x112+0+0 +repage \) -composite \
+  -crop "$SCENE_CROP" +repage -filter point -resize "$((SCALE * 100))%" "$WORK/big.png"
 
 INSET=$(( (CANVAS - PLATE) / 2 ))
 FAR=$(( INSET + PLATE ))
 HALF_EDGE=$(( EDGE / 2 ))
 
-magick -size ${CANVAS}x${CANVAS} xc:none \
-  -fill "$MAT" -stroke "$MOUNT" -strokewidth $EDGE \
-  -draw "roundrectangle $((INSET + HALF_EDGE)),$((INSET + HALF_EDGE)) $((FAR - HALF_EDGE)),$((FAR - HALF_EDGE)) $RADIUS,$RADIUS" \
+BOX="roundrectangle $((INSET + HALF_EDGE)),$((INSET + HALF_EDGE)) $((FAR - HALF_EDGE)),$((FAR - HALF_EDGE)) $RADIUS,$RADIUS"
+
+# The monitor's glow is a soft light behind the scene, clipped to the plate before the mount
+# line is drawn over its edge.
+magick -size ${CANVAS}x${CANVAS} xc:"$MAT" \
+  \( -size 700x700 radial-gradient:"$GLOW"-"$MAT" \) -gravity center -geometry +0-20 -composite \
+  \( -size ${CANVAS}x${CANVAS} xc:black -fill white -draw "$BOX" \) -alpha off -compose CopyOpacity -composite \
+  -compose over -fill none -stroke "$MOUNT" -strokewidth $EDGE -draw "$BOX" \
   "$WORK/big.png" -gravity center -geometry "+0+$DROP" -composite \
   PNG32:"$WORK/icon-1024.png"
 

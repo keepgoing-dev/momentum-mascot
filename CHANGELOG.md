@@ -2,7 +2,8 @@
 
 ## 0.4.1 (2026-09-23)
 
-- Changed: the App Store listing's name, subtitle and keywords, so the app can be found by searching for a desktop pet. Nothing you can see in the app changes.
+- Changed: the App Store listing's name, subtitle and keywords, so the app can be found by searching for a desktop pet.
+- Changed: the app icon shows the mascot at their desk, lit by the computer screen, instead of standing on their own.
 - Changed: the sprite view was restructured internally, with no change in behaviour.
 
 ## 0.4.0 (2026-09-05)
